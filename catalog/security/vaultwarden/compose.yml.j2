@@ -1,0 +1,22 @@
+services:
+  vaultwarden:
+    image: vaultwarden/server:{{ vars.version | default('latest') }}
+    container_name: vaultwarden
+    restart: unless-stopped
+    environment:
+      - TZ={{ global.timezone }}
+      - DOMAIN=https://vaultwarden.{{ network.domain }}
+      - ADMIN_TOKEN=${VAULTWARDEN_ADMIN_TOKEN}
+      - SIGNUPS_ALLOWED=false
+    volumes:
+      - {{ global.data_dir }}/vaultwarden/data:/data
+    networks:
+      - proxy
+    labels:
+{% for k, v in traefik_labels(80).items() %}
+      - "{{ k }}={{ v }}"
+{% endfor %}
+
+networks:
+  proxy:
+    external: true

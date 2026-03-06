@@ -1,0 +1,19 @@
+# Stackr secrets — never commit
+.stackr.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.venv/
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+
+# Editor
+.DS_Store
+.idea/
+.vscode/

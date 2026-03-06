@@ -1,0 +1,20 @@
+services:
+  portainer:
+    image: portainer/portainer-ce:{{ vars.version | default('latest') }}
+    container_name: portainer
+    restart: unless-stopped
+    environment:
+      - TZ={{ global.timezone }}
+    volumes:
+      - {{ global.data_dir }}/portainer/data:/data
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - proxy
+    labels:
+{% for k, v in traefik_labels(9443).items() %}
+      - "{{ k }}={{ v }}"
+{% endfor %}
+
+networks:
+  proxy:
+    external: true

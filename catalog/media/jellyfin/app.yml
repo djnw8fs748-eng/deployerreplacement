@@ -1,0 +1,23 @@
+name: jellyfin
+display_name: Jellyfin
+description: Free and open source media server
+category: media
+homepage: https://jellyfin.org
+version: latest
+exposure: external
+requires:
+  - traefik
+vars:
+  hardware_accel:
+    type: select
+    options: [none, vaapi, nvidia, intel_qsv]
+    default: none
+    description: Hardware transcoding acceleration
+ports:
+  - 8096
+volumes:
+  - name: config
+    path: /config
+  - name: media
+    path: /media
+    external: true

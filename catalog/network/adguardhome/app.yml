@@ -1,0 +1,17 @@
+name: adguardhome
+display_name: AdGuard Home
+description: Network-wide ad and tracker blocking DNS server
+category: network
+homepage: https://adguard.com/adguard-home.html
+version: latest
+exposure: internal
+requires:
+  - traefik
+ports:
+  - 53
+  - 3002
+volumes:
+  - name: work
+    path: /opt/adguardhome/work
+  - name: conf
+    path: /opt/adguardhome/conf

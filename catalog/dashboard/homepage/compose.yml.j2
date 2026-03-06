@@ -1,0 +1,20 @@
+services:
+  homepage:
+    image: ghcr.io/gethomepage/homepage:{{ vars.version | default('latest') }}
+    container_name: homepage
+    restart: unless-stopped
+    environment:
+      - TZ={{ global.timezone }}
+    volumes:
+      - {{ global.data_dir }}/homepage/config:/app/config
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - proxy
+    labels:
+{% for k, v in traefik_labels(3000).items() %}
+      - "{{ k }}={{ v }}"
+{% endfor %}
+
+networks:
+  proxy:
+    external: true
