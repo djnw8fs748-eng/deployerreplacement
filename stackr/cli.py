@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Annotated, Optional
+from typing import Annotated
 
 import typer
 from rich.console import Console
@@ -23,8 +23,8 @@ _DEFAULT_CONFIG = Path("stackr.yml")
 
 
 def _load(config_path: Path):  # type: ignore[return]
-    from stackr.config import load_config
     from stackr.catalog import Catalog
+    from stackr.config import load_config
     from stackr.secrets import build_env
     from stackr.state import State
 
@@ -46,11 +46,14 @@ def _load(config_path: Path):  # type: ignore[return]
 
 @app.command()
 def init(
-    output: Annotated[Path, typer.Option("--output", "-o", help="Output config file path")] = _DEFAULT_CONFIG,
+    output: Annotated[
+        Path, typer.Option("--output", "-o", help="Output config file path")
+    ] = _DEFAULT_CONFIG,
 ) -> None:
     """Interactive setup wizard — generates stackr.yml and .stackr.env."""
-    from stackr.secrets import init_env_file
     import yaml
+
+    from stackr.secrets import init_env_file
 
     console.print("[bold green]Stackr Setup Wizard[/bold green]\n")
 
@@ -191,7 +194,6 @@ def plan(
 ) -> None:
     """Show what would change vs. current deployed state (dry run)."""
     from stackr.renderer import render_app
-    from stackr.state import hash_content
 
     config, catalog, env, state = _load(config_path)
 
@@ -228,7 +230,7 @@ def plan(
 
 @app.command()
 def deploy(
-    app_name: Annotated[Optional[str], typer.Argument(help="Deploy a single app")] = None,
+    app_name: Annotated[str | None, typer.Argument(help="Deploy a single app")] = None,
     config_path: Annotated[Path, typer.Option("--config", "-c")] = _DEFAULT_CONFIG,
     skip_pull: Annotated[bool, typer.Option("--skip-pull", help="Do not pull images")] = False,
 ) -> None:
@@ -304,7 +306,7 @@ def rollback(
 
 @app.command()
 def status(
-    app_name: Annotated[Optional[str], typer.Argument()] = None,
+    app_name: Annotated[str | None, typer.Argument()] = None,
     config_path: Annotated[Path, typer.Option("--config", "-c")] = _DEFAULT_CONFIG,
 ) -> None:
     """Show running/stopped/drifted status of all apps."""
@@ -332,7 +334,7 @@ def logs(
 @app.command()
 def shell(
     app_name: Annotated[str, typer.Argument()],
-    service: Annotated[Optional[str], typer.Option("--service", "-s")] = None,
+    service: Annotated[str | None, typer.Option("--service", "-s")] = None,
     sh: Annotated[str, typer.Option("--shell")] = "sh",
     config_path: Annotated[Path, typer.Option("--config", "-c")] = _DEFAULT_CONFIG,
 ) -> None:
@@ -348,7 +350,7 @@ def shell(
 
 @app.command(name="list")
 def list_apps(
-    category: Annotated[Optional[str], typer.Option("--category", "-c")] = None,
+    category: Annotated[str | None, typer.Option("--category", "-c")] = None,
 ) -> None:
     """List available apps in the catalog."""
     from stackr.catalog import Catalog
@@ -449,7 +451,7 @@ def catalog_update(
 @catalog_app.command(name="version")
 def catalog_version() -> None:
     """Show current catalog version and available releases."""
-    from stackr.catalog import Catalog, BUILTIN_CATALOG
+    from stackr.catalog import BUILTIN_CATALOG, Catalog
     catalog = Catalog()
     console.print(f"Catalog path:  {BUILTIN_CATALOG}")
     console.print(f"Apps loaded:   {len(catalog.all())}")

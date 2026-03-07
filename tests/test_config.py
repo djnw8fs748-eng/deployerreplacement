@@ -4,7 +4,6 @@ import textwrap
 from pathlib import Path
 
 import pytest
-import yaml
 
 from stackr.config import StackrConfig, load_config
 
@@ -25,7 +24,7 @@ def test_invalid_network_mode():
 
 
 def test_invalid_auth_provider():
-    with pytest.raises(Exception):
+    with pytest.raises(Exception, match="auth_provider"):
         _config_from_dict({"security": {"auth_provider": "unknown"}})
 
 

@@ -96,13 +96,19 @@ def _check_secrets(
     for key, val in config.traefik.dns_provider_env.items():
         unresolved = find_unresolved(val, env)
         for u in unresolved:
-            result.error("traefik", f"Unresolved secret: ${{{u}}} (in traefik.dns_provider_env.{key})")
+            result.error(
+                "traefik",
+                f"Unresolved secret: ${{{u}}} (in traefik.dns_provider_env.{key})",
+            )
 
     # Check app-level vars for ${VAR} references
     for k, v in app_config.vars.items():
         if isinstance(v, str):
             for u in find_unresolved(v, env):
-                result.error(app_config.name, f"Unresolved secret: ${{{u}}} (in apps[{app_config.name}].vars.{k})")
+                result.error(
+                    app_config.name,
+                    f"Unresolved secret: ${{{u}}} (in apps[{app_config.name}].vars.{k})",
+                )
 
 
 def _check_dependencies(
@@ -115,7 +121,8 @@ def _check_dependencies(
         if dep not in enabled_names:
             result.error(
                 app_config.name,
-                f"Missing hard dependency: '{dep}' must be enabled (add it to apps: in stackr.yml).",
+                f"Missing hard dependency: '{dep}' must be enabled"
+                " (add it to apps: in stackr.yml).",
             )
     for dep in catalog_app.suggests:
         if dep not in enabled_names:
