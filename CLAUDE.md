@@ -126,6 +126,7 @@ networks:
 - The Traefik compose template must also handle the provider's env vars in its `environment:` block
 
 ### Security stack (Phase 2)
+- `security.auth_provider` accepts any string at config parse time — validation is deferred to `_check_security_stack()` in `validator.py` so that custom app-based auth providers work without changing `config.py`
 - `security.auth_provider` must either be `none`/`google_oauth` or match an app name in `apps:`
 - `security.crowdsec: true` requires a `crowdsec` app in `apps:`
 - Both checks are enforced by `_check_security_stack()` in `validator.py`

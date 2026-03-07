@@ -57,15 +57,14 @@ def deploy(
         compose_content = render_app(app_config, catalog_app, config)
         compose_path = _write_compose(app_config.name, compose_content)
 
-        if not state.is_changed(app_config.name, compose_content) and not pull:
+        if pull:
+            _run_compose(compose_path, ["pull", "--quiet"])
+
+        if not state.is_changed(app_config.name, compose_content):
             console.print(f"  [dim]SKIP[/dim]   {app_config.name} (unchanged)")
             continue
 
         console.print(f"  [green]DEPLOY[/green] {app_config.name}")
-
-        if pull:
-            _run_compose(compose_path, ["pull", "--quiet"])
-
         _run_compose(compose_path, ["up", "-d", "--remove-orphans"])
         state.set_app(app_config.name, compose_content)
         state.save()
@@ -86,7 +85,7 @@ def remove_app(app_name: str, state: State) -> None:
         console.print(f"[red]No compose file found for '{app_name}'.[/red]")
         raise SystemExit(1)
     console.print(f"  [red]REMOVE[/red] {app_name}")
-    _run_compose(compose_path, ["down", "-v"])
+    _run_compose(compose_path, ["down"])
     state.remove_app(app_name)
     state.save()
 
@@ -164,9 +163,8 @@ def _run_compose(
     compose_path: Path,
     args: list[str],
     capture: bool = True,
-) -> subprocess.CompletedProcess:  # type: ignore[type-arg]
+) -> subprocess.CompletedProcess[bytes]:
     cmd = ["docker", "compose", "-f", str(compose_path), *args]
     if capture:
-        return subprocess.run(cmd, check=True)
-    else:
-        return subprocess.run(cmd)
+        return subprocess.run(cmd, check=True, capture_output=True)
+    return subprocess.run(cmd, check=True)

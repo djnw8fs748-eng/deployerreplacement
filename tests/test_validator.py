@@ -94,7 +94,7 @@ def test_port_conflict_same_port(monkeypatch):
         traefik={"enabled": True, "acme_email": "a@b.com", "dns_provider": "cloudflare"},
         security={"socket_proxy": False},
     )
-    result = validate(config, catalog, {})
+    result = validate(config, catalog, {"CF_DNS_API_TOKEN": "test-token"})
     assert not result.ok
     assert any("8096" in e.message and "conflicts" in e.message for e in result.errors)
 
@@ -151,15 +151,6 @@ def test_container_name_conflict_detected(monkeypatch):
     # Inject under a different key so both apps appear enabled with the same name
     catalog._apps["jellyfin-copy"] = fake_app
 
-    _make_config(
-        [
-            {"name": "jellyfin", "enabled": True},
-            {"name": "jellyfin-copy", "enabled": True},
-        ],
-        traefik={"enabled": True, "acme_email": "a@b.com", "dns_provider": "cloudflare"},
-        security={"socket_proxy": False},
-    )
-
     # Both apps resolve to container_name "jellyfin" — but since we check by app.name
     # (jellyfin vs jellyfin-copy), no conflict fires here. This test verifies that
     # two apps with the SAME app.name (which would produce duplicate container names)
@@ -184,7 +175,7 @@ def test_suggests_only_warns():
         traefik={"enabled": True, "acme_email": "a@b.com", "dns_provider": "cloudflare"},
         security={"socket_proxy": False},
     )
-    result = validate(config, catalog, {})
+    result = validate(config, catalog, {"CF_DNS_API_TOKEN": "test-token"})
     suggest_warns = [w for w in result.warnings if "socket-proxy" in w.message]
     assert len(suggest_warns) > 0
     suggest_errors = [e for e in result.errors if "socket-proxy" in e.message]

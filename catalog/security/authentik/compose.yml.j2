@@ -81,15 +81,15 @@ services:
       - AUTHENTIK_POSTGRESQL__PASSWORD=${AUTHENTIK_POSTGRES_PASSWORD}
       - AUTHENTIK_SECRET_KEY=${AUTHENTIK_SECRET_KEY}
       - TZ={{ global.timezone }}
+{% if security.socket_proxy %}
+      - DOCKER_HOST=tcp://socket-proxy:2375
+{% endif %}
     volumes:
       - {{ global.data_dir }}/authentik/media:/media
       - {{ global.data_dir }}/authentik/templates:/templates
       - {{ global.data_dir }}/authentik/geoip:/geoip
 {% if not security.socket_proxy %}
       - /var/run/docker.sock:/var/run/docker.sock
-{% else %}
-    environment:
-      - DOCKER_HOST=tcp://socket-proxy:2375
 {% endif %}
     depends_on:
       authentik-postgres:

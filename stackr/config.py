@@ -52,15 +52,7 @@ class TraefikConfig(BaseModel):
 class SecurityConfig(BaseModel):
     socket_proxy: bool = True
     crowdsec: bool = False
-    auth_provider: str = "none"  # authentik | authelia | google_oauth | none
-
-    @field_validator("auth_provider")
-    @classmethod
-    def validate_auth_provider(cls, v: str) -> str:
-        valid = ("authentik", "authelia", "google_oauth", "none")
-        if v not in valid:
-            raise ValueError(f"security.auth_provider must be one of {valid}")
-        return v
+    auth_provider: str = "none"  # authentik | authelia | google_oauth | none | <app-name>
 
 
 class BackupConfig(BaseModel):

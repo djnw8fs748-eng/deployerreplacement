@@ -9,7 +9,7 @@ requires:
   - traefik
 ports:
   - 53
-  - 3002
+  - 3000
 volumes:
   - name: work
     path: /opt/adguardhome/work

@@ -23,9 +23,11 @@ def test_invalid_network_mode():
         _config_from_dict({"network": {"mode": "invalid"}})
 
 
-def test_invalid_auth_provider():
-    with pytest.raises(Exception, match="auth_provider"):
-        _config_from_dict({"security": {"auth_provider": "unknown"}})
+def test_unknown_auth_provider_accepted_by_config():
+    # auth_provider is validated by stackr.validator, not at config parse time,
+    # so users can configure custom app-based auth providers.
+    cfg = _config_from_dict({"security": {"auth_provider": "my-custom-sso"}})
+    assert cfg.security.auth_provider == "my-custom-sso"
 
 
 def test_socket_proxy_auto_injected():

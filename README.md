@@ -97,7 +97,7 @@ traefik:
 
 security:
   socket_proxy: true           # route Docker API through socket-proxy
-  auth_provider: authelia      # authelia | authentik | none
+  auth_provider: authelia      # authelia | authentik | none | <custom-app-name>
 
 apps:
   - name: jellyfin
@@ -180,6 +180,7 @@ stackr secret list          List secret keys (values redacted)
 |-----|----------|------|
 | Traefik | network | — |
 | Socket Proxy | security | — |
+| AdGuard Home | network | 3000 (DNS: 53) |
 | Jellyfin | media | 8096 |
 | Radarr | media | 7878 |
 | Sonarr | media | 8989 |
@@ -188,7 +189,7 @@ stackr secret list          List secret keys (values redacted)
 | Homepage | dashboard | 3000 |
 | Portainer | management | 9000 |
 | Uptime Kuma | monitoring | 3001 |
-| Vaultwarden | security | — |
+| Vaultwarden | security | 80 |
 | CrowdSec | security | — |
 | Authentik | security | 9000 |
 | Authelia | security | 9091 |
@@ -343,20 +344,29 @@ mypy stackr
 
 ```
 stackr/
-  cli.py          Typer CLI entry point
-  config.py       Pydantic config models (StackrConfig, AppConfig, ...)
-  catalog.py      App catalog loader (CatalogApp, VarDef, VolumeSpec)
-  renderer.py     Jinja2 compose renderer + Traefik label generation
-  secrets.py      Secret resolution and .stackr.env management
-  state.py        State lock file (~/.stackr/state.json)
-  deployer.py     Deploy orchestration and rollback
-  validator.py    Pre-deploy validation checks
+  cli.py            Typer CLI entry point
+  config.py         Pydantic config models (StackrConfig, AppConfig, ...)
+  catalog.py        App catalog loader (CatalogApp, VarDef, VolumeSpec)
+  renderer.py       Jinja2 compose renderer + Traefik label generation
+  secrets.py        Secret resolution and .stackr.env management
+  state.py          State lock file (~/.stackr/state.json)
+  deployer.py       Deploy orchestration and rollback
+  validator.py      Pre-deploy validation checks
+  dns_providers.py  Registry of DNS providers and their required env vars
+  middleware.py     Traefik forward-auth and CrowdSec middleware label generators
+  network.py        Docker network helpers
+  status.py         Rich terminal status table
 
 catalog/
   network/traefik/
   network/socket-proxy/
+  network/adguardhome/
   media/jellyfin/
   media/radarr/
+  security/crowdsec/
+  security/authentik/
+  security/authelia/
+  security/vaultwarden/
   ...
 
 tests/
@@ -366,6 +376,9 @@ tests/
   test_secrets.py
   test_state.py
   test_validator.py
+  test_deployer.py
+  test_middleware.py
+  test_security_apps.py
 ```
 
 ## Migrating from Deployrr
