@@ -1,0 +1,17 @@
+name: crowdsec
+display_name: CrowdSec
+description: Open-source cybersecurity platform with crowd-sourced IP reputation and Traefik bouncer
+category: security
+homepage: https://crowdsec.net
+version: latest
+exposure: internal
+requires:
+  - traefik
+suggests:
+  - socket-proxy
+ports: []
+volumes:
+  - name: config
+    path: /etc/crowdsec
+  - name: data
+    path: /var/lib/crowdsec/data

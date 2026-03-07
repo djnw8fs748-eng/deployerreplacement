@@ -7,12 +7,15 @@ Stackr replaces Deployrr (a closed-source PHP/Bash binary) with a fully open, au
 ## Features
 
 - **Declarative config**: one `stackr.yml` drives your entire homelab
-- **App catalog**: 11 seed apps across media, management, monitoring, and network categories
+- **App catalog**: 14 apps across media, management, monitoring, network, and security categories
 - **Secret management**: auto-generated secrets stored in `.stackr.env`, shell env takes priority
-- **Pre-deploy validation**: port conflicts, missing secrets, unknown apps, dependency checks
+- **Pre-deploy validation**: port conflicts, missing secrets, unknown apps, dependency checks, DNS provider env vars, security stack consistency
 - **State tracking**: stores full compose content for genuine rollback capability
 - **Network modes**: `external`, `internal`, or `hybrid` with automatic Traefik label generation
 - **Socket proxy**: no app mounts the raw Docker socket when `security.socket_proxy: true`
+- **CrowdSec**: crowd-sourced IP reputation and Traefik bouncer integration
+- **Authentik / Authelia**: forward-auth SSO with automatic Traefik middleware labels
+- **Multi-DNS providers**: Cloudflare, Route 53, Porkbun, Namecheap, DigitalOcean, DuckDNS, GoDaddy, deSEC, Hetzner, OVH
 - **Deep-merge overrides**: apply custom compose keys on top of any catalog template
 
 ## Requirements
@@ -176,7 +179,7 @@ stackr secret list          List secret keys (values redacted)
 | App | Category | Port |
 |-----|----------|------|
 | Traefik | network | — |
-| Socket Proxy | network | — |
+| Socket Proxy | security | — |
 | Jellyfin | media | 8096 |
 | Radarr | media | 7878 |
 | Sonarr | media | 8989 |
@@ -184,8 +187,52 @@ stackr secret list          List secret keys (values redacted)
 | qBittorrent | media | 8080 |
 | Homepage | dashboard | 3000 |
 | Portainer | management | 9000 |
-| Uptime Kuma | management | 3001 |
-| Grafana | monitoring | 3000 |
+| Uptime Kuma | monitoring | 3001 |
+| Vaultwarden | security | — |
+| CrowdSec | security | — |
+| Authentik | security | 9000 |
+| Authelia | security | 9091 |
+
+### Security stack
+
+Enable CrowdSec and an auth provider in your config:
+
+```yaml
+security:
+  socket_proxy: true
+  crowdsec: true           # requires crowdsec in apps:
+  auth_provider: authentik  # authentik | authelia | none
+
+apps:
+  - name: crowdsec
+    enabled: true
+  - name: authentik
+    enabled: true
+```
+
+Stackr automatically:
+- Validates that the auth provider app is in your `apps:` list
+- Validates that `crowdsec` is in `apps:` when `security.crowdsec: true`
+- Injects forward-auth middleware labels on Authentik/Authelia
+- Configures the CrowdSec bouncer plugin in Traefik
+- Shares Traefik access logs with the CrowdSec agent
+
+### Supported DNS providers
+
+| Provider | Required env vars |
+|----------|------------------|
+| Cloudflare | `CF_DNS_API_TOKEN` |
+| AWS Route 53 | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION` |
+| Porkbun | `PORKBUN_API_KEY`, `PORKBUN_SECRET_API_KEY` |
+| Namecheap | `NAMECHEAP_API_USER`, `NAMECHEAP_API_KEY` |
+| DigitalOcean | `DO_AUTH_TOKEN` |
+| DuckDNS | `DUCKDNS_TOKEN` |
+| GoDaddy | `GODADDY_API_KEY`, `GODADDY_API_SECRET` |
+| deSEC | `DESEC_TOKEN` |
+| Hetzner | `HETZNER_API_KEY` |
+| OVH | `OVH_ENDPOINT`, `OVH_APPLICATION_KEY`, `OVH_APPLICATION_SECRET`, `OVH_CONSUMER_KEY` |
+
+Stackr validates that all required env vars are present before deploying. Missing vars produce a clear error at `stackr validate` time.
 
 ### Adding a custom app
 

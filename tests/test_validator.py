@@ -25,7 +25,7 @@ def test_valid_config_passes():
         security={"socket_proxy": False},
     )
     catalog = Catalog()
-    env = {}
+    env = {"CF_DNS_API_TOKEN": "test-token"}
     result = validate(config, catalog, env)
     assert result.ok
 

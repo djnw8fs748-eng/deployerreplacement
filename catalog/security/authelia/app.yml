@@ -1,0 +1,21 @@
+name: authelia
+display_name: Authelia
+description: Open-source authentication and authorization server with 2FA and SSO for Traefik
+category: security
+homepage: https://www.authelia.com
+version: latest
+exposure: external
+requires:
+  - traefik
+suggests:
+  - socket-proxy
+ports:
+  - 9091
+vars:
+  version:
+    type: string
+    default: latest
+    description: Authelia image tag
+volumes:
+  - name: config
+    path: /config
