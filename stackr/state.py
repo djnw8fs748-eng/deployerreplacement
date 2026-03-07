@@ -55,7 +55,7 @@ class State:
     def _load(self) -> dict[str, Any]:
         if self._path.exists():
             with open(self._path) as f:
-                return json.load(f)
+                return dict[str, Any](json.load(f))
         return {"apps": {}, "deployed_at": None, "catalog_version": None}
 
     def save(self) -> None:

@@ -6,8 +6,14 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
+import yaml
 from rich.console import Console
 from rich.table import Table
+
+from stackr.catalog import Catalog
+from stackr.config import StackrConfig, load_config
+from stackr.secrets import build_env
+from stackr.state import State
 
 app = typer.Typer(
     name="stackr",
@@ -22,12 +28,7 @@ console = Console()
 _DEFAULT_CONFIG = Path("stackr.yml")
 
 
-def _load(config_path: Path):  # type: ignore[return]
-    from stackr.catalog import Catalog
-    from stackr.config import load_config
-    from stackr.secrets import build_env
-    from stackr.state import State
-
+def _load(config_path: Path) -> tuple[StackrConfig, Catalog, dict[str, str], State]:
     if not config_path.exists():
         console.print(f"[red]Config not found: {config_path}[/red]")
         console.print("Run [bold]stackr init[/bold] to create one.")
@@ -51,8 +52,6 @@ def init(
     ] = _DEFAULT_CONFIG,
 ) -> None:
     """Interactive setup wizard — generates stackr.yml and .stackr.env."""
-    import yaml
-
     from stackr.secrets import init_env_file
 
     console.print("[bold green]Stackr Setup Wizard[/bold green]\n")
