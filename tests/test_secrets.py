@@ -52,8 +52,9 @@ def test_init_env_file_creates_file(tmp_path):
 
 def test_init_env_file_idempotent(tmp_path):
     init_env_file(tmp_path)
-    init_env_file(tmp_path)  # Should not raise or duplicate
-    count = tmp_path.read_text() if (tmp_path / ".stackr.env").exists() else ""
+    init_env_file(tmp_path)  # Should not raise or duplicate content
+    content = (tmp_path / ".stackr.env").read_text()
+    assert content.count("DO NOT COMMIT") == 1
 
 
 def test_load_env_file(tmp_path):
