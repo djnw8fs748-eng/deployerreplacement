@@ -128,13 +128,13 @@ def rollback(
 ) -> None:
     app_state = state.get_app(app_name)
     if app_state is None:
-        console.print(f"[red]No state found for '{app_name}'.[/red]")
+        console.print(f"[red]No state found for '{app_name}'. Nothing to roll back.[/red]")
         raise SystemExit(1)
-    compose_path = COMPOSE_DIR / app_name / "docker-compose.yml"
-    if not compose_path.exists():
-        console.print(f"[red]No compose file found for '{app_name}'.[/red]")
+    if not app_state.compose_content:
+        console.print(f"[red]No stored compose content for '{app_name}'. Cannot roll back.[/red]")
         raise SystemExit(1)
     console.print(f"  [magenta]ROLLBACK[/magenta] {app_name}")
+    compose_path = _write_compose(app_name, app_state.compose_content)
     _run_compose(compose_path, ["up", "-d", "--remove-orphans"])
 
 

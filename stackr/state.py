@@ -19,17 +19,20 @@ class AppState:
         name: str,
         enabled: bool,
         compose_hash: str,
+        compose_content: str,
         deployed_at: str,
     ) -> None:
         self.name = name
         self.enabled = enabled
         self.compose_hash = compose_hash
+        self.compose_content = compose_content
         self.deployed_at = deployed_at
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "enabled": self.enabled,
             "compose_hash": self.compose_hash,
+            "compose_content": self.compose_content,
             "deployed_at": self.deployed_at,
         }
 
@@ -39,6 +42,7 @@ class AppState:
             name=name,
             enabled=d.get("enabled", True),
             compose_hash=d.get("compose_hash", ""),
+            compose_content=d.get("compose_content", ""),
             deployed_at=d.get("deployed_at", ""),
         )
 
@@ -70,6 +74,7 @@ class State:
             name=name,
             enabled=enabled,
             compose_hash=hash_content(compose_content),
+            compose_content=compose_content,
             deployed_at=now_iso(),
         ).to_dict()
         self._data["deployed_at"] = now_iso()

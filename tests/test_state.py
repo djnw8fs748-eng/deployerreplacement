@@ -17,6 +17,17 @@ def test_set_and_get_app(tmp_path):
     assert app is not None
     assert app.name == "jellyfin"
     assert app.enabled is True
+    assert app.compose_content == "compose content here"
+
+
+def test_compose_content_persists(tmp_path):
+    state = State(state_dir=tmp_path)
+    state.set_app("jellyfin", "services:\n  jellyfin: {}")
+    state.save()
+    state2 = State(state_dir=tmp_path)
+    app = state2.get_app("jellyfin")
+    assert app is not None
+    assert app.compose_content == "services:\n  jellyfin: {}"
 
 
 def test_is_changed_new_app(tmp_path):

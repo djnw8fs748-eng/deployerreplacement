@@ -39,6 +39,17 @@ def test_socket_proxy_auto_injected():
     assert "socket-proxy" in names
 
 
+def test_socket_proxy_deployed_before_traefik():
+    """socket-proxy must appear before traefik in the deploy list."""
+    cfg = _config_from_dict({
+        "traefik": {"enabled": True},
+        "security": {"socket_proxy": True},
+        "apps": [],
+    })
+    names = [a.name for a in cfg.enabled_apps]
+    assert names.index("socket-proxy") < names.index("traefik")
+
+
 def test_socket_proxy_not_duplicated():
     cfg = _config_from_dict({
         "traefik": {"enabled": True},

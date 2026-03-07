@@ -66,6 +66,7 @@ def validate(
         _check_secrets(app_config, config, env, result)
         _check_dependencies(app_config, catalog_app, enabled_names, result)
         _check_ports(app_config, catalog_app, seen_ports, result)
+        _check_container_name(app_config, seen_names, result)
         _check_external_volumes(app_config, catalog_app, data_dir, result)
 
     return result
@@ -122,6 +123,24 @@ def _check_dependencies(
                 app_config.name,
                 f"Suggested app '{dep}' is not enabled.",
             )
+
+
+def _check_container_name(
+    app_config: AppConfig,
+    seen_names: dict[str, str],
+    result: ValidationResult,
+) -> None:
+    # By catalog convention, container_name equals the app name.
+    # Detect duplicate names across enabled apps.
+    name = app_config.name
+    if name in seen_names:
+        result.error(
+            app_config.name,
+            f"Container name '{name}' conflicts with app '{seen_names[name]}'. "
+            "Each app must have a unique name.",
+        )
+    else:
+        seen_names[name] = app_config.name
 
 
 def _check_ports(

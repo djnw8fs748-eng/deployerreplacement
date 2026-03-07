@@ -69,6 +69,26 @@ def test_load_env_file_missing(tmp_path):
     assert env == {}
 
 
+def test_build_env_shell_wins_over_file(tmp_path, monkeypatch):
+    """Shell environment must take priority over .stackr.env values."""
+    from stackr.secrets import build_env
+    env_file = tmp_path / ".stackr.env"
+    env_file.write_text("MY_TOKEN=from-file\n")
+    monkeypatch.setenv("MY_TOKEN", "from-shell")
+    result = build_env(tmp_path)
+    assert result["MY_TOKEN"] == "from-shell"
+
+
+def test_build_env_file_used_when_no_shell_var(tmp_path, monkeypatch):
+    """Values from .stackr.env are used when not overridden by shell env."""
+    from stackr.secrets import build_env
+    env_file = tmp_path / ".stackr.env"
+    env_file.write_text("ONLY_IN_FILE=secret\n")
+    monkeypatch.delenv("ONLY_IN_FILE", raising=False)
+    result = build_env(tmp_path)
+    assert result["ONLY_IN_FILE"] == "secret"
+
+
 def test_ensure_secret_generates_and_persists(tmp_path):
     env: dict[str, str] = {}
     init_env_file(tmp_path)

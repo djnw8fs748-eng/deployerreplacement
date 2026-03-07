@@ -8,9 +8,9 @@ Resolution order:
 
 from __future__ import annotations
 
+import os
 import re
 import secrets
-import os
 from pathlib import Path
 
 from dotenv import dotenv_values
@@ -28,10 +28,14 @@ def load_env_file(config_dir: Path) -> dict[str, str]:
 
 
 def build_env(config_dir: Path) -> dict[str, str]:
-    """Merge shell env + .stackr.env (file wins for explicit overrides)."""
+    """Merge shell env + .stackr.env with shell env taking highest priority.
+
+    Load order: file first, then shell env overwrites — so a CI pipeline can
+    override any .stackr.env value by setting an environment variable.
+    """
     env: dict[str, str] = {}
-    env.update({k: v for k, v in os.environ.items()})
     env.update(load_env_file(config_dir))
+    env.update({k: v for k, v in os.environ.items()})
     return env
 
 

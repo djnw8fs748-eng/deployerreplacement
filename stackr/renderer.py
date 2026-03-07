@@ -39,7 +39,9 @@ def _traefik_labels(
 
     if mode == "internal" or (mode == "hybrid" and exposure in ("internal", "hybrid")):
         router_name = f"{service}-local" if mode == "hybrid" else service
-        _router(router_name, local_domain, "websecure-local", "internal")
+        # Use the same DNS-challenge resolver for internal domains — DNS challenge
+        # works for any domain regardless of public accessibility.
+        _router(router_name, local_domain, "websecure-local", config.traefik.dns_provider)
 
     return labels
 

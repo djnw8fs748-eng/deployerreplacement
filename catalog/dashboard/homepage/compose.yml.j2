@@ -5,11 +5,19 @@ services:
     restart: unless-stopped
     environment:
       - TZ={{ global.timezone }}
+{% if security.socket_proxy %}
+      - DOCKER_HOST=tcp://socket-proxy:2375
+{% endif %}
     volumes:
       - {{ global.data_dir }}/homepage/config:/app/config
+{% if not security.socket_proxy %}
       - /var/run/docker.sock:/var/run/docker.sock:ro
+{% endif %}
     networks:
       - proxy
+{% if security.socket_proxy %}
+      - socket_proxy
+{% endif %}
     labels:
 {% for k, v in traefik_labels(3000).items() %}
       - "{{ k }}={{ v }}"
@@ -18,3 +26,7 @@ services:
 networks:
   proxy:
     external: true
+{% if security.socket_proxy %}
+  socket_proxy:
+    external: true
+{% endif %}

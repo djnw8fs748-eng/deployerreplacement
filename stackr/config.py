@@ -90,12 +90,18 @@ class StackrConfig(BaseModel):
 
     @model_validator(mode="after")
     def inject_core_apps(self) -> StackrConfig:
-        """Ensure socket-proxy is enabled whenever traefik + socket_proxy are both on."""
+        """Ensure socket-proxy and traefik are prepended in the correct deploy order.
+
+        socket-proxy must come before traefik so the socket_proxy network exists
+        when traefik starts and tries to connect to socket-proxy:2375.
+        """
         names = {a.name for a in self.apps}
-        if self.traefik.enabled and self.security.socket_proxy and "socket-proxy" not in names:
-            self.apps.insert(0, AppConfig(name="socket-proxy"))
+        # Insert in reverse deploy order (each insert goes to front):
+        # traefik first so socket-proxy ends up before it after both inserts.
         if self.traefik.enabled and "traefik" not in names:
             self.apps.insert(0, AppConfig(name="traefik"))
+        if self.traefik.enabled and self.security.socket_proxy and "socket-proxy" not in names:
+            self.apps.insert(0, AppConfig(name="socket-proxy"))
         return self
 
     @property

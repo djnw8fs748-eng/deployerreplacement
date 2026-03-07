@@ -24,13 +24,13 @@ services:
     volumes:
       - {{ global.data_dir }}/traefik/config:/etc/traefik
       - {{ global.data_dir }}/traefik/acme:/etc/traefik/acme
+{% if not security.socket_proxy %}
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+{% endif %}
     networks:
       - proxy
 {% if security.socket_proxy %}
       - socket_proxy
-{% else %}
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
 {% endif %}
     command:
       - --api.dashboard=true
