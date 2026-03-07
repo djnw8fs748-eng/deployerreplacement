@@ -13,7 +13,7 @@ vars:
     default: ""
     description: Admin panel token (leave blank to auto-generate)
 ports:
-  - 8080
+  - 80
 volumes:
   - name: data
     path: /data

@@ -1,5 +1,7 @@
 """Backup/restore stubs — implemented in Phase 5."""
 
+from __future__ import annotations
+
 from rich.console import Console
 
 console = Console()

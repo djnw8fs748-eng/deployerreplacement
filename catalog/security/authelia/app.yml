@@ -7,8 +7,6 @@ version: latest
 exposure: external
 requires:
   - traefik
-suggests:
-  - socket-proxy
 ports:
   - 9091
 vars:

@@ -135,8 +135,13 @@ def _resolve_catalog(
     result: ValidationResult,
 ) -> CatalogApp | None:
     if app_config.catalog_path:
-        # Local catalog path — existence is checked at render time
-        return None
+        from stackr.catalog import _load_app
+
+        app_yml = app_config.catalog_path / "app.yml"
+        if not app_yml.exists():
+            result.error(app_config.name, f"Local catalog app.yml not found: {app_yml}")
+            return None
+        return _load_app(app_yml)
     catalog_app = catalog.get(app_config.name)
     if catalog_app is None:
         result.error(app_config.name, f"App '{app_config.name}' not found in catalog.")

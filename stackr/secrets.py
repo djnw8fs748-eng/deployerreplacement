@@ -44,7 +44,7 @@ def find_unresolved(value: str, env: dict[str, str]) -> list[str]:
 
 
 def resolve(value: str, env: dict[str, str]) -> str:
-    def _replace(match: re.Match) -> str:  # type: ignore[type-arg]
+    def _replace(match: re.Match[str]) -> str:
         key = match.group(1)
         if key not in env:
             raise KeyError(f"Unresolved secret: ${{{key}}}")
