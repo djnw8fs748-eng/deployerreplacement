@@ -20,10 +20,29 @@ services:
 {% elif traefik.dns_provider == 'namecheap' %}
       - NAMECHEAP_API_USER=${NAMECHEAP_API_USER}
       - NAMECHEAP_API_KEY=${NAMECHEAP_API_KEY}
+{% elif traefik.dns_provider == 'digitalocean' %}
+      - DO_AUTH_TOKEN=${DO_AUTH_TOKEN}
+{% elif traefik.dns_provider == 'duckdns' %}
+      - DUCKDNS_TOKEN=${DUCKDNS_TOKEN}
+{% elif traefik.dns_provider == 'godaddy' %}
+      - GODADDY_API_KEY=${GODADDY_API_KEY}
+      - GODADDY_API_SECRET=${GODADDY_API_SECRET}
+{% elif traefik.dns_provider == 'desec' %}
+      - DESEC_TOKEN=${DESEC_TOKEN}
+{% elif traefik.dns_provider == 'hetzner' %}
+      - HETZNER_API_KEY=${HETZNER_API_KEY}
+{% elif traefik.dns_provider == 'ovh' %}
+      - OVH_ENDPOINT=${OVH_ENDPOINT}
+      - OVH_APPLICATION_KEY=${OVH_APPLICATION_KEY}
+      - OVH_APPLICATION_SECRET=${OVH_APPLICATION_SECRET}
+      - OVH_CONSUMER_KEY=${OVH_CONSUMER_KEY}
 {% endif %}
     volumes:
       - {{ global.data_dir }}/traefik/config:/etc/traefik
       - {{ global.data_dir }}/traefik/acme:/etc/traefik/acme
+{% if security.crowdsec %}
+      - {{ global.data_dir }}/traefik/logs:/var/log/traefik
+{% endif %}
 {% if not security.socket_proxy %}
       - /var/run/docker.sock:/var/run/docker.sock:ro
 {% endif %}
@@ -36,6 +55,11 @@ services:
       - --api.dashboard=true
       - --log.level=INFO
       - --accesslog=true
+{% if security.crowdsec %}
+      - --accesslog.filepath=/var/log/traefik/access.log
+      - --experimental.plugins.crowdsec-bouncer.modulename=github.com/maxlerebourg/crowdsec-bouncer-traefik-plugin
+      - --experimental.plugins.crowdsec-bouncer.version=v1.3.3
+{% endif %}
       - --entrypoints.web.address=:80
       - --entrypoints.web.http.redirections.entrypoint.to=websecure
       - --entrypoints.web.http.redirections.entrypoint.scheme=https

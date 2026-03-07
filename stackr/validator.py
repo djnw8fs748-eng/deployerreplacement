@@ -2,10 +2,13 @@
 
 Checks run before any containers are touched:
 - Unresolved ${VAR} secrets
+- DNS provider env vars present for the configured provider
 - Port conflicts between enabled apps
 - Container name conflicts
 - Missing hard dependencies (requires:)
 - Missing external volumes
+- Auth provider dependency (authentik/authelia must be enabled if configured)
+- CrowdSec dependency (crowdsec must be enabled if security.crowdsec: true)
 """
 
 from __future__ import annotations
@@ -16,6 +19,7 @@ from pathlib import Path
 
 from stackr.catalog import Catalog, CatalogApp
 from stackr.config import AppConfig, StackrConfig
+from stackr.dns_providers import get_provider
 from stackr.secrets import find_unresolved
 
 _VAR_RE = re.compile(r"\$\{([^}]+)\}")
@@ -58,6 +62,10 @@ def validate(
     seen_ports: dict[int, str] = {}
     seen_names: dict[str, str] = {}
 
+    # Global checks (independent of individual apps)
+    _check_dns_provider(config, env, result)
+    _check_security_stack(config, enabled_names, result)
+
     for app_config in config.enabled_apps:
         catalog_app = _resolve_catalog(app_config, catalog, result)
         if catalog_app is None:
@@ -70,6 +78,55 @@ def validate(
         _check_external_volumes(app_config, catalog_app, data_dir, result)
 
     return result
+
+
+def _check_dns_provider(
+    config: StackrConfig,
+    env: dict[str, str],
+    result: ValidationResult,
+) -> None:
+    """Validate that all required env vars for the configured DNS provider are present."""
+    if not config.traefik.enabled:
+        return
+    provider = get_provider(config.traefik.dns_provider)
+    if provider is None:
+        result.warn(
+            "traefik",
+            f"DNS provider '{config.traefik.dns_provider}' is not in the provider registry. "
+            "Ensure required env vars are set manually.",
+        )
+        return
+    for var in provider.required_env:
+        if var not in env:
+            result.error(
+                "traefik",
+                f"DNS provider '{provider.display_name}' requires env var '{var}' "
+                f"(set it in .stackr.env or export it in your shell).",
+            )
+
+
+def _check_security_stack(
+    config: StackrConfig,
+    enabled_names: set[str],
+    result: ValidationResult,
+) -> None:
+    """Validate that security stack components are consistent."""
+    # Auth provider must be enabled as an app when configured
+    provider = config.security.auth_provider
+    if provider not in ("none", "google_oauth") and provider not in enabled_names:
+        result.error(
+            "security",
+            f"auth_provider is set to '{provider}' but '{provider}' is not in apps. "
+            f"Add it or set auth_provider: none.",
+        )
+
+    # CrowdSec must be enabled as an app when crowdsec: true
+    if config.security.crowdsec and "crowdsec" not in enabled_names:
+        result.error(
+            "security",
+            "security.crowdsec is true but 'crowdsec' is not in apps. "
+            "Add it or set crowdsec: false.",
+        )
 
 
 def _resolve_catalog(
