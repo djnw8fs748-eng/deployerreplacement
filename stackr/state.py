@@ -4,10 +4,9 @@ from __future__ import annotations
 
 import hashlib
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
-
 
 DEFAULT_STATE_DIR = Path.home() / ".stackr"
 STATE_FILE = "state.json"
@@ -56,7 +55,7 @@ class State:
     def _load(self) -> dict[str, Any]:
         if self._path.exists():
             with open(self._path) as f:
-                return json.load(f)
+                return dict[str, Any](json.load(f))
         return {"apps": {}, "deployed_at": None, "catalog_version": None}
 
     def save(self) -> None:
@@ -100,4 +99,4 @@ def hash_content(content: str) -> str:
 
 
 def now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()

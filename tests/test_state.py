@@ -1,6 +1,5 @@
 """Tests for state lock file."""
 
-import pytest
 
 from stackr.state import State, hash_content
 

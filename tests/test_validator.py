@@ -1,6 +1,5 @@
 """Tests for pre-deploy validation."""
 
-import pytest
 
 from stackr.catalog import Catalog
 from stackr.config import AppConfig, StackrConfig
@@ -20,9 +19,11 @@ def _make_config(apps: list[dict], **kwargs) -> StackrConfig:
 
 
 def test_valid_config_passes():
-    config = _make_config([{"name": "uptime-kuma", "enabled": True}],
-                          traefik={"enabled": True, "acme_email": "a@b.com", "dns_provider": "cloudflare"},
-                          security={"socket_proxy": False})
+    config = _make_config(
+        [{"name": "uptime-kuma", "enabled": True}],
+        traefik={"enabled": True, "acme_email": "a@b.com", "dns_provider": "cloudflare"},
+        security={"socket_proxy": False},
+    )
     catalog = Catalog()
     env = {}
     result = validate(config, catalog, env)
@@ -69,8 +70,9 @@ def test_port_conflict_detected():
 
 def test_port_conflict_same_port(monkeypatch):
     """Inject a fake catalog app with the same port as jellyfin to trigger conflict."""
-    from stackr.catalog import CatalogApp, VolumeSpec
     from pathlib import Path
+
+    from stackr.catalog import CatalogApp
 
     catalog = Catalog()
     # Patch a second app to declare port 8096 (same as jellyfin)
@@ -134,8 +136,9 @@ def test_resolved_secret_passes():
 
 def test_container_name_conflict_detected(monkeypatch):
     """Two apps with the same name produce a container name conflict error."""
-    from stackr.catalog import CatalogApp
     from pathlib import Path
+
+    from stackr.catalog import CatalogApp
 
     catalog = Catalog()
     fake_app = CatalogApp(
@@ -148,7 +151,7 @@ def test_container_name_conflict_detected(monkeypatch):
     # Inject under a different key so both apps appear enabled with the same name
     catalog._apps["jellyfin-copy"] = fake_app
 
-    config = _make_config(
+    _make_config(
         [
             {"name": "jellyfin", "enabled": True},
             {"name": "jellyfin-copy", "enabled": True},
@@ -167,7 +170,6 @@ def test_container_name_conflict_detected(monkeypatch):
         security={"socket_proxy": False},
     )
     # Manually inject a second app entry with the same name
-    from stackr.config import AppConfig
     dup_config.apps.append(AppConfig(name="jellyfin"))
     result = validate(dup_config, catalog, {})
     name_errors = [e for e in result.errors if "Container name" in e.message]

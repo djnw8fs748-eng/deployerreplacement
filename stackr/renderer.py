@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any
 
 import yaml
@@ -101,12 +100,12 @@ def render_app(
 
 
 def _apply_overrides(rendered_yaml: str, overrides: dict[str, Any]) -> str:
-    base = yaml.safe_load(rendered_yaml) or {}
+    base: dict[str, Any] = yaml.safe_load(rendered_yaml) or {}
     merged = _deep_merge(base, overrides)
-    return yaml.dump(merged, default_flow_style=False, allow_unicode=True)
+    return str(yaml.dump(merged, default_flow_style=False, allow_unicode=True))
 
 
-def _deep_merge(base: dict, override: dict) -> dict:
+def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
     result = dict(base)
     for k, v in override.items():
         if k in result and isinstance(result[k], dict) and isinstance(v, dict):

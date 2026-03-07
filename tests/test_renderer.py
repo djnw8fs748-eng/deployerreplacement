@@ -1,11 +1,10 @@
 """Tests for Jinja2 compose file rendering."""
 
 import yaml
-import pytest
 
 from stackr.catalog import Catalog
 from stackr.config import AppConfig, StackrConfig
-from stackr.renderer import render_app, _apply_overrides, _deep_merge
+from stackr.renderer import _deep_merge, render_app
 
 
 def _make_config(**kwargs) -> StackrConfig:
@@ -63,7 +62,9 @@ def test_render_traefik_labels_present():
 
 def test_render_traefik_external_mode():
     catalog = Catalog()
-    config = _make_config(network={"mode": "external", "domain": "mylab.io", "local_domain": "home.mylab.io"})
+    config = _make_config(
+        network={"mode": "external", "domain": "mylab.io", "local_domain": "home.mylab.io"},
+    )
     app_config = AppConfig(name="jellyfin")
     catalog_app = catalog.get("jellyfin")
     rendered = render_app(app_config, catalog_app, config)

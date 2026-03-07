@@ -1,10 +1,8 @@
 """Tests for catalog loading."""
 
-from pathlib import Path
 
-import pytest
 
-from stackr.catalog import Catalog, BUILTIN_CATALOG
+from stackr.catalog import Catalog
 
 
 def test_builtin_catalog_loads():
@@ -55,7 +53,7 @@ def test_catalog_categories():
 def test_app_metadata_complete():
     catalog = Catalog()
     for app in catalog.all():
-        assert app.name, f"App has no name"
+        assert app.name, "App has no name"
         assert app.category, f"{app.name} has no category"
         assert app.description, f"{app.name} has no description"
 

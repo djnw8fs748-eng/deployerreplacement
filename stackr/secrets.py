@@ -12,9 +12,9 @@ import os
 import re
 import secrets
 from pathlib import Path
+from typing import Any
 
 from dotenv import dotenv_values
-
 
 ENV_FILE_NAME = ".stackr.env"
 _VAR_RE = re.compile(r"\$\{([^}]+)\}")
@@ -53,9 +53,9 @@ def resolve(value: str, env: dict[str, str]) -> str:
     return _VAR_RE.sub(_replace, value)
 
 
-def resolve_dict(d: dict, env: dict[str, str]) -> dict:
+def resolve_dict(d: dict[str, Any], env: dict[str, str]) -> dict[str, Any]:
     """Recursively resolve ${VAR} in all string values of a dict."""
-    result = {}
+    result: dict[str, Any] = {}
     for k, v in d.items():
         if isinstance(v, str):
             result[k] = resolve(v, env)
