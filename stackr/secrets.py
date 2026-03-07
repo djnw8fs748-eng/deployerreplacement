@@ -15,7 +15,6 @@ from pathlib import Path
 
 from dotenv import dotenv_values
 
-
 ENV_FILE_NAME = ".stackr.env"
 _VAR_RE = re.compile(r"\$\{([^}]+)\}")
 

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import subprocess
 
-
 PROXY_NETWORK = "proxy"
 SOCKET_PROXY_NETWORK = "socket_proxy"
 

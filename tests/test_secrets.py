@@ -3,12 +3,12 @@
 import pytest
 
 from stackr.secrets import (
-    find_unresolved,
-    resolve,
-    generate_secret,
     ensure_secret,
+    find_unresolved,
+    generate_secret,
     init_env_file,
     load_env_file,
+    resolve,
 )
 
 
