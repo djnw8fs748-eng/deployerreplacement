@@ -1,0 +1,23 @@
+services:
+  adguardhome:
+    image: adguard/adguardhome:{{ vars.version | default('latest') }}
+    container_name: adguardhome
+    restart: unless-stopped
+    environment:
+      - TZ={{ global.timezone }}
+    ports:
+      - "53:53/tcp"
+      - "53:53/udp"
+    volumes:
+      - {{ global.data_dir }}/adguardhome/work:/opt/adguardhome/work
+      - {{ global.data_dir }}/adguardhome/conf:/opt/adguardhome/conf
+    networks:
+      - proxy
+    labels:
+{% for k, v in traefik_labels(3000, 'internal').items() %}
+      - "{{ k }}={{ v }}"
+{% endfor %}
+
+networks:
+  proxy:
+    external: true

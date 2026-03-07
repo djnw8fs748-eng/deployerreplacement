@@ -1,0 +1,78 @@
+# stackr.yml — example configuration
+# Copy to stackr.yml and edit to your needs.
+# Run: stackr init  (for an interactive wizard instead)
+
+global:
+  data_dir: /opt/appdata       # Where container data volumes are stored
+  timezone: America/New_York
+  puid: 1000
+  pgid: 1000
+
+catalog:
+  source: github               # github | local
+  version: latest              # Pin to a release tag (e.g. v1.2.0) or "latest"
+  # local_path: ./my-catalog   # Use a local catalog directory
+
+network:
+  mode: external               # external | internal | hybrid
+  domain: example.com          # Public domain
+  local_domain: home.example.com  # Local-only domain (used in internal/hybrid mode)
+
+traefik:
+  enabled: true
+  acme_email: you@example.com
+  dns_provider: cloudflare     # cloudflare | route53 | namecheap | porkbun
+  dns_provider_env:
+    CF_DNS_API_TOKEN: "${CF_DNS_API_TOKEN}"  # Resolved from .stackr.env or shell env
+
+security:
+  socket_proxy: true           # Recommended: proxy Docker socket access
+  crowdsec: false              # Phase 2
+  auth_provider: none          # authentik | authelia | google_oauth | none  (Phase 2)
+
+backup:
+  enabled: false               # Phase 5
+  destination: /mnt/backup
+  schedule: "0 2 * * *"
+
+apps:
+  - name: traefik
+    enabled: true
+
+  - name: portainer
+    enabled: true
+
+  - name: jellyfin
+    enabled: true
+    vars:
+      hardware_accel: none     # none | vaapi | nvidia | intel_qsv
+
+  - name: radarr
+    enabled: true
+
+  - name: sonarr
+    enabled: true
+
+  - name: prowlarr
+    enabled: true
+
+  - name: homepage
+    enabled: true
+
+  - name: uptime-kuma
+    enabled: true
+
+  - name: adguardhome
+    enabled: false
+
+  - name: vaultwarden
+    enabled: false
+
+  # Custom local app example:
+  # - name: my-app
+  #   enabled: true
+  #   catalog_path: ./local-catalog/my-app
+  #   overrides:
+  #     services:
+  #       my-app:
+  #         mem_limit: 512m

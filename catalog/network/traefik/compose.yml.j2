@@ -1,0 +1,69 @@
+services:
+  traefik:
+    image: traefik:v{{ vars.version | default('3') }}
+    container_name: traefik
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - TZ={{ global.timezone }}
+{% if traefik.dns_provider == 'cloudflare' %}
+      - CF_DNS_API_TOKEN=${CF_DNS_API_TOKEN}
+{% elif traefik.dns_provider == 'route53' %}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_REGION=${AWS_REGION}
+{% elif traefik.dns_provider == 'porkbun' %}
+      - PORKBUN_API_KEY=${PORKBUN_API_KEY}
+      - PORKBUN_SECRET_API_KEY=${PORKBUN_SECRET_API_KEY}
+{% elif traefik.dns_provider == 'namecheap' %}
+      - NAMECHEAP_API_USER=${NAMECHEAP_API_USER}
+      - NAMECHEAP_API_KEY=${NAMECHEAP_API_KEY}
+{% endif %}
+    volumes:
+      - {{ global.data_dir }}/traefik/config:/etc/traefik
+      - {{ global.data_dir }}/traefik/acme:/etc/traefik/acme
+{% if not security.socket_proxy %}
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+{% endif %}
+    networks:
+      - proxy
+{% if security.socket_proxy %}
+      - socket_proxy
+{% endif %}
+    command:
+      - --api.dashboard=true
+      - --log.level=INFO
+      - --accesslog=true
+      - --entrypoints.web.address=:80
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+      - --entrypoints.websecure.address=:443
+{% if network.mode in ('internal', 'hybrid') %}
+      - --entrypoints.websecure-local.address=:8443
+{% endif %}
+      - --providers.docker=true
+{% if security.socket_proxy %}
+      - --providers.docker.endpoint=tcp://socket-proxy:2375
+{% endif %}
+      - --providers.docker.exposedbydefault=false
+      - --providers.docker.network=proxy
+      - --certificatesresolvers.{{ traefik.dns_provider }}.acme.email={{ traefik.acme_email }}
+      - --certificatesresolvers.{{ traefik.dns_provider }}.acme.storage=/etc/traefik/acme/acme.json
+      - --certificatesresolvers.{{ traefik.dns_provider }}.acme.dnschallenge=true
+      - --certificatesresolvers.{{ traefik.dns_provider }}.acme.dnschallenge.provider={{ traefik.dns_provider }}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dashboard.rule=Host(`traefik.{{ network.domain }}`)"
+      - "traefik.http.routers.dashboard.entrypoints=websecure"
+      - "traefik.http.routers.dashboard.tls.certresolver={{ traefik.dns_provider }}"
+      - "traefik.http.routers.dashboard.service=api@internal"
+
+networks:
+  proxy:
+    external: true
+{% if security.socket_proxy %}
+  socket_proxy:
+    external: true
+{% endif %}
