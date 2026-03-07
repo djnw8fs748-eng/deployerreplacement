@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "feat/**", "fix/**"]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Lint & Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install dependencies
+        run: uv pip install --system -e ".[dev]"
+
+      - name: Lint (ruff)
+        run: ruff check stackr/ tests/
+
+      - name: Type check (mypy)
+        run: mypy stackr/
+
+      - name: Run tests
+        run: pytest tests/ -v --tb=short
+
+  catalog-validate:
+    name: Validate Catalog
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install dependencies
+        run: uv pip install --system -e ".[dev]"
+
+      - name: Render all catalog entries (smoke test)
+        run: |
+          python - <<'EOF'
+          import yaml
+          from stackr.catalog import Catalog
+          from stackr.config import AppConfig, StackrConfig
+          from stackr.renderer import render_app
+
+          config = StackrConfig.model_validate({
+              "global": {"data_dir": "/opt/appdata", "timezone": "UTC"},
+              "network": {"mode": "external", "domain": "test.com", "local_domain": "home.test.com"},
+              "traefik": {"enabled": True, "acme_email": "test@test.com", "dns_provider": "cloudflare"},
+              "security": {"socket_proxy": True},
+          })
+
+          catalog = Catalog()
+          errors = []
+
+          for app in catalog.all():
+              try:
+                  rendered = render_app(AppConfig(name=app.name), app, config)
+                  yaml.safe_load(rendered)
+                  print(f"  OK  {app.name}")
+              except Exception as e:
+                  errors.append(f"FAIL {app.name}: {e}")
+                  print(f"  FAIL {app.name}: {e}")
+
+          if errors:
+              raise SystemExit(f"{len(errors)} catalog render failure(s)")
+
+          print(f"\nAll {len(catalog.all())} catalog entries rendered successfully.")
+          EOF
