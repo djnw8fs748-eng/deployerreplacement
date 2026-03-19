@@ -30,6 +30,7 @@ stackr.yml.example  Reference config
 | `doctor.py` | Pre-flight health checks (`stackr doctor`): Docker, networks, secrets, catalog |
 | `images.py` | Image digest inspection via `docker inspect`; change detection for `stackr update` |
 | `catalog_sync.py` | GitHub release download → `~/.stackr/catalog/` user overlay |
+| `tui.py` | Textual TUI app browser (`stackr ui`); optional dep — only imported when textual is installed |
 
 ## Language and tooling
 
@@ -193,6 +194,22 @@ networks:
 - `remove_app()` uses `docker compose down` without `-v` — never destroy named volumes without explicit user confirmation
 - After a successful pull + deploy, `images.collect_digests(compose_content)` fetches RepoDigests for all services and stores them in `state.set_app(..., image_digests=digests)`
 - `stackr update` passes `check_image_updates=True` to `deploy()` — skips an app only when both the compose content and all image digests are unchanged
+
+### TUI (`stackr ui`)
+
+- `tui.py` is only importable when `textual` is installed (optional dep `[tui]`).
+- `HAS_TEXTUAL` bool guards the class definition — the module can always be imported safely.
+- `load_enabled(config_path)` and `build_stub_config(config_path)` are standalone helpers
+  (no textual dependency) that can be tested unconditionally.
+- The CLI `stackr ui` command wraps the import in `try/except ImportError` and prints an
+  install hint if textual is missing.
+- `StackrTUI.__init__` accepts `catalog: Any = None` so tests can inject a `Catalog`
+  without running the full app.
+- `pyproject.toml` has `[[tool.mypy.overrides]]` with `ignore_missing_imports = true` and
+  `ignore_errors = true` for `stackr.tui` since textual stubs are not available in the base
+  dev environment.
+- TUI tests in `tests/test_tui.py` use `pytest.mark.skipif(not HAS_TEXTUAL, ...)` to
+  skip class-level tests; the async mount test additionally skips without `pytest-asyncio`.
 
 ## Testing
 

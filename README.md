@@ -20,6 +20,7 @@ Stackr replaces Deployrr (a closed-source PHP/Bash binary) with a fully open, au
 - **Deep-merge overrides**: apply custom compose keys on top of any catalog template
 - **Health checks**: `stackr doctor` verifies Docker, networks, secrets, and catalog before deploying
 - **Catalog updates**: `stackr catalog update` downloads the latest catalog from GitHub
+- **Interactive TUI**: `stackr ui` opens a terminal app browser — toggle apps on/off, see details, save config
 
 ## Requirements
 
@@ -40,6 +41,12 @@ This installs Stackr via `pipx` into an isolated environment and adds the `stack
 
 ```bash
 pipx install git+https://github.com/djnw8fs748-eng/deployerreplacement.git
+```
+
+To include the optional TUI:
+
+```bash
+pipx install "git+https://github.com/djnw8fs748-eng/deployerreplacement.git[tui]"
 ```
 
 ### From source
@@ -165,6 +172,7 @@ stackr logs <app>             Stream logs for an app
 stackr shell <app>            Open a shell inside the app's primary container
 stackr list [--category C]    List all catalog apps
 stackr search <query>         Search catalog by name or description
+stackr ui                     Launch the interactive TUI app browser
 stackr backup                 Run a backup (Phase 5 — not yet implemented)
 stackr restore <snapshot>     Restore from a backup (Phase 5 — not yet implemented)
 stackr catalog update         Download the latest catalog from GitHub
@@ -337,6 +345,51 @@ Runs 8+ checks including:
 - `.stackr.env` file exists
 - All enabled apps are in the catalog
 
+## Interactive TUI
+
+The `stackr ui` command opens a full-terminal app browser built with [Textual](https://textual.textualize.io/).
+
+```bash
+# Install the TUI extra first
+pip install 'stackr[tui]'
+
+# Launch
+stackr ui
+stackr ui --config /path/to/stackr.yml
+```
+
+### Layout
+
+```
+┌─ Stackr — App Catalog ──────────────────────────────────┐
+│ ▼ database         │  Jellyfin  ✓ ENABLED               │
+│   ✓ postgres       │                                     │
+│   ○ mariadb        │  Free and open source media server  │
+│ ▼ media            │                                     │
+│   ✓ jellyfin       │  Category:  media                   │
+│   ○ plex           │  Homepage:  https://jellyfin.org    │
+│ ▼ network          │  Requires:  traefik                 │
+│   ✓ traefik        │                                     │
+│   ○ pihole         │  Variables:                         │
+│                    │   • hardware_accel = 'none'          │
+│                    │     (vaapi, nvidia, intel_qsv)       │
+├────────────────────┴─────────────────────────────────────┤
+│ Space toggle  •  S save  •  Q quit                       │
+└──────────────────────────────────────────────────────────┘
+```
+
+### Key bindings
+
+| Key | Action |
+|-----|--------|
+| `Space` | Toggle the highlighted app on/off |
+| `S` | Save current state to `stackr.yml` |
+| `Q` | Quit |
+
+If `stackr.yml` already exists, the TUI pre-populates enabled/disabled state from it.
+Saving writes the complete toggle state back to the file, preserving existing `vars` and
+`overrides` for entries that were already present.
+
 ## Development
 
 ### Setup
@@ -381,6 +434,7 @@ stackr/
   middleware.py     Traefik forward-auth and CrowdSec middleware label generators
   network.py        Docker network helpers
   status.py         Rich terminal status table
+  tui.py            Textual TUI app browser (stackr ui; requires textual extra)
   backup.py         Backup stub (Phase 5 — not yet implemented)
 
 catalog/
@@ -412,6 +466,7 @@ tests/
   test_secrets.py         Secret resolution and .stackr.env management
   test_security_apps.py   Security stack app rendering and validation
   test_state.py           State lock file and image digest persistence
+  test_tui.py             TUI helper functions; class/mount tests skip if textual absent
   test_validator.py       Pre-deploy validation checks
 ```
 
@@ -427,6 +482,12 @@ tests/
 | `pyyaml` | YAML parsing |
 | `rich` | Terminal output |
 | `python-dotenv` | `.stackr.env` loading |
+
+**Optional — TUI (`pip install 'stackr[tui]'`):**
+
+| Package | Purpose |
+|---------|---------|
+| `textual` | Terminal UI framework for `stackr ui` |
 
 **Development:**
 
