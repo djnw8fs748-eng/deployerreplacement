@@ -1,0 +1,32 @@
+name: netdata
+display_name: Netdata
+description: Real-time performance and health monitoring for systems and applications
+category: monitoring
+homepage: https://www.netdata.cloud
+version: stable
+exposure: internal
+requires:
+  - traefik
+vars:
+  version:
+    type: string
+    default: stable
+    description: Docker image tag
+  claim_token:
+    type: string
+    default: ""
+    description: Netdata Cloud claim token (optional, for cloud integration)
+  claim_rooms:
+    type: string
+    default: ""
+    description: Netdata Cloud room IDs (optional)
+ports:
+  - 19999
+host_ports: []
+volumes:
+  - name: netdataconfig
+    path: /etc/netdata
+  - name: netdatalib
+    path: /var/lib/netdata
+  - name: netdatacache
+    path: /var/cache/netdata

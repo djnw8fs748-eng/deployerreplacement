@@ -1,0 +1,23 @@
+name: headscale
+display_name: Headscale
+description: Open source self-hosted implementation of the Tailscale control server
+category: network
+homepage: https://headscale.net
+version: latest
+exposure: external
+requires:
+  - traefik
+vars:
+  version:
+    type: string
+    default: latest
+    description: Docker image tag
+ports:
+  - 8080
+host_ports:
+  - 3478
+volumes:
+  - name: config
+    path: /etc/headscale
+  - name: data
+    path: /var/lib/headscale

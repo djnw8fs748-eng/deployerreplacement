@@ -1,0 +1,19 @@
+name: redis
+display_name: Redis
+description: In-memory data structure store used as cache, database, and message broker
+category: database
+homepage: https://redis.io
+version: "7"
+exposure: internal
+requires: []
+vars:
+  version:
+    type: select
+    options: ["7", "8"]
+    default: "7"
+    description: Redis major version
+ports: []
+host_ports: []
+volumes:
+  - name: data
+    path: /data

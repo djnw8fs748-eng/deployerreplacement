@@ -1,0 +1,16 @@
+services:
+  loki:
+    image: grafana/loki:{{ vars.version | default('latest') }}
+    container_name: loki
+    restart: unless-stopped
+    environment:
+      - TZ={{ global.timezone }}
+    volumes:
+      - {{ global.data_dir }}/loki/data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true

@@ -1,0 +1,21 @@
+services:
+  overseerr:
+    image: lscr.io/linuxserver/overseerr:{{ vars.version | default('latest') }}
+    container_name: overseerr
+    restart: unless-stopped
+    environment:
+      - PUID={{ global.puid }}
+      - PGID={{ global.pgid }}
+      - TZ={{ global.timezone }}
+    volumes:
+      - {{ global.data_dir }}/overseerr/config:/app/config
+    networks:
+      - proxy
+    labels:
+{% for k, v in traefik_labels(5055).items() %}
+      - "{{ k }}={{ v }}"
+{% endfor %}
+
+networks:
+  proxy:
+    external: true

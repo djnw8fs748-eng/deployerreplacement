@@ -1,0 +1,34 @@
+name: tdarr
+display_name: Tdarr
+description: Distributed transcoding system for automating media library encoding
+category: media
+homepage: https://tdarr.io
+version: latest
+exposure: external
+requires:
+  - traefik
+vars:
+  version:
+    type: string
+    default: latest
+    description: Docker image tag
+  hardware_accel:
+    type: select
+    options: [none, vaapi, nvidia]
+    default: none
+    description: Hardware transcoding acceleration for the Tdarr node
+ports:
+  - 8265
+host_ports: []
+volumes:
+  - name: server
+    path: /app/server
+  - name: configs
+    path: /app/configs
+  - name: logs
+    path: /app/logs
+  - name: media
+    path: /media
+    external: true
+  - name: transcode_cache
+    path: /temp

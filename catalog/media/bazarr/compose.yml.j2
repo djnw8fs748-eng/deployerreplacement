@@ -1,0 +1,22 @@
+services:
+  bazarr:
+    image: lscr.io/linuxserver/bazarr:{{ vars.version | default('latest') }}
+    container_name: bazarr
+    restart: unless-stopped
+    environment:
+      - PUID={{ global.puid }}
+      - PGID={{ global.pgid }}
+      - TZ={{ global.timezone }}
+    volumes:
+      - {{ global.data_dir }}/bazarr/config:/config
+      - /media:/media
+    networks:
+      - proxy
+    labels:
+{% for k, v in traefik_labels(6767).items() %}
+      - "{{ k }}={{ v }}"
+{% endfor %}
+
+networks:
+  proxy:
+    external: true

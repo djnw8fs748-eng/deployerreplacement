@@ -1,0 +1,27 @@
+name: mariadb
+display_name: MariaDB
+description: Open source relational database forked from MySQL
+category: database
+homepage: https://mariadb.org
+version: "11"
+exposure: internal
+requires: []
+vars:
+  version:
+    type: select
+    options: ["10", "11"]
+    default: "11"
+    description: MariaDB major version
+  database:
+    type: string
+    default: mariadb
+    description: Default database name
+  user:
+    type: string
+    default: mariadb
+    description: Default database user
+ports: []
+host_ports: []
+volumes:
+  - name: data
+    path: /var/lib/mysql

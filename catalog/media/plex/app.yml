@@ -1,0 +1,35 @@
+name: plex
+display_name: Plex Media Server
+description: Media server to organize and stream your personal media library
+category: media
+homepage: https://www.plex.tv
+version: latest
+exposure: external
+requires:
+  - traefik
+vars:
+  version:
+    type: string
+    default: latest
+    description: Docker image tag
+  hardware_accel:
+    type: select
+    options: [none, vaapi, nvidia]
+    default: none
+    description: Hardware transcoding acceleration
+  claim_token:
+    type: string
+    default: ""
+    description: Plex claim token from plex.tv/claim (for first-run setup)
+ports:
+  - 32400
+host_ports:
+  - 32400
+volumes:
+  - name: config
+    path: /config
+  - name: transcode
+    path: /transcode
+  - name: media
+    path: /media
+    external: true

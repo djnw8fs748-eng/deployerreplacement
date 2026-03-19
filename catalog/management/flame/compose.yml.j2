@@ -1,0 +1,30 @@
+services:
+  flame:
+    image: pawelmalak/flame:{{ vars.version | default('latest') }}
+    container_name: flame
+    restart: unless-stopped
+    environment:
+      - TZ={{ global.timezone }}
+      - PASSWORD=${FLAME_PASSWORD}
+    volumes:
+      - {{ global.data_dir }}/flame/data:/app/data
+{% if not security.socket_proxy %}
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+{% endif %}
+    networks:
+      - proxy
+{% if security.socket_proxy %}
+      - socket_proxy
+{% endif %}
+    labels:
+{% for k, v in traefik_labels(5005).items() %}
+      - "{{ k }}={{ v }}"
+{% endfor %}
+
+networks:
+  proxy:
+    external: true
+{% if security.socket_proxy %}
+  socket_proxy:
+    external: true
+{% endif %}

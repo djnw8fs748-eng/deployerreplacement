@@ -42,6 +42,7 @@ class CatalogApp(BaseModel):
     suggests: list[str] = Field(default_factory=list)
     vars: dict[str, VarDef] = Field(default_factory=dict)
     ports: list[int] = Field(default_factory=list)
+    host_ports: list[int] = Field(default_factory=list)
     volumes: list[VolumeSpec] = Field(default_factory=list)
     catalog_dir: Path = Field(exclude=True, default=Path("."))
 

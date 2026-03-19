@@ -1,0 +1,22 @@
+name: freshrss
+display_name: FreshRSS
+description: Free, self-hosted RSS feed aggregator
+category: productivity
+homepage: https://freshrss.org
+version: latest
+exposure: external
+requires:
+  - traefik
+vars:
+  version:
+    type: string
+    default: latest
+    description: Docker image tag
+ports:
+  - 80
+host_ports: []
+volumes:
+  - name: data
+    path: /var/www/FreshRSS/data
+  - name: extensions
+    path: /var/www/FreshRSS/extensions

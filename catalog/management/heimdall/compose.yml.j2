@@ -1,0 +1,21 @@
+services:
+  heimdall:
+    image: lscr.io/linuxserver/heimdall:{{ vars.version | default('latest') }}
+    container_name: heimdall
+    restart: unless-stopped
+    environment:
+      - PUID={{ global.puid }}
+      - PGID={{ global.pgid }}
+      - TZ={{ global.timezone }}
+    volumes:
+      - {{ global.data_dir }}/heimdall/config:/config
+    networks:
+      - proxy
+    labels:
+{% for k, v in traefik_labels(80).items() %}
+      - "{{ k }}={{ v }}"
+{% endfor %}
+
+networks:
+  proxy:
+    external: true

@@ -1,0 +1,22 @@
+name: dozzle
+display_name: Dozzle
+description: Real-time Docker log viewer with a clean web interface
+category: management
+homepage: https://dozzle.dev
+version: latest
+exposure: internal
+requires:
+  - traefik
+vars:
+  version:
+    type: string
+    default: latest
+    description: Docker image tag
+  filter:
+    type: string
+    default: ""
+    description: Container filter (e.g. status=running)
+ports:
+  - 8080
+host_ports: []
+volumes: []

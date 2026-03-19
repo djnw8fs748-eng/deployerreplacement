@@ -99,9 +99,29 @@ def test_render_all_seed_apps():
     catalog = Catalog()
     config = _make_config()
     seed_apps = [
+        # Phase 1 original apps
         "traefik", "portainer", "jellyfin", "radarr", "sonarr",
         "prowlarr", "homepage", "uptime-kuma", "adguardhome", "vaultwarden",
         "socket-proxy",
+        # Phase 3 — database
+        "postgres", "mariadb", "redis", "mongo",
+        # Phase 3 — AI
+        "ollama", "open-webui",
+        # Phase 3 — monitoring
+        "grafana", "prometheus", "loki", "netdata",
+        # Phase 3 — media
+        "plex", "bazarr", "lidarr", "readarr", "overseerr", "jellyseerr",
+        "tdarr", "sabnzbd", "qbittorrent", "transmission",
+        # Phase 3 — management
+        "dozzle", "watchtower", "heimdall", "dasherr", "flame",
+        # Phase 3 — storage
+        "nextcloud", "filebrowser", "duplicati",
+        # Phase 3 — network
+        "pihole", "wireguard", "headscale", "nginx-proxy-manager",
+        # Phase 3 — productivity
+        "gitea", "paperless-ngx", "freshrss", "miniflux",
+        # Phase 3 — gaming
+        "minecraft",
     ]
     for name in seed_apps:
         catalog_app = catalog.get(name)
@@ -111,6 +131,80 @@ def test_render_all_seed_apps():
         assert rendered.strip(), f"Empty render for {name}"
         parsed = yaml.safe_load(rendered)
         assert "services" in parsed, f"No 'services' key in {name} compose"
+
+
+def test_render_watchtower_no_proxy_network():
+    """Watchtower has no web UI — it must not have a proxy network."""
+    catalog = Catalog()
+    config = _make_config()
+    app_config = AppConfig(name="watchtower")
+    catalog_app = catalog.get("watchtower")
+    rendered = render_app(app_config, catalog_app, config)
+    parsed = yaml.safe_load(rendered)
+    svc = parsed["services"]["watchtower"]
+    networks = svc.get("networks", [])
+    # Should only be on socket_proxy when socket_proxy=True, never on proxy
+    assert "proxy" not in networks
+
+
+def test_render_tdarr_has_node_service():
+    """Tdarr compose must include both tdarr and tdarr-node services."""
+    catalog = Catalog()
+    config = _make_config()
+    app_config = AppConfig(name="tdarr")
+    catalog_app = catalog.get("tdarr")
+    rendered = render_app(app_config, catalog_app, config)
+    parsed = yaml.safe_load(rendered)
+    assert "tdarr" in parsed["services"]
+    assert "tdarr-node" in parsed["services"]
+
+
+def test_render_ollama_nvidia():
+    """Ollama with nvidia GPU should include deploy.resources block."""
+    catalog = Catalog()
+    config = _make_config()
+    app_config = AppConfig(name="ollama", vars={"gpu_type": "nvidia"})
+    catalog_app = catalog.get("ollama")
+    rendered = render_app(app_config, catalog_app, config)
+    assert "nvidia" in rendered
+    assert "capabilities" in rendered
+
+
+def test_render_nextcloud_has_db_sidecar():
+    """Nextcloud compose must include its MariaDB and Redis sidecars."""
+    catalog = Catalog()
+    config = _make_config()
+    app_config = AppConfig(name="nextcloud")
+    catalog_app = catalog.get("nextcloud")
+    rendered = render_app(app_config, catalog_app, config)
+    parsed = yaml.safe_load(rendered)
+    assert "nextcloud" in parsed["services"]
+    assert "nextcloud-db" in parsed["services"]
+    assert "nextcloud-redis" in parsed["services"]
+
+
+def test_render_miniflux_has_db_sidecar():
+    """Miniflux compose must include its Postgres sidecar."""
+    catalog = Catalog()
+    config = _make_config()
+    app_config = AppConfig(name="miniflux")
+    catalog_app = catalog.get("miniflux")
+    rendered = render_app(app_config, catalog_app, config)
+    parsed = yaml.safe_load(rendered)
+    assert "miniflux" in parsed["services"]
+    assert "miniflux-db" in parsed["services"]
+
+
+def test_render_wireguard_no_proxy_network():
+    """Wireguard is a VPN tunnel — it has no proxy network or Traefik labels."""
+    catalog = Catalog()
+    config = _make_config()
+    app_config = AppConfig(name="wireguard")
+    catalog_app = catalog.get("wireguard")
+    rendered = render_app(app_config, catalog_app, config)
+    assert "traefik.enable" not in rendered
+    parsed = yaml.safe_load(rendered)
+    assert "networks" not in parsed.get("services", {}).get("wireguard", {})
 
 
 def test_deep_merge():
