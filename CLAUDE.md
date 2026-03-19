@@ -18,15 +18,18 @@ stackr.yml.example  Reference config
 |--------|------|
 | `config.py` | Pydantic v2 schema for `stackr.yml` |
 | `secrets.py` | Secret resolution: shell env → `.stackr.env` → auto-generated |
-| `state.py` | JSON lock file at `~/.stackr/state.json`; drift detection |
-| `catalog.py` | Loads `catalog/*/*/app.yml`; search/filter |
+| `state.py` | JSON lock file at `~/.stackr/state.json`; drift detection + image digest tracking |
+| `catalog.py` | Loads `catalog/*/*/app.yml`; user catalog overlay (`~/.stackr/catalog/`) |
 | `renderer.py` | Jinja2 template rendering; `traefik_labels()` helper |
 | `validator.py` | Pre-deploy checks: secrets, ports, deps, volumes, DNS provider, security stack |
-| `deployer.py` | validate → render → pull → `docker compose up -d` → write state |
+| `deployer.py` | validate → render → pull → `docker compose up -d` → write state + digests |
 | `status.py` | Rich terminal table; compares state vs live Docker |
 | `cli.py` | Typer CLI — all user-facing commands |
 | `dns_providers.py` | Registry of DNS providers and their required env vars |
 | `middleware.py` | Traefik forward-auth and CrowdSec middleware label generators |
+| `doctor.py` | Pre-flight health checks (`stackr doctor`): Docker, networks, secrets, catalog |
+| `images.py` | Image digest inspection via `docker inspect`; change detection for `stackr update` |
+| `catalog_sync.py` | GitHub release download → `~/.stackr/catalog/` user overlay |
 
 ## Language and tooling
 
@@ -49,9 +52,11 @@ stackr.yml.example  Reference config
 - `.stackr.env` is always gitignored; `stackr init` adds it automatically
 
 ### State management
-- State file: `~/.stackr/state.json` — tracks compose hash + timestamp per app
+- State file: `~/.stackr/state.json` — tracks compose hash + timestamp + image digests per app
 - State stores the **full rendered compose content** (not just a hash) to support genuine rollback
 - `state.is_changed(app_name, content)` drives skip-unchanged logic in `stackr update`
+- `AppState.image_digests` is a `dict[str, str]` mapping image name → RepoDigest (`@sha256:…`); stored after each deploy, read by `images.images_changed()` to detect upstream changes
+- Old state files without `image_digests` load cleanly — the field defaults to `{}` via `.get("image_digests", {})`
 
 ### Catalog entries
 Every app lives at `catalog/<category>/<name>/` and requires exactly two files:
@@ -61,7 +66,9 @@ Every app lives at `catalog/<category>/<name>/` and requires exactly two files:
 name: myapp
 display_name: My App
 description: What it does
-category: media          # media | network | security | management | dashboard | monitoring
+# Valid categories: media | network | security | management | dashboard | monitoring
+#                  database | ai | storage | productivity | gaming
+category: media
 homepage: https://...
 version: latest
 exposure: external       # external | internal | hybrid
@@ -74,7 +81,9 @@ vars:
     default: a
     description: What this var does
 ports:
-  - 8096                 # MUST match the port passed to traefik_labels() in compose.yml.j2
+  - 8096                 # Traefik routing port — MUST match traefik_labels() in compose.yml.j2
+host_ports:
+  - 9090                 # Actual host-bound ports — checked for conflicts by the validator
 volumes:
   - name: config
     path: /config
@@ -82,6 +91,11 @@ volumes:
     path: /media
     external: true       # warns user to pre-mount this path
 ```
+
+**Port semantics — critical distinction:**
+- `ports`: the container port passed to `traefik_labels()`. Traefik-proxied apps share container ports without conflict — multiple apps can all use port 8080 internally. This list is NOT used for conflict detection.
+- `host_ports`: actual ports bound on the host (e.g. `53` for DNS, `80`/`443` for Traefik, game ports). Only these are checked for conflicts by the validator.
+- Apps that have no host-bound ports (typical Traefik-proxied web apps) should have `host_ports: []`.
 
 **`compose.yml.j2`** — Jinja2 Docker Compose template:
 ```jinja2
@@ -109,9 +123,38 @@ networks:
 ```
 
 ### Critical catalog rules
-- The port passed to `traefik_labels()` **must exactly match** the port declared in `app.yml`'s `ports` list — the validator uses `app.yml` ports for conflict detection; mismatches silently break Traefik routing
+- The port passed to `traefik_labels()` **must exactly match** the port declared in `app.yml`'s `ports` list — mismatches silently break Traefik routing and go undetected
 - Apps that optionally use the Docker socket **must** condition it on `security.socket_proxy`, like Traefik does — never unconditionally mount `/var/run/docker.sock`
 - `socket-proxy` must be deployed before `traefik` — the deploy order in `config.enabled_apps` reflects this
+
+### No-Traefik app pattern
+Database, daemon, VPN, and gaming apps have no web UI to proxy. These apps:
+- Omit the `proxy` network entirely from their compose template
+- Do not call `traefik_labels()` — no `labels:` block
+- Set `host_ports:` in `app.yml` for any ports they bind on the host (e.g. `5432` for Postgres, `51820` for Wireguard)
+- Leave `ports: []` since there is no Traefik routing port
+
+Examples: `database/postgres`, `database/mariadb`, `database/redis`, `database/mongo`, `management/watchtower`, `network/wireguard`, `gaming/minecraft`.
+
+### Sidecar / backend network pattern
+Apps with embedded sidecars (DB, cache, worker) use an isolated `<app>-backend` network to prevent those sidecars from being reachable on the `proxy` network. The network is defined as `external: false` (Docker creates it). Only the primary service joins both the `proxy` and the backend network.
+
+Examples: `storage/nextcloud` (mariadb + redis sidecars), `productivity/paperless-ngx` (postgres + redis + gotenberg + tika), `productivity/miniflux` (postgres sidecar).
+
+```jinja2
+networks:
+  proxy:
+    external: true
+  nextcloud-backend:
+    external: false      # isolated — sidecars only
+```
+
+### User catalog overlay
+- `~/.stackr/catalog/` takes priority over the built-in catalog shipped with the package
+- `catalog.py::_effective_catalog()` checks for `~/.stackr/catalog/` first — if it contains any `*/*/app.yml` files, it is used exclusively
+- `stackr catalog update` downloads a GitHub release tarball and installs its `catalog/` to `~/.stackr/catalog/`
+- To revert to the built-in catalog, delete `~/.stackr/catalog/`
+- `catalog_sync.py::read_installed_version()` reads `~/.stackr/catalog/.catalog_version` to report the installed tag
 
 ### Jinja2 templates
 - Renderer uses `trim_blocks=True` and `lstrip_blocks=True` — block tags eat the newline after them
@@ -145,8 +188,11 @@ networks:
 
 ### Deploy pipeline
 - The deploy flow is: `validate()` (caller) → `deploy()` (engine) — `deploy()` accepts a pre-computed `ValidationResult` and must not be called without running validation first
+- `stackr doctor` runs pre-flight checks before any deploy; `run_doctor()` returns `True` if no `fail` checks
 - `_run_compose()` with `capture=False` is for interactive commands (`logs`, `shell`); other commands use `capture=True` which should pass `capture_output=True` to suppress Docker output
 - `remove_app()` uses `docker compose down` without `-v` — never destroy named volumes without explicit user confirmation
+- After a successful pull + deploy, `images.collect_digests(compose_content)` fetches RepoDigests for all services and stores them in `state.set_app(..., image_digests=digests)`
+- `stackr update` passes `check_image_updates=True` to `deploy()` — skips an app only when both the compose content and all image digests are unchanged
 
 ## Testing
 
@@ -160,17 +206,25 @@ networks:
 ## Adding a new catalog app — checklist
 
 1. Create `catalog/<category>/<name>/app.yml` with all required fields
-2. Create `catalog/<category>/<name>/compose.yml.j2` — port in `traefik_labels()` must match `app.yml`
-3. If the app uses the Docker socket, condition it on `{% if security.socket_proxy %}`
-4. Add the app name to `seed_apps` in `tests/test_catalog.py`
-5. Add a render test in `tests/test_renderer.py` if the app has non-trivial var combinations
-6. Run `pytest tests/ -v` and confirm all tests pass
-7. Run `ruff check stackr/ tests/` and `mypy stackr/`
+   - Use `ports` for the Traefik container routing port (matches `traefik_labels()` call)
+   - Use `host_ports` for any ports actually bound on the host (DNS, game ports, etc.)
+   - If no host ports, set `host_ports: []`
+2. Create `catalog/<category>/<name>/compose.yml.j2` — port in `traefik_labels()` must match `app.yml`'s `ports`
+3. If the app has no web UI (database, daemon, VPN, game server): omit `proxy` network and `traefik_labels()` entirely — see No-Traefik app pattern above
+4. If the app has embedded sidecars: use an isolated `<app>-backend` network — see Sidecar pattern above
+5. If the app uses the Docker socket, condition it on `{% if security.socket_proxy %}`
+6. Add the app name to `seed_apps` in `tests/test_catalog.py`
+7. Add a render test in `tests/test_renderer.py` if the app has non-trivial var combinations
+8. Run `pytest tests/ -v` and confirm all tests pass
+9. Run `ruff check stackr/ tests/` and `mypy stackr/`
 
 ## Common pitfalls
 
 - **Duplicate YAML keys in templates**: when using `{% if %} / {% else %}` inside a service block, ensure both branches don't emit the same top-level key (e.g. `volumes:`). Use a single block with conditional content inside it instead.
 - **Port mismatch**: `app.yml` ports are used by the validator; `traefik_labels(port)` is used at runtime. They must agree or conflicts go undetected and Traefik routes to the wrong port.
+- **`ports` vs `host_ports` confusion**: putting a Traefik-proxied port (e.g. 8080) in `host_ports` will produce false port conflict errors because multiple apps share that container port. Only real host-bound ports belong in `host_ports`.
 - **Secret priority**: `.stackr.env` must be loaded before shell env in `build_env()` so shell env wins — the order is `env.update(file)` then `env.update(os.environ)`.
 - **Rollback requires stored content**: `state.json` must store the full rendered compose YAML (not just a hash) for `stackr rollback` to work — a hash alone cannot be used to restore a previous version.
+- **Image digests only available after pull**: `collect_digests()` reads local Docker image metadata — it returns `{}` if images haven't been pulled yet. `images_changed()` returns `False` when stored digests are empty, so the first deploy always goes through.
+- **User catalog overlay is all-or-nothing**: if `~/.stackr/catalog/` exists and has any `*/*/app.yml`, it replaces the entire built-in catalog. Partial overlays are not supported — the user catalog must contain all apps they want to use.
 - **Import ordering**: stdlib imports must be alphabetically sorted within their block (ruff rule `I` enforces this).

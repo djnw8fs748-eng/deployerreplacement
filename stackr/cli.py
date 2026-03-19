@@ -399,13 +399,13 @@ def search(
 def update(
     config_path: Annotated[Path, typer.Option("--config", "-c")] = _DEFAULT_CONFIG,
 ) -> None:
-    """Pull latest images and redeploy apps with changes."""
+    """Pull latest images and redeploy apps with changes (including upstream image updates)."""
     from stackr.deployer import deploy as run_deploy
     from stackr.validator import validate as run_validate
 
     config, catalog, env, state = _load(config_path)
     result = run_validate(config, catalog, env, data_dir=Path(str(config.global_.data_dir)))
-    run_deploy(config, catalog, result, state, pull=True)
+    run_deploy(config, catalog, result, state, pull=True, check_image_updates=True)
     console.print("[green]Update complete.[/green]")
 
 
@@ -435,24 +435,84 @@ def restore(
 
 
 # ---------------------------------------------------------------------------
+# stackr doctor
+# ---------------------------------------------------------------------------
+
+@app.command()
+def doctor(
+    config_path: Annotated[Path, typer.Option("--config", "-c")] = _DEFAULT_CONFIG,
+) -> None:
+    """Check environment health: Docker, networks, secrets, and catalog consistency."""
+    from stackr.doctor import run_doctor
+
+    if not config_path.exists():
+        console.print(f"[red]Config not found: {config_path}[/red]")
+        console.print("Run [bold]stackr init[/bold] to create one.")
+        raise typer.Exit(1)
+
+    from stackr.config import load_config
+    from stackr.secrets import build_env
+
+    config = load_config(config_path)
+    env = build_env(config_path.parent)
+    ok = run_doctor(config, env, config_dir=config_path.parent)
+    if not ok:
+        raise typer.Exit(1)
+
+
+# ---------------------------------------------------------------------------
 # stackr catalog subcommands
 # ---------------------------------------------------------------------------
 
 @catalog_app.command(name="update")
 def catalog_update(
-    config_path: Annotated[Path, typer.Option("--config", "-c")] = _DEFAULT_CONFIG,
+    tag: Annotated[
+        str, typer.Option("--tag", "-t", help="Release tag to install (default: latest)")
+    ] = "latest",
 ) -> None:
-    """Pull the latest catalog from GitHub."""
-    console.print("[yellow]Remote catalog sync not yet implemented.[/yellow]")
-    console.print("The built-in catalog is updated with each Stackr release.")
+    """Download and install the latest app catalog from GitHub."""
+    from stackr.catalog_sync import (
+        download_and_install,
+        fetch_latest_tag,
+        read_installed_version,
+    )
+
+    installed = read_installed_version()
+    if installed:
+        console.print(f"Installed catalog version: [bold]{installed}[/bold]")
+    else:
+        console.print("No user-installed catalog — using built-in.")
+
+    try:
+        if tag == "latest":
+            console.print("Fetching latest release tag from GitHub…")
+            tag = fetch_latest_tag()
+
+        console.print(f"Downloading catalog [bold]{tag}[/bold]…")
+        download_and_install(tag)
+        console.print(f"[green]Catalog updated to {tag}.[/green]")
+        console.print("Restart Stackr commands to use the new catalog.")
+    except Exception as exc:
+        console.print(f"[red]Catalog update failed: {exc}[/red]")
+        raise typer.Exit(1) from exc
 
 
 @catalog_app.command(name="version")
 def catalog_version() -> None:
-    """Show current catalog version and available releases."""
-    from stackr.catalog import BUILTIN_CATALOG, Catalog
+    """Show current catalog path, version, and available app count."""
+    from stackr.catalog import BUILTIN_CATALOG, USER_CATALOG, Catalog
+    from stackr.catalog_sync import read_installed_version
+
     catalog = Catalog()
-    console.print(f"Catalog path:  {BUILTIN_CATALOG}")
+    installed = read_installed_version()
+
+    if installed:
+        console.print(f"Catalog:       [bold]user-installed[/bold] ({installed})")
+        console.print(f"Path:          {USER_CATALOG}")
+    else:
+        console.print("Catalog:       [bold]built-in[/bold]")
+        console.print(f"Path:          {BUILTIN_CATALOG}")
+
     console.print(f"Apps loaded:   {len(catalog.all())}")
     console.print(f"Categories:    {', '.join(catalog.categories())}")
 
