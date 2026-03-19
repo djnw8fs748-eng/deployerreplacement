@@ -517,5 +517,37 @@ def catalog_version() -> None:
     console.print(f"Categories:    {', '.join(catalog.categories())}")
 
 
+# ---------------------------------------------------------------------------
+# stackr ui
+# ---------------------------------------------------------------------------
+
+
+@app.command()
+def ui(
+    config_path: Annotated[Path, typer.Option("--config", "-c")] = _DEFAULT_CONFIG,
+) -> None:
+    """Launch the interactive TUI app browser."""
+    has_textual: bool
+    try:
+        from stackr.tui import HAS_TEXTUAL, StackrTUI
+
+        has_textual = HAS_TEXTUAL
+    except ImportError:
+        has_textual = False
+
+    if not has_textual:
+        console.print(
+            "[red]TUI requires the 'textual' package.[/red]\n"
+            "Install it with: [bold]pip install 'stackr[tui]'[/bold]"
+        )
+        raise typer.Exit(1)
+
+    from stackr.catalog import Catalog
+
+    catalog = Catalog()
+    tui = StackrTUI(config_path=config_path, catalog=catalog)
+    tui.run()
+
+
 if __name__ == "__main__":
     app()
