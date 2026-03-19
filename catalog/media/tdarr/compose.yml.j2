@@ -1,0 +1,64 @@
+services:
+  tdarr:
+    image: ghcr.io/haveagitgat/tdarr:{{ vars.version | default('latest') }}
+    container_name: tdarr
+    restart: unless-stopped
+    environment:
+      - PUID={{ global.puid }}
+      - PGID={{ global.pgid }}
+      - TZ={{ global.timezone }}
+      - UMASK_SET=002
+      - serverIP=0.0.0.0
+      - serverPort=8266
+      - webUIPort=8265
+      - internalNode=false
+      - inContainer=true
+    volumes:
+      - {{ global.data_dir }}/tdarr/server:/app/server
+      - {{ global.data_dir }}/tdarr/configs:/app/configs
+      - {{ global.data_dir }}/tdarr/logs:/app/logs
+      - /media:/media
+      - {{ global.data_dir }}/tdarr/transcode:/temp
+    networks:
+      - proxy
+    labels:
+{% for k, v in traefik_labels(8265).items() %}
+      - "{{ k }}={{ v }}"
+{% endfor %}
+
+  tdarr-node:
+    image: ghcr.io/haveagitgat/tdarr_node:{{ vars.version | default('latest') }}
+    container_name: tdarr-node
+    restart: unless-stopped
+    environment:
+      - PUID={{ global.puid }}
+      - PGID={{ global.pgid }}
+      - TZ={{ global.timezone }}
+      - UMASK_SET=002
+      - nodeName=tdarr-node
+      - serverIP=tdarr
+      - serverPort=8266
+      - inContainer=true
+    volumes:
+      - {{ global.data_dir }}/tdarr/configs:/app/configs
+      - {{ global.data_dir }}/tdarr/logs:/app/logs
+      - /media:/media
+      - {{ global.data_dir }}/tdarr/transcode:/temp
+{% if vars.hardware_accel | default('none') == 'vaapi' %}
+    devices:
+      - /dev/dri:/dev/dri
+{% elif vars.hardware_accel | default('none') == 'nvidia' %}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+{% endif %}
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true

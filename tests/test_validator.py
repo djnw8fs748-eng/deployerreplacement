@@ -68,35 +68,77 @@ def test_port_conflict_detected():
     assert port_errors == []
 
 
-def test_port_conflict_same_port(monkeypatch):
-    """Inject a fake catalog app with the same port as jellyfin to trigger conflict."""
+def test_port_conflict_same_host_port(monkeypatch):
+    """Two apps binding the same host port produce a conflict error."""
     from pathlib import Path
 
     from stackr.catalog import CatalogApp
 
     catalog = Catalog()
-    # Patch a second app to declare port 8096 (same as jellyfin)
+    # Simulate two DNS servers both trying to bind host port 53
     fake_app = CatalogApp(
-        name="fake-app",
-        display_name="Fake",
+        name="fake-dns",
+        display_name="Fake DNS",
         description="test",
         category="test",
-        ports=[8096],  # conflicts with jellyfin
+        host_ports=[53],  # same host port as adguardhome
         catalog_dir=Path("/tmp"),
     )
-    catalog._apps["fake-app"] = fake_app
+    catalog._apps["fake-dns"] = fake_app
 
     config = _make_config(
         [
-            {"name": "jellyfin", "enabled": True},
-            {"name": "fake-app", "enabled": True},
+            {"name": "adguardhome", "enabled": True},
+            {"name": "fake-dns", "enabled": True},
         ],
         traefik={"enabled": True, "acme_email": "a@b.com", "dns_provider": "cloudflare"},
         security={"socket_proxy": False},
     )
     result = validate(config, catalog, {"CF_DNS_API_TOKEN": "test-token"})
     assert not result.ok
-    assert any("8096" in e.message and "conflicts" in e.message for e in result.errors)
+    assert any("53" in e.message and "conflicts" in e.message for e in result.errors)
+
+
+def test_shared_traefik_port_no_conflict(monkeypatch):
+    """Apps sharing the same container port (Traefik-proxied) do not conflict."""
+    from pathlib import Path
+
+    from stackr.catalog import CatalogApp
+
+    catalog = Catalog()
+    # Two apps both listen on container port 8080 but are proxied by Traefik — no host conflict
+    fake_a = CatalogApp(
+        name="app-a",
+        display_name="A",
+        description="test",
+        category="test",
+        ports=[8080],
+        host_ports=[],
+        catalog_dir=Path("/tmp"),
+    )
+    fake_b = CatalogApp(
+        name="app-b",
+        display_name="B",
+        description="test",
+        category="test",
+        ports=[8080],
+        host_ports=[],
+        catalog_dir=Path("/tmp"),
+    )
+    catalog._apps["app-a"] = fake_a
+    catalog._apps["app-b"] = fake_b
+
+    config = _make_config(
+        [
+            {"name": "app-a", "enabled": True},
+            {"name": "app-b", "enabled": True},
+        ],
+        traefik={"enabled": False},
+        security={"socket_proxy": False},
+    )
+    result = validate(config, catalog, {})
+    port_errors = [e for e in result.errors if "conflicts" in e.message]
+    assert port_errors == []
 
 
 def test_unresolved_secret_fails():

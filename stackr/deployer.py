@@ -30,6 +30,7 @@ def deploy(
     state: State,
     app_name: str | None = None,
     pull: bool = True,
+    check_image_updates: bool = False,
 ) -> None:
     if not validation.ok:
         console.print("[bold red]Validation failed — aborting deploy.[/bold red]")
@@ -60,13 +61,26 @@ def deploy(
         if pull:
             _run_compose(compose_path, ["pull", "--quiet"])
 
-        if not state.is_changed(app_config.name, compose_content):
-            console.print(f"  [dim]SKIP[/dim]   {app_config.name} (unchanged)")
-            continue
+        compose_changed = state.is_changed(app_config.name, compose_content)
+        if not compose_changed:
+            if check_image_updates:
+                from stackr import images as img
+                if not img.images_changed(app_config.name, compose_content, state):
+                    console.print(f"  [dim]SKIP[/dim]   {app_config.name} (unchanged)")
+                    continue
+                console.print(f"  [cyan]UPDATE[/cyan] {app_config.name} (new image)")
+            else:
+                console.print(f"  [dim]SKIP[/dim]   {app_config.name} (unchanged)")
+                continue
+        else:
+            console.print(f"  [green]DEPLOY[/green] {app_config.name}")
 
-        console.print(f"  [green]DEPLOY[/green] {app_config.name}")
         _run_compose(compose_path, ["up", "-d", "--remove-orphans"])
-        state.set_app(app_config.name, compose_content)
+        digests: dict[str, str] = {}
+        if pull:
+            from stackr import images as img
+            digests = img.collect_digests(compose_content)
+        state.set_app(app_config.name, compose_content, image_digests=digests)
         state.save()
 
 

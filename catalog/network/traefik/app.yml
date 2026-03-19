@@ -11,6 +11,9 @@ suggests:
 ports:
   - 80
   - 443
+host_ports:
+  - 80
+  - 443
 volumes:
   - name: config
     path: /etc/traefik

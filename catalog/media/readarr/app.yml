@@ -1,0 +1,28 @@
+name: readarr
+display_name: Readarr
+description: Book manager for Usenet and BitTorrent users
+category: media
+homepage: https://readarr.com
+version: latest
+exposure: external
+requires:
+  - traefik
+suggests:
+  - prowlarr
+vars:
+  version:
+    type: string
+    default: latest
+    description: Docker image tag
+ports:
+  - 8787
+host_ports: []
+volumes:
+  - name: config
+    path: /config
+  - name: books
+    path: /books
+    external: true
+  - name: downloads
+    path: /downloads
+    external: true

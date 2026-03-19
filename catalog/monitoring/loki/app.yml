@@ -1,0 +1,20 @@
+name: loki
+display_name: Loki
+description: Horizontally scalable log aggregation system by Grafana Labs
+category: monitoring
+homepage: https://grafana.com/oss/loki
+version: latest
+exposure: internal
+requires: []
+suggests:
+  - grafana
+vars:
+  version:
+    type: string
+    default: latest
+    description: Docker image tag
+ports: []
+host_ports: []
+volumes:
+  - name: data
+    path: /loki

@@ -1,0 +1,38 @@
+services:
+  plex:
+    image: plexinc/pms-docker:{{ vars.version | default('latest') }}
+    container_name: plex
+    restart: unless-stopped
+    ports:
+      - "32400:32400/tcp"
+    environment:
+      - PUID={{ global.puid }}
+      - PGID={{ global.pgid }}
+      - TZ={{ global.timezone }}
+      - PLEX_CLAIM={{ vars.claim_token | default('') }}
+    volumes:
+      - {{ global.data_dir }}/plex/config:/config
+      - {{ global.data_dir }}/plex/transcode:/transcode
+      - /media:/media:ro
+{% if vars.hardware_accel | default('none') == 'vaapi' %}
+    devices:
+      - /dev/dri:/dev/dri
+{% elif vars.hardware_accel | default('none') == 'nvidia' %}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+{% endif %}
+    networks:
+      - proxy
+    labels:
+{% for k, v in traefik_labels(32400).items() %}
+      - "{{ k }}={{ v }}"
+{% endfor %}
+
+networks:
+  proxy:
+    external: true

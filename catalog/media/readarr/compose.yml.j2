@@ -1,0 +1,23 @@
+services:
+  readarr:
+    image: lscr.io/linuxserver/readarr:{{ vars.version | default('latest') }}
+    container_name: readarr
+    restart: unless-stopped
+    environment:
+      - PUID={{ global.puid }}
+      - PGID={{ global.pgid }}
+      - TZ={{ global.timezone }}
+    volumes:
+      - {{ global.data_dir }}/readarr/config:/config
+      - /books:/books
+      - /downloads:/downloads
+    networks:
+      - proxy
+    labels:
+{% for k, v in traefik_labels(8787).items() %}
+      - "{{ k }}={{ v }}"
+{% endfor %}
+
+networks:
+  proxy:
+    external: true

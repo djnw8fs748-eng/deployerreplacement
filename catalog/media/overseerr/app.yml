@@ -1,0 +1,24 @@
+name: overseerr
+display_name: Overseerr
+description: Request management and media discovery tool for Plex ecosystems
+category: media
+homepage: https://overseerr.dev
+version: latest
+exposure: external
+requires:
+  - traefik
+suggests:
+  - sonarr
+  - radarr
+  - plex
+vars:
+  version:
+    type: string
+    default: latest
+    description: Docker image tag
+ports:
+  - 5055
+host_ports: []
+volumes:
+  - name: config
+    path: /app/config

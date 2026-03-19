@@ -1,0 +1,31 @@
+name: pihole
+display_name: Pi-hole
+description: Network-wide ad blocking and local DNS resolver
+category: network
+homepage: https://pi-hole.net
+version: latest
+exposure: internal
+requires:
+  - traefik
+vars:
+  version:
+    type: string
+    default: latest
+    description: Docker image tag
+  dns1:
+    type: string
+    default: "8.8.8.8"
+    description: Primary upstream DNS server
+  dns2:
+    type: string
+    default: "8.8.4.4"
+    description: Secondary upstream DNS server
+ports:
+  - 80
+host_ports:
+  - 53
+volumes:
+  - name: etc-pihole
+    path: /etc/pihole
+  - name: etc-dnsmasq
+    path: /etc/dnsmasq.d

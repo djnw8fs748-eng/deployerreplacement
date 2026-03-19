@@ -1,0 +1,30 @@
+services:
+  pihole:
+    image: pihole/pihole:{{ vars.version | default('latest') }}
+    container_name: pihole
+    restart: unless-stopped
+    ports:
+      - "53:53/tcp"
+      - "53:53/udp"
+    environment:
+      - TZ={{ global.timezone }}
+      - WEBPASSWORD=${PIHOLE_WEBPASSWORD}
+      - PIHOLE_DNS_1={{ vars.dns1 | default('8.8.8.8') }}
+      - PIHOLE_DNS_2={{ vars.dns2 | default('8.8.4.4') }}
+      - VIRTUAL_HOST=pihole.{{ network.domain }}
+    volumes:
+      - {{ global.data_dir }}/pihole/etc-pihole:/etc/pihole
+      - {{ global.data_dir }}/pihole/etc-dnsmasq:/etc/dnsmasq.d
+    dns:
+      - 127.0.0.1
+      - {{ vars.dns1 | default('8.8.8.8') }}
+    networks:
+      - proxy
+    labels:
+{% for k, v in traefik_labels(80, 'internal').items() %}
+      - "{{ k }}={{ v }}"
+{% endfor %}
+
+networks:
+  proxy:
+    external: true

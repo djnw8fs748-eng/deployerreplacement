@@ -1,0 +1,26 @@
+services:
+  wireguard:
+    image: lscr.io/linuxserver/wireguard:{{ vars.version | default('latest') }}
+    container_name: wireguard
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    sysctls:
+      - net.ipv4.ip_forward=1
+      - net.ipv4.conf.all.src_valid_mark=1
+    ports:
+      - "51820:51820/udp"
+    environment:
+      - PUID={{ global.puid }}
+      - PGID={{ global.pgid }}
+      - TZ={{ global.timezone }}
+      - SERVERURL=vpn.{{ network.domain }}
+      - SERVERPORT=51820
+      - PEERS={{ vars.peers | default(1) }}
+      - PEERDNS={{ vars.dns | default('1.1.1.1') }}
+      - ALLOWEDIPS={{ vars.allowed_ips | default('0.0.0.0/0') }}
+      - LOG_CONFS=true
+    volumes:
+      - {{ global.data_dir }}/wireguard/config:/config
+      - /lib/modules:/lib/modules:ro

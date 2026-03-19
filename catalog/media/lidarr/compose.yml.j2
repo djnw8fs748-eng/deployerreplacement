@@ -1,0 +1,23 @@
+services:
+  lidarr:
+    image: lscr.io/linuxserver/lidarr:{{ vars.version | default('latest') }}
+    container_name: lidarr
+    restart: unless-stopped
+    environment:
+      - PUID={{ global.puid }}
+      - PGID={{ global.pgid }}
+      - TZ={{ global.timezone }}
+    volumes:
+      - {{ global.data_dir }}/lidarr/config:/config
+      - /music:/music
+      - /downloads:/downloads
+    networks:
+      - proxy
+    labels:
+{% for k, v in traefik_labels(8686).items() %}
+      - "{{ k }}={{ v }}"
+{% endfor %}
+
+networks:
+  proxy:
+    external: true

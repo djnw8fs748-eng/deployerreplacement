@@ -70,3 +70,56 @@ def test_hash_content_deterministic():
 
 def test_hash_content_differs():
     assert hash_content("abc") != hash_content("xyz")
+
+
+def test_image_digests_stored_and_retrieved(tmp_path):
+    state = State(state_dir=tmp_path)
+    digests = {"jellyfin/jellyfin:latest": "jellyfin/jellyfin@sha256:abc123"}
+    state.set_app("jellyfin", "content", image_digests=digests)
+    app = state.get_app("jellyfin")
+    assert app is not None
+    assert app.image_digests == digests
+
+
+def test_image_digests_default_empty(tmp_path):
+    state = State(state_dir=tmp_path)
+    state.set_app("jellyfin", "content")
+    app = state.get_app("jellyfin")
+    assert app is not None
+    assert app.image_digests == {}
+
+
+def test_image_digests_survive_round_trip(tmp_path):
+    state = State(state_dir=tmp_path)
+    digests = {"foo:latest": "foo@sha256:deadbeef"}
+    state.set_app("myapp", "content", image_digests=digests)
+    state.save()
+
+    state2 = State(state_dir=tmp_path)
+    app = state2.get_app("myapp")
+    assert app is not None
+    assert app.image_digests == digests
+
+
+def test_image_digests_missing_in_old_state_defaults_empty(tmp_path):
+    """Pre-Wave-3 state files without image_digests field should load as {}."""
+    import json
+
+    state_file = tmp_path / "state.json"
+    # Write a state file without image_digests (simulating old format)
+    state_file.write_text(json.dumps({
+        "apps": {
+            "jellyfin": {
+                "enabled": True,
+                "compose_hash": "abc123",
+                "compose_content": "services: {}",
+                "deployed_at": "2025-01-01T00:00:00+00:00",
+            }
+        },
+        "deployed_at": "2025-01-01T00:00:00+00:00",
+        "catalog_version": None,
+    }))
+    state = State(state_dir=tmp_path)
+    app = state.get_app("jellyfin")
+    assert app is not None
+    assert app.image_digests == {}

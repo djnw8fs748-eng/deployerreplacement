@@ -1,0 +1,32 @@
+name: paperless-ngx
+display_name: Paperless-ngx
+description: Document management system that transforms physical documents into a searchable archive
+category: productivity
+homepage: https://docs.paperless-ngx.com
+version: latest
+exposure: external
+requires:
+  - traefik
+vars:
+  version:
+    type: string
+    default: latest
+    description: Docker image tag
+  admin_user:
+    type: string
+    default: admin
+    description: Initial admin username
+ports:
+  - 8000
+host_ports: []
+volumes:
+  - name: data
+    path: /usr/src/paperless/data
+  - name: media
+    path: /usr/src/paperless/media
+  - name: consume
+    path: /usr/src/paperless/consume
+    external: true
+  - name: export
+    path: /usr/src/paperless/export
+    external: true
