@@ -76,11 +76,14 @@ def deploy(
             console.print(f"  [green]DEPLOY[/green] {app_config.name}")
 
         _run_compose(compose_path, ["up", "-d", "--remove-orphans"])
-        digests: dict[str, str] = {}
         if pull:
             from stackr import images as img
-            digests = img.collect_digests(compose_content)
-        state.set_app(app_config.name, compose_content, image_digests=digests)
+            digests: dict[str, str] = img.collect_digests(compose_content)
+            state.set_app(app_config.name, compose_content, image_digests=digests)
+        else:
+            existing_app = state.get_app(app_config.name)
+            preserved = existing_app.image_digests if existing_app else {}
+            state.set_app(app_config.name, compose_content, image_digests=preserved)
         state.save()
 
 
@@ -149,6 +152,8 @@ def rollback(
     console.print(f"  [magenta]ROLLBACK[/magenta] {app_name}")
     compose_path = _write_compose(app_name, app_state.compose_content)
     _run_compose(compose_path, ["up", "-d", "--remove-orphans"])
+    state.set_app(app_name, app_state.compose_content, image_digests=app_state.image_digests)
+    state.save()
 
 
 def _get_catalog_app(

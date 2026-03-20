@@ -198,8 +198,10 @@ if HAS_TEXTUAL:
                 if isinstance(a, dict) and "name" in a
             }
             apps_out: list[dict[str, Any]] = []
+            catalog_names: set[str] = set()
             for category in self._catalog.categories():
                 for ca in sorted(self._catalog.by_category(category), key=lambda a: a.name):
+                    catalog_names.add(ca.name)
                     if ca.name in self._enabled:
                         entry = dict(existing.get(ca.name, {"name": ca.name}))
                         entry["enabled"] = True
@@ -208,6 +210,10 @@ if HAS_TEXTUAL:
                         entry = dict(existing[ca.name])
                         entry["enabled"] = False
                         apps_out.append(entry)
+            # Preserve apps not present in the current catalog (e.g. local catalog_path apps)
+            for name, entry in existing.items():
+                if name not in catalog_names:
+                    apps_out.append(dict(entry))
             raw["apps"] = apps_out
             with open(self._config_path, "w") as f:
                 yaml.dump(raw, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
