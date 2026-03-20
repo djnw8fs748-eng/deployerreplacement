@@ -218,7 +218,8 @@ def _check_ports(
     seen_ports: dict[int, str],
     result: ValidationResult,
 ) -> None:
-    for port in catalog_app.ports:
+    # Only check host_ports — ports are Traefik-proxied container ports and can be shared.
+    for port in catalog_app.host_ports:
         if port in seen_ports:
             result.error(
                 app_config.name,

@@ -1,0 +1,20 @@
+name: heimdall
+display_name: Heimdall
+description: Application dashboard for all your web applications
+category: management
+homepage: https://heimdall.site
+version: latest
+exposure: external
+requires:
+  - traefik
+vars:
+  version:
+    type: string
+    default: latest
+    description: Docker image tag
+ports:
+  - 80
+host_ports: []
+volumes:
+  - name: config
+    path: /config

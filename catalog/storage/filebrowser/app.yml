@@ -1,0 +1,23 @@
+name: filebrowser
+display_name: File Browser
+description: Web-based file manager for browsing and managing your server files
+category: storage
+homepage: https://filebrowser.org
+version: latest
+exposure: internal
+requires:
+  - traefik
+vars:
+  version:
+    type: string
+    default: latest
+    description: Docker image tag
+ports:
+  - 80
+host_ports: []
+volumes:
+  - name: data
+    path: /srv
+    external: true
+  - name: config
+    path: /config

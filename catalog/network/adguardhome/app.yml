@@ -8,8 +8,9 @@ exposure: internal
 requires:
   - traefik
 ports:
-  - 53
   - 3000
+host_ports:
+  - 53
 volumes:
   - name: work
     path: /opt/adguardhome/work

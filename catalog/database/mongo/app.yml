@@ -1,0 +1,19 @@
+name: mongo
+display_name: MongoDB
+description: Document-oriented NoSQL database
+category: database
+homepage: https://www.mongodb.com
+version: "7"
+exposure: internal
+requires: []
+vars:
+  version:
+    type: select
+    options: ["6", "7", "8"]
+    default: "7"
+    description: MongoDB major version
+ports: []
+host_ports: []
+volumes:
+  - name: data
+    path: /data/db

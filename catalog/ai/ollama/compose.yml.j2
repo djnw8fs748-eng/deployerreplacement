@@ -1,0 +1,30 @@
+services:
+  ollama:
+    image: ollama/ollama:{{ vars.version | default('latest') }}
+    container_name: ollama
+    restart: unless-stopped
+    environment:
+      - TZ={{ global.timezone }}
+    volumes:
+      - {{ global.data_dir }}/ollama/models:/root/.ollama
+{% if vars.gpu_type | default('none') == 'nvidia' %}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+{% elif vars.gpu_type | default('none') == 'amd' %}
+    devices:
+      - /dev/kfd:/dev/kfd
+      - /dev/dri:/dev/dri
+    group_add:
+      - render
+{% endif %}
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true

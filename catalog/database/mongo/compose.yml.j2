@@ -1,0 +1,16 @@
+services:
+  mongo:
+    image: mongo:{{ vars.version | default('7') }}
+    container_name: mongo
+    restart: unless-stopped
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_ROOT_USERNAME}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD}
+      - TZ={{ global.timezone }}
+    volumes:
+      - {{ global.data_dir }}/mongo/data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 30s
+      timeout: 10s
+      retries: 5

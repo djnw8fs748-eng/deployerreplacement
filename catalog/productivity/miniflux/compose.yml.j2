@@ -1,0 +1,46 @@
+services:
+  miniflux:
+    image: miniflux/miniflux:{{ vars.version | default('latest') }}
+    container_name: miniflux
+    restart: unless-stopped
+    depends_on:
+      - miniflux-db
+    environment:
+      - TZ={{ global.timezone }}
+      - DATABASE_URL=postgres://miniflux:${MINIFLUX_DB_PASSWORD}@miniflux-db/miniflux?sslmode=disable
+      - RUN_MIGRATIONS=1
+      - CREATE_ADMIN=1
+      - ADMIN_USERNAME={{ vars.admin_username | default('admin') }}
+      - ADMIN_PASSWORD=${MINIFLUX_ADMIN_PASSWORD}
+      - BASE_URL=https://miniflux.{{ network.domain }}
+    networks:
+      - proxy
+      - miniflux-backend
+    labels:
+{% for k, v in traefik_labels(8080).items() %}
+      - "{{ k }}={{ v }}"
+{% endfor %}
+
+  miniflux-db:
+    image: postgres:16-alpine
+    container_name: miniflux-db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=miniflux
+      - POSTGRES_PASSWORD=${MINIFLUX_DB_PASSWORD}
+      - POSTGRES_DB=miniflux
+    volumes:
+      - {{ global.data_dir }}/miniflux/db:/var/lib/postgresql/data
+    networks:
+      - miniflux-backend
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U miniflux"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+networks:
+  proxy:
+    external: true
+  miniflux-backend:
+    external: false

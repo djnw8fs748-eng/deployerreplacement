@@ -1,0 +1,24 @@
+name: watchtower
+display_name: Watchtower
+description: Automatically updates running Docker containers when new images are released
+category: management
+homepage: https://containrrr.dev/watchtower
+version: latest
+exposure: internal
+requires: []
+vars:
+  version:
+    type: string
+    default: latest
+    description: Docker image tag
+  schedule:
+    type: string
+    default: "0 0 4 * * *"
+    description: Cron schedule for update checks (default 04:00 daily)
+  cleanup:
+    type: boolean
+    default: true
+    description: Remove old images after updating
+ports: []
+host_ports: []
+volumes: []

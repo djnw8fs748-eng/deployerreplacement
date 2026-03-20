@@ -20,12 +20,14 @@ class AppState:
         compose_hash: str,
         compose_content: str,
         deployed_at: str,
+        image_digests: dict[str, str] | None = None,
     ) -> None:
         self.name = name
         self.enabled = enabled
         self.compose_hash = compose_hash
         self.compose_content = compose_content
         self.deployed_at = deployed_at
+        self.image_digests: dict[str, str] = image_digests or {}
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -33,6 +35,7 @@ class AppState:
             "compose_hash": self.compose_hash,
             "compose_content": self.compose_content,
             "deployed_at": self.deployed_at,
+            "image_digests": self.image_digests,
         }
 
     @classmethod
@@ -43,6 +46,7 @@ class AppState:
             compose_hash=d.get("compose_hash", ""),
             compose_content=d.get("compose_content", ""),
             deployed_at=d.get("deployed_at", ""),
+            image_digests=d.get("image_digests", {}),
         )
 
 
@@ -69,13 +73,20 @@ class State:
             return None
         return AppState.from_dict(name, apps[name])
 
-    def set_app(self, name: str, compose_content: str, enabled: bool = True) -> None:
+    def set_app(
+        self,
+        name: str,
+        compose_content: str,
+        enabled: bool = True,
+        image_digests: dict[str, str] | None = None,
+    ) -> None:
         self._data.setdefault("apps", {})[name] = AppState(
             name=name,
             enabled=enabled,
             compose_hash=hash_content(compose_content),
             compose_content=compose_content,
             deployed_at=now_iso(),
+            image_digests=image_digests or {},
         ).to_dict()
         self._data["deployed_at"] = now_iso()
 

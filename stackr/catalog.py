@@ -14,6 +14,14 @@ import yaml
 from pydantic import BaseModel, Field
 
 BUILTIN_CATALOG = Path(__file__).parent.parent / "catalog"
+USER_CATALOG = Path.home() / ".stackr" / "catalog"
+
+
+def _effective_catalog() -> Path:
+    """Return user-installed catalog if present, otherwise the built-in one."""
+    if USER_CATALOG.exists() and any(USER_CATALOG.glob("*/*/app.yml")):
+        return USER_CATALOG
+    return BUILTIN_CATALOG
 
 
 class VarDef(BaseModel):
@@ -42,6 +50,7 @@ class CatalogApp(BaseModel):
     suggests: list[str] = Field(default_factory=list)
     vars: dict[str, VarDef] = Field(default_factory=dict)
     ports: list[int] = Field(default_factory=list)
+    host_ports: list[int] = Field(default_factory=list)
     volumes: list[VolumeSpec] = Field(default_factory=list)
     catalog_dir: Path = Field(exclude=True, default=Path("."))
 
@@ -56,8 +65,8 @@ class CatalogApp(BaseModel):
 
 
 class Catalog:
-    def __init__(self, catalog_dir: Path = BUILTIN_CATALOG) -> None:
-        self._dir = catalog_dir
+    def __init__(self, catalog_dir: Path | None = None) -> None:
+        self._dir = catalog_dir if catalog_dir is not None else _effective_catalog()
         self._apps: dict[str, CatalogApp] = {}
         self._load()
 

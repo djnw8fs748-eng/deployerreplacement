@@ -1,0 +1,23 @@
+services:
+  headscale:
+    image: headscale/headscale:{{ vars.version | default('latest') }}
+    container_name: headscale
+    restart: unless-stopped
+    ports:
+      - "3478:3478/udp"
+    environment:
+      - TZ={{ global.timezone }}
+    volumes:
+      - {{ global.data_dir }}/headscale/config:/etc/headscale
+      - {{ global.data_dir }}/headscale/data:/var/lib/headscale
+    command: serve
+    networks:
+      - proxy
+    labels:
+{% for k, v in traefik_labels(8080).items() %}
+      - "{{ k }}={{ v }}"
+{% endfor %}
+
+networks:
+  proxy:
+    external: true
