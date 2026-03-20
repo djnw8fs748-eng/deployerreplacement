@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import shutil
+import sys
 import tarfile
 import tempfile
 import urllib.request
@@ -56,7 +57,10 @@ def download_and_install(tag: str) -> None:
         archive = tmp_path / "release.tar.gz"
         _download(tarball_url, archive)
         with tarfile.open(archive) as tf:
-            tf.extractall(tmp_path, filter="data")
+            if sys.version_info >= (3, 12):
+                tf.extractall(tmp_path, filter="data")  # type: ignore[call-arg]
+            else:
+                tf.extractall(tmp_path)  # noqa: S202
         # The tarball contains a top-level directory; find the catalog/ inside it
         catalog_dirs = [p for p in tmp_path.rglob("catalog") if p.is_dir()]
         if not catalog_dirs:

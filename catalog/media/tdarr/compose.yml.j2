@@ -21,6 +21,7 @@ services:
       - {{ global.data_dir }}/tdarr/transcode:/temp
     networks:
       - proxy
+      - tdarr-backend
     labels:
 {% for k, v in traefik_labels(8265).items() %}
       - "{{ k }}={{ v }}"
@@ -57,8 +58,10 @@ services:
               capabilities: [gpu]
 {% endif %}
     networks:
-      - proxy
+      - tdarr-backend
 
 networks:
   proxy:
     external: true
+  tdarr-backend:
+    external: false
