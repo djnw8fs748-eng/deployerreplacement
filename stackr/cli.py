@@ -419,19 +419,142 @@ def backup(
 ) -> None:
     """Run a backup now."""
     from stackr.backup import backup as run_backup
-    config, _, _, _ = _load(config_path)
-    run_backup(str(config.backup.destination))
+    from stackr.state import DEFAULT_STATE_DIR
+
+    config, _, env, _ = _load(config_path)
+    try:
+        run_backup(
+            destination=str(config.backup.destination),
+            data_dir=config.global_.data_dir,
+            state_dir=DEFAULT_STATE_DIR,
+            config_dir=config_path.parent,
+            env=env,
+        )
+    except RuntimeError as exc:
+        console.print(f"[red]Backup failed: {exc}[/red]")
+        raise typer.Exit(1) from exc
 
 
 @app.command()
 def restore(
-    snapshot: Annotated[str, typer.Argument(help="Snapshot to restore")],
+    snapshot: Annotated[str, typer.Argument(help="Snapshot ID to restore (e.g. 'latest')")],
     config_path: Annotated[Path, typer.Option("--config", "-c")] = _DEFAULT_CONFIG,
+    target: Annotated[Path | None, typer.Option("--target", "-t")] = None,
 ) -> None:
     """Restore from a backup snapshot."""
     from stackr.backup import restore as run_restore
-    _load(config_path)
-    run_restore(snapshot)
+
+    config, _, env, _ = _load(config_path)
+    try:
+        run_restore(
+            snapshot=snapshot,
+            destination=str(config.backup.destination),
+            target=target or config.global_.data_dir,
+            config_dir=config_path.parent,
+            env=env,
+        )
+    except RuntimeError as exc:
+        console.print(f"[red]Restore failed: {exc}[/red]")
+        raise typer.Exit(1) from exc
+
+
+@app.command()
+def snapshots(
+    config_path: Annotated[Path, typer.Option("--config", "-c")] = _DEFAULT_CONFIG,
+) -> None:
+    """List available backup snapshots."""
+    from stackr.backup import list_snapshots
+
+    config, _, env, _ = _load(config_path)
+    try:
+        snaps = list_snapshots(str(config.backup.destination), config_path.parent, env)
+    except RuntimeError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(1) from exc
+
+    if not snaps:
+        console.print("No snapshots found.")
+        return
+
+    table = Table(title="Backup Snapshots", show_header=True, header_style="bold")
+    table.add_column("ID", style="bold")
+    table.add_column("Time")
+    table.add_column("Hostname")
+    table.add_column("Paths")
+
+    for snap in snaps:
+        snap_id = str(snap.get("short_id", snap.get("id", "")))[:8]
+        time_str = str(snap.get("time", ""))[:19].replace("T", " ")
+        hostname = str(snap.get("hostname", ""))
+        paths = ", ".join(str(p) for p in snap.get("paths", []))
+        table.add_row(snap_id, time_str, hostname, paths)
+
+    console.print(table)
+
+
+# ---------------------------------------------------------------------------
+# stackr migrate
+# ---------------------------------------------------------------------------
+
+@app.command()
+def migrate(
+    from_tool: Annotated[str, typer.Option("--from")] = "deployrr",
+    input_file: Annotated[Path | None, typer.Option("--input", "-i")] = None,
+    output: Annotated[Path, typer.Option("--output", "-o")] = Path("stackr.yml"),
+) -> None:
+    """Generate stackr.yml from a Deployrr app list."""
+    from stackr.catalog import Catalog
+    from stackr.migrate import migrate_from_deployrr, write_stackr_yml
+
+    if from_tool != "deployrr":
+        console.print(f"[red]Unknown source '{from_tool}'. Only 'deployrr' is supported.[/red]")
+        raise typer.Exit(1)
+
+    if input_file:
+        app_names = [n for n in input_file.read_text().splitlines() if n.strip()]
+    else:
+        console.print("Enter Deployrr app names (one per line, empty line to finish):")
+        app_names = []
+        while True:
+            name = typer.prompt("", prompt_suffix="")
+            if not name.strip():
+                break
+            app_names.append(name.strip())
+
+    catalog = Catalog()
+    catalog_names = {a.name for a in catalog.all()}
+    mapped, unmapped = migrate_from_deployrr(app_names, catalog_names)
+
+    write_stackr_yml(output, mapped)
+    console.print(f"[green]Written to {output}[/green]  ({len(mapped)} apps)")
+
+    if unmapped:
+        console.print(f"\n[yellow]Could not map {len(unmapped)} app(s) — check manually:[/yellow]")
+        for name in unmapped:
+            console.print(f"  • {name}")
+
+
+# ---------------------------------------------------------------------------
+# stackr doctor
+# ---------------------------------------------------------------------------
+
+@app.command()
+def doctor(
+    config_path: Annotated[Path, typer.Option("--config", "-c")] = _DEFAULT_CONFIG,
+) -> None:
+    """Check environment health: Docker, networks, secrets, and catalog consistency."""
+    from stackr.doctor import run_doctor
+
+    if not config_path.exists():
+        console.print(f"[red]Config not found: {config_path}[/red]")
+        console.print("Run [bold]stackr init[/bold] to create one.")
+        raise typer.Exit(1)
+
+    config = load_config(config_path)
+    env = build_env(config_path.parent)
+    ok = run_doctor(config, env, config_dir=config_path.parent)
+    if not ok:
+        raise typer.Exit(1)
 
 
 # ---------------------------------------------------------------------------

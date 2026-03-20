@@ -61,6 +61,20 @@ class BackupConfig(BaseModel):
     schedule: str = "0 2 * * *"
 
 
+class AlertConfig(BaseModel):
+    enabled: bool = False
+    provider: str = "ntfy"  # ntfy | gotify | webhook
+    url: str = ""
+    token: str | None = None
+
+    @field_validator("provider")
+    @classmethod
+    def validate_provider(cls, v: str) -> str:
+        if v not in ("ntfy", "gotify", "webhook"):
+            raise ValueError("alerts.provider must be 'ntfy', 'gotify', or 'webhook'")
+        return v
+
+
 class AppConfig(BaseModel):
     name: str
     enabled: bool = True
@@ -76,6 +90,7 @@ class StackrConfig(BaseModel):
     traefik: TraefikConfig = Field(default_factory=TraefikConfig)
     security: SecurityConfig = Field(default_factory=SecurityConfig)
     backup: BackupConfig = Field(default_factory=BackupConfig)
+    alerts: AlertConfig = Field(default_factory=AlertConfig)
     apps: list[AppConfig] = Field(default_factory=list)
 
     model_config = {"populate_by_name": True}

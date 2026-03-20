@@ -65,7 +65,18 @@ def deploy(
             continue
 
         console.print(f"  [green]DEPLOY[/green] {app_config.name}")
-        _run_compose(compose_path, ["up", "-d", "--remove-orphans"])
+        try:
+            _run_compose(compose_path, ["up", "-d", "--remove-orphans"])
+        except Exception as exc:
+            if config.alerts.enabled:
+                from stackr.alerts import send_alert
+
+                send_alert(
+                    f"Deploy failed: {app_config.name}",
+                    str(exc),
+                    config.alerts,
+                )
+            raise
         state.set_app(app_config.name, compose_content)
         state.save()
 
