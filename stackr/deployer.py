@@ -75,7 +75,18 @@ def deploy(
         else:
             console.print(f"  [green]DEPLOY[/green] {app_config.name}")
 
-        _run_compose(compose_path, ["up", "-d", "--remove-orphans"])
+        try:
+            _run_compose(compose_path, ["up", "-d", "--remove-orphans"])
+        except Exception as exc:
+            if config.alerts.enabled:
+                from stackr.alerts import send_alert
+
+                send_alert(
+                    f"Deploy failed: {app_config.name}",
+                    str(exc),
+                    config.alerts,
+                )
+            raise
         if pull:
             from stackr import images as img
             digests: dict[str, str] = img.collect_digests(compose_content)

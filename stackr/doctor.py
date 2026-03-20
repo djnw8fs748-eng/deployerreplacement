@@ -9,11 +9,13 @@ Checks run by `stackr doctor`:
 - DNS provider env vars present
 - .stackr.env file exists
 - All enabled apps present in catalog
+- Backup destination is writable (when backup.enabled: true)
 """
 
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -55,6 +57,8 @@ def run_doctor(
     checks.extend(_check_dns_env(config, env))
     checks.append(_check_stackr_env(config_dir or Path(".")))
     checks.append(_check_catalog_apps(config))
+    if config.backup.enabled:
+        checks.append(_check_backup_destination(config))
 
     table = Table(title="Stackr Doctor", show_header=True, header_style="bold")
     table.add_column("Check", style="bold")
@@ -73,6 +77,12 @@ def run_doctor(
         table.add_row(check.name, status_str, check.message)
 
     console.print(table)
+
+    if any_fail and config.alerts.enabled:
+        from stackr.alerts import send_alert
+
+        send_alert("Stackr doctor failed", "One or more pre-flight checks failed.", config.alerts)
+
     return not any_fail
 
 
@@ -179,3 +189,14 @@ def _check_catalog_apps(config: StackrConfig) -> DoctorCheck:
     return DoctorCheck(
         "Catalog apps", "ok", f"{len(config.enabled_apps)} enabled app(s) found in catalog"
     )
+
+
+def _check_backup_destination(config: StackrConfig) -> DoctorCheck:
+    dest = config.backup.destination
+    if not dest.exists():
+        return DoctorCheck(
+            "Backup destination", "warn", f"{dest} does not exist — create it before backing up"
+        )
+    if not os.access(dest, os.W_OK):
+        return DoctorCheck("Backup destination", "warn", f"{dest} is not writable")
+    return DoctorCheck("Backup destination", "ok", str(dest))
