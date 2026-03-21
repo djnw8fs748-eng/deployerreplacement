@@ -5,9 +5,9 @@ category: media
 homepage: https://overseerr.dev
 version: latest
 exposure: external
-requires:
-  - traefik
+requires: []
 suggests:
+  - traefik
   - sonarr
   - radarr
   - plex

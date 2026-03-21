@@ -5,7 +5,8 @@ category: productivity
 homepage: https://miniflux.app
 version: latest
 exposure: external
-requires:
+requires: []
+suggests:
   - traefik
 vars:
   version:

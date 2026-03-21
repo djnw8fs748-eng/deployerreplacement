@@ -5,7 +5,8 @@ category: network
 homepage: https://pi-hole.net
 version: latest
 exposure: internal
-requires:
+requires: []
+suggests:
   - traefik
 vars:
   version:

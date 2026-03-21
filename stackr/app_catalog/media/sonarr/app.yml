@@ -5,7 +5,8 @@ category: media
 homepage: https://sonarr.tv
 version: latest
 exposure: external
-requires:
+requires: []
+suggests:
   - traefik
 ports:
   - 8989

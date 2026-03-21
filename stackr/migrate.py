@@ -120,9 +120,19 @@ def write_stackr_yml(
     data_dir: str = "/opt/appdata",
     timezone: str = "UTC",
     domain: str = "example.com",
-    dns_provider: str = "cloudflare",
+    dns_provider: str = "",
 ) -> None:
     """Emit a minimal stackr.yml skeleton with the given apps."""
+    from stackr.dns_providers import required_env_vars
+    env_vars = required_env_vars(dns_provider)
+    if env_vars:
+        dns_provider_env: dict[str, str] = {v: f"${{{v}}}" for v in env_vars}
+    elif dns_provider:
+        key = f"{dns_provider.upper()}_API_TOKEN"
+        dns_provider_env = {key: f"${{{key}}}"}
+    else:
+        dns_provider_env = {}
+
     config: dict[str, Any] = {
         "global": {
             "data_dir": data_dir,
@@ -139,9 +149,7 @@ def write_stackr_yml(
             "enabled": True,
             "acme_email": "",
             "dns_provider": dns_provider,
-            "dns_provider_env": {
-                "CF_DNS_API_TOKEN": "${CF_DNS_API_TOKEN}",
-            },
+            "dns_provider_env": dns_provider_env,
         },
         "security": {
             "socket_proxy": True,

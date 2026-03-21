@@ -45,7 +45,7 @@ class NetworkConfig(BaseModel):
 class TraefikConfig(BaseModel):
     enabled: bool = True
     acme_email: str = ""
-    dns_provider: str = "cloudflare"
+    dns_provider: str = ""
     dns_provider_env: dict[str, str] = Field(default_factory=dict)
 
 

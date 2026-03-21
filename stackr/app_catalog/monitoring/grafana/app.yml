@@ -5,9 +5,9 @@ category: monitoring
 homepage: https://grafana.com
 version: latest
 exposure: external
-requires:
-  - traefik
+requires: []
 suggests:
+  - traefik
   - prometheus
   - loki
 vars:

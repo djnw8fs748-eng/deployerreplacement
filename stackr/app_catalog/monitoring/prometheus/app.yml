@@ -5,9 +5,9 @@ category: monitoring
 homepage: https://prometheus.io
 version: latest
 exposure: internal
-requires:
-  - traefik
+requires: []
 suggests:
+  - traefik
   - grafana
 vars:
   version:

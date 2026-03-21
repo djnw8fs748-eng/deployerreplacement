@@ -5,7 +5,8 @@ category: management
 homepage: https://dozzle.dev
 version: latest
 exposure: internal
-requires:
+requires: []
+suggests:
   - traefik
 vars:
   version:

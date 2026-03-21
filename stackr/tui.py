@@ -66,8 +66,8 @@ def build_stub_config(config_path: Path) -> dict[str, Any]:
         "traefik": {
             "enabled": True,
             "acme_email": "",
-            "dns_provider": "cloudflare",
-            "dns_provider_env": {"CF_DNS_API_TOKEN": "${CF_DNS_API_TOKEN}"},
+            "dns_provider": "",
+            "dns_provider_env": {},
         },
         "security": {"socket_proxy": True, "crowdsec": False, "auth_provider": "none"},
         "backup": {"enabled": False, "destination": "/mnt/backup", "schedule": "0 2 * * *"},
