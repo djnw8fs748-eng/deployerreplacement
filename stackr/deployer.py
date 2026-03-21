@@ -58,9 +58,8 @@ def deploy(
         compose_content = render_app(app_config, catalog_app, config)
         compose_path = _write_compose(app_config.name, compose_content)
 
-        if pull:
-            _run_compose(compose_path, ["pull", "--quiet"])
-
+        # Determine whether anything has changed before pulling images so we
+        # don't waste bandwidth on apps that will be skipped.
         compose_changed = state.is_changed(app_config.name, compose_content)
         if not compose_changed:
             if check_image_updates:
@@ -74,6 +73,10 @@ def deploy(
                 continue
         else:
             console.print(f"  [green]DEPLOY[/green] {app_config.name}")
+
+        # Pull images only for apps that will actually be (re)deployed.
+        if pull:
+            _run_compose(compose_path, ["pull", "--quiet"])
 
         try:
             _run_compose(compose_path, ["up", "-d", "--remove-orphans"])

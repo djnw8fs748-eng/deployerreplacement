@@ -60,9 +60,11 @@ def download_and_install(tag: str) -> None:
             if sys.version_info >= (3, 12):
                 tf.extractall(tmp_path, filter="data")  # type: ignore[call-arg]
             else:
-                tf.extractall(tmp_path)  # noqa: S202
-        # The tarball contains a top-level directory; find the catalog/ inside it
-        catalog_dirs = [p for p in tmp_path.rglob("catalog") if p.is_dir()]
+                _safe_extractall(tf, tmp_path)
+        # The tarball has a single top-level directory; find catalog/ one level deep.
+        # Using glob("*/catalog") avoids picking up any nested catalog/ subdirectories
+        # that rglob would return in unpredictable order.
+        catalog_dirs = [p for p in tmp_path.glob("*/catalog") if p.is_dir()]
         if not catalog_dirs:
             raise FileNotFoundError("No 'catalog/' directory found in release tarball")
         src = catalog_dirs[0]
@@ -81,6 +83,26 @@ def read_installed_version() -> str | None:
 def _write_version(tag: str) -> None:
     USER_CATALOG.mkdir(parents=True, exist_ok=True)
     (USER_CATALOG / _VERSION_FILE).write_text(tag)
+
+
+def _safe_extractall(tf: tarfile.TarFile, dest: Path) -> None:
+    """Extract a tarball while rejecting path-traversal members (Python < 3.12).
+
+    Validates every member's resolved path stays inside *dest* before extraction.
+    Members with absolute paths, ``..`` components, or symlinks pointing outside
+    *dest* are silently skipped.
+    """
+    dest_resolved = dest.resolve()
+    for member in tf.getmembers():
+        # Reject absolute paths and symlinks that escape the destination
+        if member.name.startswith("/") or ".." in member.name.split("/"):
+            continue
+        if member.issym() or member.islnk():
+            # Resolve the link target relative to dest and ensure it stays inside
+            link_target = (dest / member.linkname).resolve()
+            if not str(link_target).startswith(str(dest_resolved)):
+                continue
+        tf.extract(member, dest)  # noqa: S202
 
 
 def _download(url: str, dest: Path) -> None:

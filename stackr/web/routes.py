@@ -13,7 +13,12 @@ GET  /api/logs/{name}     Server-Sent Events stream of live container logs
 
 from __future__ import annotations
 
+import contextlib
+import os
 import subprocess
+import sys
+import tempfile
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -26,6 +31,9 @@ from stackr.config import load_config
 from stackr.state import State
 
 _TEMPLATES_DIR = Path(__file__).parent / "templates"
+
+# Module-level lock so concurrent web UI requests serialise config file writes.
+_config_lock = threading.Lock()
 
 
 def _render(template_name: str, **ctx: Any) -> str:
@@ -122,10 +130,19 @@ def make_router(config_path: Path) -> fastapi.APIRouter:
 
     @router.post("/api/toggle/{app_name}", response_class=HTMLResponse)
     def toggle_app(app_name: str) -> str:
+        # Validate app_name against known catalog + configured apps before
+        # touching the config file to prevent arbitrary injection.
+        config = load_config(config_path)
+        catalog = Catalog()
+        known_names = {a.name for a in catalog.all()} | {a.name for a in config.apps}
+        if app_name not in known_names:
+            raise fastapi.HTTPException(
+                status_code=404, detail=f"Unknown app '{app_name}'"
+            )
+
         _toggle_app_in_config(config_path, app_name)
 
         config = load_config(config_path)
-        catalog = Catalog()
         state = State()
 
         app_cfg = next((a for a in config.apps if a.name == app_name), None)
@@ -142,7 +159,9 @@ def make_router(config_path: Path) -> fastapi.APIRouter:
             "enabled": app_cfg.enabled,
             "deployed": app_state is not None,
             "deployed_at": (
-                str(app_state.deployed_at)[:19] if app_state and app_state.deployed_at else None
+                str(app_state.deployed_at)[:19]
+                if app_state and app_state.deployed_at
+                else None
             ),
         }
         return _render("partials/app_card.html", app=row)
@@ -180,29 +199,51 @@ def make_router(config_path: Path) -> fastapi.APIRouter:
 
 
 def _toggle_app_in_config(config_path: Path, app_name: str) -> None:
-    """Flip `enabled` for *app_name* in the raw YAML file."""
-    with open(config_path) as fh:
-        raw: dict[str, Any] = yaml.safe_load(fh) or {}
+    """Flip `enabled` for *app_name* in the raw YAML file.
 
-    apps: list[dict[str, Any]] = raw.get("apps", [])
-    found = False
-    for entry in apps:
-        if entry.get("name") == app_name:
-            entry["enabled"] = not entry.get("enabled", True)
-            found = True
-            break
+    Uses a module-level threading lock and an atomic rename so that:
+    - Concurrent web UI requests never interleave reads and writes.
+    - A crash mid-write leaves the original file intact.
+    """
+    with _config_lock:
+        with open(config_path) as fh:
+            raw: dict[str, Any] = yaml.safe_load(fh) or {}
 
-    if not found:
-        apps.append({"name": app_name, "enabled": True})
-        raw["apps"] = apps
+        apps: list[dict[str, Any]] = raw.get("apps", [])
+        found = False
+        for entry in apps:
+            if entry.get("name") == app_name:
+                entry["enabled"] = not entry.get("enabled", True)
+                found = True
+                break
 
-    with open(config_path, "w") as fh:
-        yaml.dump(raw, fh, default_flow_style=False, sort_keys=False)
+        if not found:
+            apps.append({"name": app_name, "enabled": True})
+            raw["apps"] = apps
+
+        # Write to a sibling temp file then atomically replace the original so a
+        # crash mid-write doesn't leave a truncated config file.
+        tmp_fd, tmp_path = tempfile.mkstemp(
+            dir=config_path.parent, prefix=".stackr-tmp-"
+        )
+        try:
+            with os.fdopen(tmp_fd, "w") as fh:
+                yaml.dump(raw, fh, default_flow_style=False, sort_keys=False)
+            os.replace(tmp_path, config_path)
+        except Exception:
+            with contextlib.suppress(OSError):
+                os.unlink(tmp_path)
+            raise
 
 
 def _run_stackr_deploy(config_path: Path, app_name: str | None = None) -> JSONResponse:
-    """Run `stackr deploy` as a subprocess and return stdout/stderr."""
-    cmd = ["stackr", "deploy", "--config", str(config_path)]
+    """Run `stackr deploy` via the current Python interpreter.
+
+    Using ``sys.executable -m stackr`` instead of a bare ``stackr`` command
+    ensures the correct virtualenv is used even when uvicorn is started outside
+    an activated environment.
+    """
+    cmd = [sys.executable, "-m", "stackr", "deploy", "--config", str(config_path)]
     if app_name:
         cmd.append(app_name)
     result = subprocess.run(cmd, capture_output=True, text=True)

@@ -106,3 +106,32 @@ def test_ensure_secret_returns_existing(tmp_path):
     init_env_file(tmp_path)
     value = ensure_secret("MY_SECRET", tmp_path, env)
     assert value == "existing-value"
+
+
+def test_append_to_env_file_adds_newline_when_missing(tmp_path):
+    """_append_to_env_file must not corrupt the file when the last line has no newline."""
+    from stackr.secrets import _append_to_env_file
+
+    env_file = tmp_path / ".stackr.env"
+    # Write a line without a trailing newline (simulates manual edit)
+    env_file.write_text("EXISTING=value")
+
+    _append_to_env_file(tmp_path, "NEW_KEY", "new_value")
+
+    lines = env_file.read_text().splitlines()
+    assert "EXISTING=value" in lines
+    assert "NEW_KEY=new_value" in lines
+
+
+def test_append_to_env_file_normal_file(tmp_path):
+    """_append_to_env_file works correctly when the file already has a trailing newline."""
+    from stackr.secrets import _append_to_env_file
+
+    env_file = tmp_path / ".stackr.env"
+    env_file.write_text("EXISTING=value\n")
+
+    _append_to_env_file(tmp_path, "NEW_KEY", "new_value")
+
+    lines = env_file.read_text().splitlines()
+    assert "EXISTING=value" in lines
+    assert "NEW_KEY=new_value" in lines

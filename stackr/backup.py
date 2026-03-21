@@ -40,19 +40,33 @@ def _restic_env(destination: str, config_dir: Path, env: dict[str, str]) -> dict
 
 
 def _ensure_repo_initialized(destination: str, restic_env: dict[str, str]) -> None:
-    """Run `restic init` only when the repository does not yet exist."""
+    """Run `restic init` only when the repository does not yet exist.
+
+    Distinguishes "no repo here yet" from other errors (wrong password, network
+    failure, permission denied) by inspecting restic's stderr output before
+    deciding to initialise.
+    """
     check = subprocess.run(
         ["restic", "snapshots", "--json"],
         env=restic_env,
         capture_output=True,
     )
-    if check.returncode != 0:
-        subprocess.run(
-            ["restic", "init"],
-            env=restic_env,
-            check=True,
-            capture_output=True,
+    if check.returncode == 0:
+        return  # repo exists and is accessible
+
+    stderr = check.stderr.decode(errors="replace")
+    # restic prints this specific phrase when the path has no repository yet.
+    if "Is there a repository at the following location" not in stderr:
+        raise RuntimeError(
+            f"restic snapshots failed (not an uninitialised repo):\n{stderr}"
         )
+
+    subprocess.run(
+        ["restic", "init"],
+        env=restic_env,
+        check=True,
+        capture_output=True,
+    )
 
 
 def backup(

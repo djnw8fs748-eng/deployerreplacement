@@ -107,7 +107,7 @@ class State:
 
 
 def hash_content(content: str) -> str:
-    return hashlib.sha256(content.encode()).hexdigest()[:16]
+    return hashlib.sha256(content.encode()).hexdigest()
 
 
 def now_iso() -> str:

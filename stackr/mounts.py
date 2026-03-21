@@ -12,8 +12,11 @@ manage them interactively.
 
 from __future__ import annotations
 
+import contextlib
+import os
 import shutil
 import subprocess
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -125,15 +128,27 @@ def _mount_smb(
         return MountResult(name, False, "mount.cifs not found — install cifs-utils")
 
     opts: list[str] = ["rw"]
-    if username:
-        opts.append(f"username={username}")
-    if password:
-        opts.append(f"password={password}")
     if options:
         opts.append(options)
 
-    cmd = ["mount", "-t", "cifs", remote, str(mountpoint), "-o", ",".join(opts)]
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    # Write credentials to a temporary file (mode 0600) so they are never
+    # visible in process arguments or `ps` output.
+    creds_fd, creds_path = tempfile.mkstemp(prefix="stackr-smb-", suffix=".creds")
+    try:
+        os.chmod(creds_fd, 0o600)
+        with os.fdopen(creds_fd, "w") as cf:
+            if username:
+                cf.write(f"username={username}\n")
+            if password:
+                cf.write(f"password={password}\n")
+        opts.append(f"credentials={creds_path}")
+
+        cmd = ["mount", "-t", "cifs", remote, str(mountpoint), "-o", ",".join(opts)]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+    finally:
+        with contextlib.suppress(OSError):
+            os.unlink(creds_path)
+
     if result.returncode == 0:
         return MountResult(name, True, f"Mounted {remote} → {mountpoint}")
     return MountResult(name, False, f"mount.cifs failed: {result.stderr.strip()}")
