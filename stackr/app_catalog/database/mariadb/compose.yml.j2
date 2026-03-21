@@ -1,0 +1,18 @@
+services:
+  mariadb:
+    image: mariadb:{{ vars.version | default('11') }}
+    container_name: mariadb
+    restart: unless-stopped
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MARIADB_ROOT_PASSWORD}
+      - MYSQL_DATABASE={{ vars.database | default('mariadb') }}
+      - MYSQL_USER={{ vars.user | default('mariadb') }}
+      - MYSQL_PASSWORD=${MARIADB_PASSWORD}
+      - TZ={{ global.timezone }}
+    volumes:
+      - {{ global.data_dir }}/mariadb/data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_buffer_pool_size=0"]
+      interval: 30s
+      timeout: 10s
+      retries: 5

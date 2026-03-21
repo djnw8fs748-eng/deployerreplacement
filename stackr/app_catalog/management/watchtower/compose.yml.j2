@@ -1,0 +1,24 @@
+services:
+  watchtower:
+    image: containrrr/watchtower:{{ vars.version | default('latest') }}
+    container_name: watchtower
+    restart: unless-stopped
+    environment:
+      - TZ={{ global.timezone }}
+      - WATCHTOWER_SCHEDULE={{ vars.schedule | default('0 0 4 * * *') }}
+      - WATCHTOWER_CLEANUP={{ vars.cleanup | default(true) | lower }}
+      - WATCHTOWER_INCLUDE_RESTARTING=true
+{% if security.socket_proxy %}
+      - DOCKER_HOST=tcp://socket-proxy:2375
+    networks:
+      - socket_proxy
+{% else %}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+{% endif %}
+{% if security.socket_proxy %}
+
+networks:
+  socket_proxy:
+    external: true
+{% endif %}

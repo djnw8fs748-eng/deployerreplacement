@@ -1,0 +1,24 @@
+name: nginx-proxy-manager
+display_name: Nginx Proxy Manager
+description: Docker-based reverse proxy with a beautiful web UI and Let's Encrypt SSL
+category: network
+homepage: https://nginxproxymanager.com
+version: latest
+exposure: external
+requires: []
+vars:
+  version:
+    type: string
+    default: latest
+    description: Docker image tag
+ports:
+  - 81
+host_ports:
+  - 80
+  - 443
+  - 81
+volumes:
+  - name: data
+    path: /data
+  - name: letsencrypt
+    path: /etc/letsencrypt

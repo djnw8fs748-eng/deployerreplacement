@@ -1,0 +1,30 @@
+name: transmission
+display_name: Transmission
+description: Fast, easy, and free BitTorrent client with a web UI
+category: media
+homepage: https://transmissionbt.com
+version: latest
+exposure: external
+requires:
+  - traefik
+vars:
+  version:
+    type: string
+    default: latest
+    description: Docker image tag
+  user:
+    type: string
+    default: admin
+    description: Web UI username
+ports:
+  - 9091
+host_ports:
+  - 51413
+volumes:
+  - name: config
+    path: /config
+  - name: downloads
+    path: /downloads
+    external: true
+  - name: watch
+    path: /watch

@@ -1,0 +1,21 @@
+services:
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:{{ vars.version | default('main') }}
+    container_name: open-webui
+    restart: unless-stopped
+    environment:
+      - TZ={{ global.timezone }}
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - WEBUI_SECRET_KEY=${OPENWEBUI_SECRET_KEY}
+    volumes:
+      - {{ global.data_dir }}/open-webui/data:/app/backend/data
+    networks:
+      - proxy
+    labels:
+{% for k, v in traefik_labels(8080).items() %}
+      - "{{ k }}={{ v }}"
+{% endfor %}
+
+networks:
+  proxy:
+    external: true

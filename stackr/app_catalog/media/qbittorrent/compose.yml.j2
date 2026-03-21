@@ -1,0 +1,26 @@
+services:
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent:{{ vars.version | default('latest') }}
+    container_name: qbittorrent
+    restart: unless-stopped
+    ports:
+      - "6881:6881/tcp"
+      - "6881:6881/udp"
+    environment:
+      - PUID={{ global.puid }}
+      - PGID={{ global.pgid }}
+      - TZ={{ global.timezone }}
+      - WEBUI_PORT={{ vars.webui_port | default(8080) }}
+    volumes:
+      - {{ global.data_dir }}/qbittorrent/config:/config
+      - /downloads:/downloads
+    networks:
+      - proxy
+    labels:
+{% for k, v in traefik_labels(8080).items() %}
+      - "{{ k }}={{ v }}"
+{% endfor %}
+
+networks:
+  proxy:
+    external: true

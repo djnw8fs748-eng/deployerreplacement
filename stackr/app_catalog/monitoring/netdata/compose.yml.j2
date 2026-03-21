@@ -1,0 +1,45 @@
+services:
+  netdata:
+    image: netdata/netdata:{{ vars.version | default('stable') }}
+    container_name: netdata
+    restart: unless-stopped
+    pid: host
+    cap_add:
+      - SYS_PTRACE
+      - SYS_ADMIN
+    security_opt:
+      - apparmor:unconfined
+    environment:
+      - TZ={{ global.timezone }}
+      - NETDATA_CLAIM_TOKEN={{ vars.claim_token | default('') }}
+      - NETDATA_CLAIM_URL=https://app.netdata.cloud
+      - NETDATA_CLAIM_ROOMS={{ vars.claim_rooms | default('') }}
+    volumes:
+      - {{ global.data_dir }}/netdata/config:/etc/netdata
+      - {{ global.data_dir }}/netdata/lib:/var/lib/netdata
+      - {{ global.data_dir }}/netdata/cache:/var/cache/netdata
+      - /etc/passwd:/host/etc/passwd:ro
+      - /etc/group:/host/etc/group:ro
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /etc/os-release:/host/etc/os-release:ro
+{% if not security.socket_proxy %}
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+{% endif %}
+    networks:
+      - proxy
+{% if security.socket_proxy %}
+      - socket_proxy
+{% endif %}
+    labels:
+{% for k, v in traefik_labels(19999, 'internal').items() %}
+      - "{{ k }}={{ v }}"
+{% endfor %}
+
+networks:
+  proxy:
+    external: true
+{% if security.socket_proxy %}
+  socket_proxy:
+    external: true
+{% endif %}

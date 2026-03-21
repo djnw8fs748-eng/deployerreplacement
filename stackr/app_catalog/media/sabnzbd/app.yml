@@ -1,0 +1,26 @@
+name: sabnzbd
+display_name: SABnzbd
+description: Free and easy binary newsreader with web-based interface
+category: media
+homepage: https://sabnzbd.org
+version: latest
+exposure: external
+requires:
+  - traefik
+vars:
+  version:
+    type: string
+    default: latest
+    description: Docker image tag
+ports:
+  - 8080
+host_ports: []
+volumes:
+  - name: config
+    path: /config
+  - name: downloads
+    path: /downloads
+    external: true
+  - name: incomplete
+    path: /incomplete-downloads
+    external: true

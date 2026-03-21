@@ -1,0 +1,14 @@
+name: uptime-kuma
+display_name: Uptime Kuma
+description: Self-hosted monitoring tool for uptime and status pages
+category: monitoring
+homepage: https://github.com/louislam/uptime-kuma
+version: latest
+exposure: external
+requires:
+  - traefik
+ports:
+  - 3001
+volumes:
+  - name: data
+    path: /app/data

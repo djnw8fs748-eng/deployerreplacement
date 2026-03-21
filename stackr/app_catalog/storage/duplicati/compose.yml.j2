@@ -1,0 +1,23 @@
+services:
+  duplicati:
+    image: lscr.io/linuxserver/duplicati:{{ vars.version | default('latest') }}
+    container_name: duplicati
+    restart: unless-stopped
+    environment:
+      - PUID={{ global.puid }}
+      - PGID={{ global.pgid }}
+      - TZ={{ global.timezone }}
+    volumes:
+      - {{ global.data_dir }}/duplicati/config:/config
+      - /backups:/backups
+      - /source:/source:ro
+    networks:
+      - proxy
+    labels:
+{% for k, v in traefik_labels(8200, 'internal').items() %}
+      - "{{ k }}={{ v }}"
+{% endfor %}
+
+networks:
+  proxy:
+    external: true

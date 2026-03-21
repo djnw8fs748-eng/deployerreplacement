@@ -1,0 +1,40 @@
+services:
+  crowdsec:
+    image: crowdsecurity/crowdsec:{{ vars.version | default('latest') }}
+    container_name: crowdsec
+    restart: unless-stopped
+    environment:
+      - TZ={{ global.timezone }}
+      - COLLECTIONS=crowdsecurity/traefik crowdsecurity/http-cve
+      - CUSTOM_HOSTNAME=crowdsec
+    volumes:
+      - {{ global.data_dir }}/crowdsec/config:/etc/crowdsec
+      - {{ global.data_dir }}/crowdsec/data:/var/lib/crowdsec/data
+      - {{ global.data_dir }}/traefik/logs:/var/log/traefik:ro
+    networks:
+      - proxy
+{% if security.socket_proxy %}
+      - socket_proxy
+{% endif %}
+
+  crowdsec-bouncer:
+    image: fbonalair/traefik-crowdsec-bouncer:latest
+    container_name: crowdsec-bouncer
+    restart: unless-stopped
+    environment:
+      - TZ={{ global.timezone }}
+      - CROWDSEC_BOUNCER_API_KEY=${CROWDSEC_BOUNCER_API_KEY}
+      - CROWDSEC_AGENT_HOST=crowdsec:8080
+      - GIN_MODE=release
+    depends_on:
+      - crowdsec
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true
+{% if security.socket_proxy %}
+  socket_proxy:
+    external: true
+{% endif %}

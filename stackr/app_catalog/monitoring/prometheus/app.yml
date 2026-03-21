@@ -1,0 +1,28 @@
+name: prometheus
+display_name: Prometheus
+description: Open source monitoring system with a time series database
+category: monitoring
+homepage: https://prometheus.io
+version: latest
+exposure: internal
+requires:
+  - traefik
+suggests:
+  - grafana
+vars:
+  version:
+    type: string
+    default: latest
+    description: Docker image tag
+  retention:
+    type: string
+    default: 15d
+    description: Data retention period
+ports:
+  - 9090
+host_ports: []
+volumes:
+  - name: config
+    path: /etc/prometheus
+  - name: data
+    path: /prometheus

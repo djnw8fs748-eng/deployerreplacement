@@ -1,0 +1,23 @@
+name: grafana
+display_name: Grafana
+description: Open source analytics and monitoring platform with beautiful dashboards
+category: monitoring
+homepage: https://grafana.com
+version: latest
+exposure: external
+requires:
+  - traefik
+suggests:
+  - prometheus
+  - loki
+vars:
+  version:
+    type: string
+    default: latest
+    description: Docker image tag
+ports:
+  - 3000
+host_ports: []
+volumes:
+  - name: data
+    path: /var/lib/grafana

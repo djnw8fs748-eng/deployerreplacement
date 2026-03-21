@@ -1,0 +1,26 @@
+name: duplicati
+display_name: Duplicati
+description: Free backup software with support for many cloud storage providers
+category: storage
+homepage: https://www.duplicati.com
+version: latest
+exposure: internal
+requires:
+  - traefik
+vars:
+  version:
+    type: string
+    default: latest
+    description: Docker image tag
+ports:
+  - 8200
+host_ports: []
+volumes:
+  - name: config
+    path: /config
+  - name: backups
+    path: /backups
+    external: true
+  - name: source
+    path: /source
+    external: true

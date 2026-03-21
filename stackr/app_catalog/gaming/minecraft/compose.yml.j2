@@ -1,0 +1,18 @@
+services:
+  minecraft:
+    image: itzg/minecraft-server:{{ vars.version | default('latest') }}
+    container_name: minecraft
+    restart: unless-stopped
+    ports:
+      - "25565:25565"
+    environment:
+      - TZ={{ global.timezone }}
+      - EULA=TRUE
+      - TYPE={{ vars.server_type | default('VANILLA') }}
+      - VERSION={{ vars.mc_version | default('LATEST') }}
+      - MEMORY={{ vars.memory | default('2G') }}
+      - ENABLE_ROLLING_LOGS=true
+    volumes:
+      - {{ global.data_dir }}/minecraft/data:/data
+    stdin_open: true
+    tty: true

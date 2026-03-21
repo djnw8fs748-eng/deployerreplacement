@@ -1,0 +1,26 @@
+name: bazarr
+display_name: Bazarr
+description: Companion app to Sonarr and Radarr for managing and downloading subtitles
+category: media
+homepage: https://www.bazarr.media
+version: latest
+exposure: external
+requires:
+  - traefik
+suggests:
+  - sonarr
+  - radarr
+vars:
+  version:
+    type: string
+    default: latest
+    description: Docker image tag
+ports:
+  - 6767
+host_ports: []
+volumes:
+  - name: config
+    path: /config
+  - name: media
+    path: /media
+    external: true
