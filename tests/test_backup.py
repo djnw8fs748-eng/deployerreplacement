@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 # ---------------------------------------------------------------------------
 # _check_restic
 # ---------------------------------------------------------------------------
@@ -52,10 +54,17 @@ def test_ensure_repo_initialized_runs_init_when_repo_missing() -> None:
     from stackr.backup import _ensure_repo_initialized
 
     env: dict[str, str] = {}
+    # restic's exact message when no repo exists at the path
+    no_repo_msg = b"Is there a repository at the following location?"
 
     def fake_run(cmd: list[str], **kwargs: object) -> MagicMock:
         mock = MagicMock()
-        mock.returncode = 1 if "snapshots" in cmd else 0
+        if "snapshots" in cmd:
+            mock.returncode = 1
+            mock.stderr = no_repo_msg
+        else:
+            mock.returncode = 0
+            mock.stderr = b""
         return mock
 
     with patch("subprocess.run", side_effect=fake_run) as mock_run:
@@ -65,6 +74,23 @@ def test_ensure_repo_initialized_runs_init_when_repo_missing() -> None:
         second_cmd = mock_run.call_args_list[1][0][0]
         assert "snapshots" in first_cmd
         assert "init" in second_cmd
+
+
+def test_ensure_repo_initialized_raises_on_real_error() -> None:
+    from stackr.backup import _ensure_repo_initialized
+
+    env: dict[str, str] = {}
+
+    def fake_run(cmd: list[str], **kwargs: object) -> MagicMock:
+        mock = MagicMock()
+        mock.returncode = 1
+        mock.stderr = b"Fatal: wrong password"
+        return mock
+
+    with patch("subprocess.run", side_effect=fake_run), pytest.raises(
+        RuntimeError, match="not an uninitialised repo"
+    ):
+        _ensure_repo_initialized("/mnt/backup", env)
 
 
 # ---------------------------------------------------------------------------

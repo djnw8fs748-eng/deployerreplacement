@@ -123,3 +123,10 @@ def test_image_digests_missing_in_old_state_defaults_empty(tmp_path):
     app = state.get_app("jellyfin")
     assert app is not None
     assert app.image_digests == {}
+
+
+def test_hash_content_is_full_sha256():
+    """hash_content must return a full 64-character hex digest (not truncated)."""
+    h = hash_content("some compose content")
+    assert len(h) == 64, f"Expected 64-char hex digest, got {len(h)}"
+    assert all(c in "0123456789abcdef" for c in h)

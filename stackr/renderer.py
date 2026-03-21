@@ -29,7 +29,9 @@ def _traefik_labels(
         labels[f"traefik.http.routers.{name}.entrypoints"] = entrypoint
         if certresolver:
             labels[f"traefik.http.routers.{name}.tls.certresolver"] = certresolver
-        labels[f"traefik.http.routers.{name}.tls"] = "true"
+            # Only enable TLS when a cert resolver is present; without one Traefik
+            # would serve a self-signed cert rather than a valid ACME certificate.
+            labels[f"traefik.http.routers.{name}.tls"] = "true"
 
     labels[f"traefik.http.services.{service}.loadbalancer.server.port"] = str(port)
 

@@ -64,6 +64,7 @@ def validate(
 
     # Global checks (independent of individual apps)
     _check_dns_provider(config, env, result)
+    _check_dns_provider_env_refs(config, env, result)
     _check_security_stack(config, enabled_names, result)
 
     for app_config in config.enabled_apps:
@@ -71,7 +72,7 @@ def validate(
         if catalog_app is None:
             continue
 
-        _check_secrets(app_config, config, env, result)
+        _check_secrets(app_config, env, result)
         _check_dependencies(app_config, catalog_app, enabled_names, result)
         _check_ports(app_config, catalog_app, seen_ports, result)
         _check_container_name(app_config, seen_names, result)
@@ -148,21 +149,29 @@ def _resolve_catalog(
     return catalog_app
 
 
-def _check_secrets(
-    app_config: AppConfig,
+def _check_dns_provider_env_refs(
     config: StackrConfig,
     env: dict[str, str],
     result: ValidationResult,
 ) -> None:
-    # Check traefik dns_provider_env values
+    """Check for unresolved ${VAR} references in traefik.dns_provider_env values.
+
+    This is a global check run once — not per-app — so duplicate errors are not
+    emitted for every enabled app when a Traefik secret is missing.
+    """
     for key, val in config.traefik.dns_provider_env.items():
-        unresolved = find_unresolved(val, env)
-        for u in unresolved:
+        for u in find_unresolved(val, env):
             result.error(
                 "traefik",
                 f"Unresolved secret: ${{{u}}} (in traefik.dns_provider_env.{key})",
             )
 
+
+def _check_secrets(
+    app_config: AppConfig,
+    env: dict[str, str],
+    result: ValidationResult,
+) -> None:
     # Check app-level vars for ${VAR} references
     for k, v in app_config.vars.items():
         if isinstance(v, str):

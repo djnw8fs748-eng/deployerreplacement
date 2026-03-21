@@ -83,6 +83,12 @@ def ensure_secret(key: str, config_dir: Path, env: dict[str, str]) -> str:
 def _append_to_env_file(config_dir: Path, key: str, value: str) -> None:
     env_file = config_dir / ENV_FILE_NAME
     with open(env_file, "a") as f:
+        # Ensure the new entry starts on its own line even if the file
+        # was hand-edited and the last line is missing a trailing newline.
+        if env_file.stat().st_size > 0:
+            env_file_bytes = env_file.read_bytes()
+            if env_file_bytes and env_file_bytes[-1:] != b"\n":
+                f.write("\n")
         f.write(f"{key}={value}\n")
 
 
