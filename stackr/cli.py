@@ -711,6 +711,58 @@ def catalog_version() -> None:
 
 
 # ---------------------------------------------------------------------------
+# stackr uninstall
+# ---------------------------------------------------------------------------
+
+
+@app.command()
+def uninstall(
+    yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip all confirmation prompts")] = False,
+) -> None:
+    """Remove stackr, its state directory, and optionally its pipx package."""
+    import shutil
+    import subprocess
+
+    from stackr.state import DEFAULT_STATE_DIR
+
+    console.print("[bold red]Stackr Uninstaller[/bold red]\n")
+
+    # --- Remove pipx package ---
+    pipx = shutil.which("pipx")
+    if pipx:
+        result = subprocess.run([pipx, "list"], capture_output=True, text=True)
+        if "package stackr" in result.stdout:
+            if yes or typer.confirm("Remove stackr pipx package?", default=True):
+                subprocess.run([pipx, "uninstall", "stackr"], check=True)
+                console.print("[green]pipx package removed.[/green]")
+        else:
+            console.print("[yellow]stackr not found in pipx — skipping package removal.[/yellow]")
+    else:
+        console.print("[yellow]pipx not found — skipping package removal.[/yellow]")
+
+    # --- Remove ~/.stackr state/catalog directory ---
+    state_dir = DEFAULT_STATE_DIR
+    if state_dir.exists():
+        console.print(f"\nFound data directory: [bold]{state_dir}[/bold]")
+        console.print("  Contains: app state, catalog overrides, and generated secrets.")
+        if yes or typer.confirm("Remove it?", default=False):
+            shutil.rmtree(state_dir)
+            console.print(f"[green]Removed {state_dir}[/green]")
+        else:
+            console.print(f"[yellow]Kept {state_dir}[/yellow]")
+    else:
+        console.print(f"[dim]State directory not found ({state_dir}) — nothing to remove.[/dim]")
+
+    # --- Remind about .stackr.env files ---
+    console.print(
+        "\n[yellow]Note:[/yellow] Any [bold].stackr.env[/bold] files in your project "
+        "directories were not removed.\n"
+        "      Delete them manually if you no longer need the secrets they contain."
+    )
+    console.print("\n[green]Uninstall complete.[/green]")
+
+
+# ---------------------------------------------------------------------------
 # stackr ui
 # ---------------------------------------------------------------------------
 
