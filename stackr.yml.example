@@ -1,6 +1,11 @@
 # stackr.yml — example configuration
 # Copy to stackr.yml and edit to your needs.
-# Run: stackr init  (for an interactive wizard instead)
+# Run: stackr init  (for an interactive wizard that generates this automatically)
+#
+# Toggle apps on/off with:
+#   stackr ui          — interactive TUI
+#   stackr web         — browser dashboard
+#   edit this file     — flip enabled: false → true
 
 global:
   data_dir: /opt/appdata       # Where container data volumes are stored
@@ -21,19 +26,19 @@ network:
 traefik:
   enabled: true
   acme_email: you@example.com
-  dns_provider: cloudflare     # cloudflare | route53 | namecheap | porkbun
+  dns_provider: cloudflare     # cloudflare | route53 | namecheap | porkbun | duckdns | ...
   dns_provider_env:
     CF_DNS_API_TOKEN: "${CF_DNS_API_TOKEN}"  # Resolved from .stackr.env or shell env
 
 security:
   socket_proxy: true           # Recommended: proxy Docker socket access
-  crowdsec: false              # Phase 2
-  auth_provider: none          # authentik | authelia | google_oauth | none  (Phase 2)
+  crowdsec: false              # Enable CrowdSec bouncer (requires crowdsec in apps)
+  auth_provider: none          # authentik | authelia | google_oauth | none
 
 backup:
   enabled: false
   destination: /mnt/backup     # restic repository path (local or s3:bucket/path)
-  schedule: "0 2 * * *"       # informational — no built-in scheduler
+  schedule: "0 2 * * *"        # informational — no built-in scheduler
 
 # Push notifications on deploy failures and doctor errors
 # alerts:
@@ -56,37 +61,136 @@ backup:
 #     mountpoint: /mnt/photos
 #     options: ro,noatime
 
+# ---------------------------------------------------------------------------
+# Apps — all catalog apps listed below, grouped by category.
+# Only traefik and portainer are enabled by default.
+# Flip enabled: false → true to add an app, then run: stackr deploy
+# ---------------------------------------------------------------------------
+
 apps:
-  - name: traefik
-    enabled: true
 
-  - name: portainer
-    enabled: true
-
-  - name: jellyfin
-    enabled: true
-    vars:
-      hardware_accel: none     # none | vaapi | nvidia | intel_qsv
-
-  - name: radarr
-    enabled: true
-
-  - name: sonarr
-    enabled: true
-
-  - name: prowlarr
-    enabled: true
-
-  - name: homepage
-    enabled: true
-
-  - name: uptime-kuma
-    enabled: true
-
-  - name: adguardhome
+  # --- ai ---
+  - name: ollama
+    enabled: false
+  - name: open-webui
     enabled: false
 
+  # --- dashboard ---
+  - name: homepage
+    enabled: false
+
+  # --- database ---
+  - name: mariadb
+    enabled: false
+  - name: mongo
+    enabled: false
+  - name: postgres
+    enabled: false
+  - name: redis
+    enabled: false
+
+  # --- gaming ---
+  - name: minecraft
+    enabled: false
+
+  # --- management ---
+  - name: dasherr
+    enabled: false
+  - name: dozzle
+    enabled: false
+  - name: flame
+    enabled: false
+  - name: heimdall
+    enabled: false
+  - name: portainer
+    enabled: true
+  - name: watchtower
+    enabled: false
+
+  # --- media ---
+  - name: bazarr
+    enabled: false
+  - name: jellyfin
+    enabled: false
+  - name: jellyseerr
+    enabled: false
+  - name: lidarr
+    enabled: false
+  - name: overseerr
+    enabled: false
+  - name: plex
+    enabled: false
+  - name: prowlarr
+    enabled: false
+  - name: qbittorrent
+    enabled: false
+  - name: radarr
+    enabled: false
+  - name: readarr
+    enabled: false
+  - name: sabnzbd
+    enabled: false
+  - name: sonarr
+    enabled: false
+  - name: tdarr
+    enabled: false
+  - name: transmission
+    enabled: false
+
+  # --- monitoring ---
+  - name: grafana
+    enabled: false
+  - name: loki
+    enabled: false
+  - name: netdata
+    enabled: false
+  - name: prometheus
+    enabled: false
+  - name: uptime-kuma
+    enabled: false
+
+  # --- network ---
+  - name: adguardhome
+    enabled: false
+  - name: headscale
+    enabled: false
+  - name: nginx-proxy-manager
+    enabled: false
+  - name: pihole
+    enabled: false
+  - name: traefik
+    enabled: true
+  - name: wireguard
+    enabled: false
+
+  # --- productivity ---
+  - name: freshrss
+    enabled: false
+  - name: gitea
+    enabled: false
+  - name: miniflux
+    enabled: false
+  - name: paperless-ngx
+    enabled: false
+
+  # --- security ---
+  - name: authelia
+    enabled: false
+  - name: authentik
+    enabled: false
+  - name: crowdsec
+    enabled: false
+  - name: socket-proxy
+    enabled: false
   - name: vaultwarden
+    enabled: false
+
+  # --- storage ---
+  - name: duplicati
+    enabled: false
+  - name: filebrowser
+    enabled: false
+  - name: nextcloud
     enabled: false
 
   # Custom local app example:
