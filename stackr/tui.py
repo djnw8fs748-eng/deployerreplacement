@@ -101,7 +101,8 @@ if HAS_TEXTUAL:
         """
 
         BINDINGS = [
-            Binding("space", "toggle_app", "Toggle on/off", show=True),
+            Binding("space", "toggle_app", "Toggle on/off", show=True, priority=True),
+            Binding("enter", "toggle_app", "Toggle on/off", show=False, priority=True),
             Binding("s", "save_config", "Save config", show=True),
             Binding("q", "quit", "Quit", show=True),
         ]
