@@ -558,6 +558,82 @@ def doctor(
 
 
 # ---------------------------------------------------------------------------
+# stackr mount / umount
+# ---------------------------------------------------------------------------
+
+
+@app.command()
+def mount(
+    config_path: Annotated[Path, typer.Option("--config", "-c")] = _DEFAULT_CONFIG,
+) -> None:
+    """Mount all remote shares configured under `mounts:` in stackr.yml."""
+    from stackr.mounts import mount_all
+
+    config, _, _, _ = _load(config_path)
+    if not config.mounts:
+        console.print("[yellow]No mounts configured.[/yellow]")
+        return
+    results = mount_all(config.mounts)  # type: ignore[arg-type]
+    failures = [r for r in results if not r.ok]
+    if failures:
+        raise typer.Exit(1)
+
+
+@app.command()
+def umount(
+    config_path: Annotated[Path, typer.Option("--config", "-c")] = _DEFAULT_CONFIG,
+) -> None:
+    """Unmount all remote shares configured under `mounts:` in stackr.yml."""
+    from stackr.mounts import umount_all
+
+    config, _, _, _ = _load(config_path)
+    if not config.mounts:
+        console.print("[yellow]No mounts configured.[/yellow]")
+        return
+    results = umount_all(config.mounts)  # type: ignore[arg-type]
+    failures = [r for r in results if not r.ok]
+    if failures:
+        raise typer.Exit(1)
+
+
+# ---------------------------------------------------------------------------
+# stackr web
+# ---------------------------------------------------------------------------
+
+
+@app.command()
+def web(
+    config_path: Annotated[Path, typer.Option("--config", "-c")] = _DEFAULT_CONFIG,
+    host: Annotated[str, typer.Option("--host", "-H")] = "127.0.0.1",
+    port: Annotated[int, typer.Option("--port", "-p")] = 8000,
+) -> None:
+    """Launch the web UI (requires the 'web' extra: pip install 'stackr[web]')."""
+    from stackr.web import HAS_FASTAPI
+
+    if not HAS_FASTAPI:
+        console.print(
+            "[red]Web UI requires FastAPI and Uvicorn.[/red]\n"
+            "Install them with: [bold]pip install 'stackr[web]'[/bold]"
+        )
+        raise typer.Exit(1)
+
+    try:
+        import uvicorn  # type: ignore[import-not-found]
+    except ImportError:
+        console.print(
+            "[red]uvicorn is required for the web UI.[/red]\n"
+            "Install it with: [bold]pip install 'stackr[web]'[/bold]"
+        )
+        raise typer.Exit(1) from None
+
+    from stackr.web.app import create_app
+
+    console.print(f"Starting Stackr web UI on [bold]http://{host}:{port}[/bold]")
+    application = create_app(config_path)
+    uvicorn.run(application, host=host, port=port)
+
+
+# ---------------------------------------------------------------------------
 # stackr catalog subcommands
 # ---------------------------------------------------------------------------
 

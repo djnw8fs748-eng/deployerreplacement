@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Stackr</title>
+  <script src="https://unpkg.com/htmx.org@1.9.12" integrity="sha384-ujb1lZYygJmzgSwoxRggbCHcjc0rB2uoWkRkZXd3Yb3EedCGmziaFbpeSPlRmFW" crossorigin="anonymous"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; }
+
+    header { background: #1e293b; border-bottom: 1px solid #334155; padding: 1rem 2rem; display: flex; align-items: center; justify-content: space-between; }
+    header h1 { font-size: 1.5rem; font-weight: 700; color: #38bdf8; }
+    header span { color: #94a3b8; font-size: 0.85rem; }
+
+    main { padding: 2rem; max-width: 1200px; margin: 0 auto; }
+
+    .toolbar { display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem; }
+    .toolbar input { flex: 1; background: #1e293b; border: 1px solid #334155; border-radius: 0.5rem; color: #e2e8f0; padding: 0.5rem 0.75rem; font-size: 0.9rem; }
+    .toolbar input::placeholder { color: #475569; }
+    .btn { background: #0ea5e9; color: #fff; border: none; border-radius: 0.5rem; padding: 0.5rem 1.25rem; cursor: pointer; font-size: 0.9rem; font-weight: 600; transition: background 0.15s; }
+    .btn:hover { background: #38bdf8; }
+    .btn.danger { background: #ef4444; }
+    .btn.danger:hover { background: #f87171; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .app-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
+
+    .htmx-indicator { display: none; }
+    .htmx-request .htmx-indicator { display: inline; }
+
+    #deploy-result { margin-top: 1rem; padding: 0.75rem 1rem; border-radius: 0.5rem; display: none; }
+    #deploy-result.ok { background: #14532d; border: 1px solid #16a34a; }
+    #deploy-result.fail { background: #450a0a; border: 1px solid #b91c1c; }
+
+    footer { text-align: center; color: #475569; font-size: 0.8rem; padding: 2rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>⚡ Stackr</h1>
+    <span>{{ config_path }}</span>
+  </header>
+
+  <main>
+    <div class="toolbar">
+      <input type="text" placeholder="Filter apps…" oninput="filterApps(this.value)" />
+      <button class="btn"
+              hx-post="/api/deploy"
+              hx-target="#deploy-result"
+              hx-swap="innerHTML"
+              hx-indicator="#deploy-spinner"
+              onclick="showDeployResult(event)">
+        Deploy all
+      </button>
+      <span id="deploy-spinner" class="htmx-indicator">⏳</span>
+    </div>
+
+    <div id="deploy-result"></div>
+
+    <div class="app-grid" id="app-grid">
+      {% for app in apps %}
+        {% include "partials/app_card.html" %}
+      {% endfor %}
+    </div>
+  </main>
+
+  <footer>Stackr — declarative homelab deployment</footer>
+
+  <script>
+    function filterApps(query) {
+      const q = query.toLowerCase();
+      document.querySelectorAll('.app-card').forEach(card => {
+        const text = card.dataset.search || '';
+        card.style.display = text.includes(q) ? '' : 'none';
+      });
+    }
+
+    function showDeployResult(event) {
+      const el = document.getElementById('deploy-result');
+      el.style.display = 'block';
+      // HTMX will fill innerHTML; style it once the response arrives
+      document.body.addEventListener('htmx:afterSwap', function handler(e) {
+        if (e.detail.target.id === 'deploy-result') {
+          const ok = el.textContent.includes('"ok": true');
+          el.className = ok ? 'ok' : 'fail';
+          document.body.removeEventListener('htmx:afterSwap', handler);
+        }
+      });
+    }
+  </script>
+</body>
+</html>

@@ -22,6 +22,7 @@ dev = [
     "ruff>=0.4",
     "mypy>=1.10",
     "types-PyYAML>=6.0",
+    "httpx>=0.27",
 ]
 tui = [
     "textual>=0.60",
@@ -51,6 +52,11 @@ strict = true
 
 [[tool.mypy.overrides]]
 module = "stackr.tui"
+ignore_missing_imports = true
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = ["stackr.web", "stackr.web.*"]
 ignore_missing_imports = true
 ignore_errors = true
 

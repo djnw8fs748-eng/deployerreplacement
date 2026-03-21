@@ -31,6 +31,13 @@ stackr.yml.example  Reference config
 | `images.py` | Image digest inspection via `docker inspect`; change detection for `stackr update` |
 | `catalog_sync.py` | GitHub release download → `~/.stackr/catalog/` user overlay |
 | `tui.py` | Textual TUI app browser (`stackr ui`); optional dep — only imported when textual is installed |
+| `backup.py` | Restic-based backup/restore; `ensure_secret("STACKR_RESTIC_PASSWORD")` for repo password |
+| `migrate.py` | Deployrr → stackr.yml migration; `_DEPLOYRR_MAP` dict + fuzzy suffix stripping |
+| `alerts.py` | Push notifications on failures; providers: ntfy, Gotify, webhook; HTTP errors always swallowed |
+| `mounts.py` | SMB/NFS/Rclone pre-deploy mounts; `mount_all(config.mounts)` / `umount_all(config.mounts)` |
+| `web/__init__.py` | `HAS_FASTAPI` bool guard (mirrors `HAS_TEXTUAL` in tui.py) |
+| `web/app.py` | `create_app(config_path)` — FastAPI application factory |
+| `web/routes.py` | Route handlers: dashboard, `/api/apps`, `/api/toggle/{name}`, `/api/deploy`, `/api/logs/{name}` (SSE) |
 
 ## Language and tooling
 
@@ -42,6 +49,26 @@ stackr.yml.example  Reference config
 - Linting: `ruff check stackr/ tests/` — rules E, F, I, UP, B, SIM are active
 - Type checking: `mypy stackr/` — strict mode enabled
 - Tests: `pytest tests/ -v`
+
+### Running tests locally
+
+The project uses a `.venv` virtualenv. Always activate it first — `python`, `python3`, and `uv` are not on the system PATH:
+
+```bash
+source .venv/bin/activate && pytest tests/ -v
+```
+
+For linting and type-checking in the same shell:
+
+```bash
+source .venv/bin/activate && ruff check stackr/ tests/ && mypy stackr/
+```
+
+All three in one shot (typical pre-commit check):
+
+```bash
+source .venv/bin/activate && ruff check stackr/ tests/ && mypy stackr/ && pytest tests/ -v
+```
 
 ## Key conventions
 
@@ -210,6 +237,37 @@ networks:
   dev environment.
 - TUI tests in `tests/test_tui.py` use `pytest.mark.skipif(not HAS_TEXTUAL, ...)` to
   skip class-level tests; the async mount test additionally skips without `pytest-asyncio`.
+
+### Web UI (`stackr web`)
+
+- `web/__init__.py` exports `HAS_FASTAPI` — mirrors the `HAS_TEXTUAL` pattern in `tui.py`.
+- `web/app.py::create_app(config_path)` returns a FastAPI app; raises `RuntimeError` if fastapi is not installed.
+- `web/routes.py::make_router(config_path)` builds all routes bound to a specific config file.
+- Templates live in `stackr/web/templates/` and are rendered with Jinja2 `FileSystemLoader`.
+- `pyproject.toml` has `[[tool.mypy.overrides]]` with `ignore_errors = true` for `stackr.web.*`.
+- Tests in `tests/test_web.py` skip route tests when fastapi/httpx are absent; `HAS_FASTAPI` import guard test always runs.
+- The `toggle` route (`POST /api/toggle/{name}`) rewrites `stackr.yml` directly via yaml dump — always returns HTMX partial HTML for the updated app card.
+- The logs route (`GET /api/logs/{name}`) returns a `StreamingResponse` with `text/event-stream` (Server-Sent Events).
+
+### Backup (`stackr backup` / `restore` / `snapshots`)
+
+- `backup.py` requires `restic` on PATH — raises `RuntimeError` if not found.
+- The restic repository password is auto-generated via `ensure_secret("STACKR_RESTIC_PASSWORD", config_dir, env)` and stored in `.stackr.env`.
+- `_ensure_repo_initialized()` runs `restic snapshots` first; only calls `restic init` on failure.
+- `backup()` backs up `data_dir`, `state_dir`, and `config_dir` in a single restic invocation.
+
+### Mounts (`stackr mount` / `umount`)
+
+- `mounts.py` functions take plain string arguments; `mount_all()` / `umount_all()` accept `list[object]` to avoid circular imports (caller passes `config.mounts`).
+- `mount_share()` always calls `mountpoint -q <path>` first and no-ops if already mounted.
+- Mount type requirements: `smb` → `mount.cifs` (cifs-utils); `nfs` → system `mount`; `rclone` → `rclone` binary + configured remote.
+- `MountConfig` lives in `config.py`; `mounts: list[MountConfig]` field on `StackrConfig`.
+
+### Alerts (`config.alerts`)
+
+- `AlertConfig` in `config.py`: `enabled`, `provider` (ntfy/gotify/webhook), `url`, `token`.
+- `alerts.py::send_alert(title, message, config)` never raises — all HTTP errors are caught.
+- Called by `deployer.py` on `_run_compose` failure and by `doctor.py::run_doctor` when any check status is `"fail"`.
 
 ## Testing
 
