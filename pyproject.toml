@@ -63,6 +63,10 @@ module = ["stackr.web", "stackr.web.*"]
 ignore_missing_imports = true
 ignore_errors = true
 
+[[tool.mypy.overrides]]
+module = "uvicorn"
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = [

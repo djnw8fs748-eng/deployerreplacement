@@ -638,7 +638,7 @@ def web(
         raise typer.Exit(1)
 
     try:
-        import uvicorn  # type: ignore[import-not-found]
+        import uvicorn
     except ImportError:
         console.print(
             "[red]uvicorn is required for the web UI.[/red]\n"
