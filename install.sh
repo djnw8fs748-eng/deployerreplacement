@@ -100,12 +100,9 @@ export PATH="$PATH:$HOME/.local/bin"
 REPO_URL="git+https://github.com/${GITHUB_REPO}.git"
 
 info "Installing stackr via pipx from GitHub..."
-if pipx list 2>/dev/null | grep -q "package stackr"; then
-    info "Existing installation found — upgrading..."
-    pipx upgrade --pip-args="--quiet" stackr
-else
-    pipx install --pip-args="--quiet" "$REPO_URL"
-fi
+# Always use --force so re-running the installer pulls the latest commit from GitHub.
+# `pipx upgrade` does not re-fetch git-installed packages — it only bumps PyPI versions.
+pipx install --force --pip-args="--quiet" "$REPO_URL"
 
 STACKR_VERSION=$(stackr --version 2>/dev/null || echo "unknown")
 info "Stackr ${STACKR_VERSION} installed successfully."
