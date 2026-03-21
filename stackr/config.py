@@ -111,6 +111,14 @@ class StackrConfig(BaseModel):
     mounts: list[MountConfig] = Field(default_factory=list)
     apps: list[AppConfig] = Field(default_factory=list)
 
+    @field_validator("apps", "mounts", mode="before")
+    @classmethod
+    def coerce_none_to_list(cls, v: object) -> object:
+        # PyYAML parses an empty key (e.g. `apps:` with no value) as None.
+        # Pydantic's default_factory only fires when the key is absent, not when
+        # it is explicitly None, so we coerce None → [] here.
+        return v if v is not None else []
+
     model_config = {"populate_by_name": True}
 
     @model_validator(mode="after")
