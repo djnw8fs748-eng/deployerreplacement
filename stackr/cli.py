@@ -727,6 +727,55 @@ def catalog_version() -> None:
 
 
 # ---------------------------------------------------------------------------
+# stackr upgrade
+# ---------------------------------------------------------------------------
+
+
+@app.command()
+def upgrade() -> None:
+    """Upgrade stackr to the latest version from GitHub."""
+    import shutil
+    import subprocess
+
+    from stackr.catalog_sync import GITHUB_REPO
+
+    pipx = shutil.which("pipx")
+    if not pipx:
+        console.print("[red]pipx not found — cannot upgrade.[/red]")
+        console.print("Install pipx then re-run: [bold]stackr upgrade[/bold]")
+        raise typer.Exit(1)
+
+    repo_url = f"git+https://github.com/{GITHUB_REPO}.git"
+    console.print(f"Upgrading stackr from [bold]{repo_url}[/bold] ...")
+
+    result = subprocess.run(
+        [pipx, "install", "--force", repo_url],
+        capture_output=True,
+        text=True,
+    )
+
+    if result.returncode != 0:
+        console.print(f"[red]Upgrade failed:[/red]\n{result.stderr.strip()}")
+        raise typer.Exit(1)
+
+    # Read new version from the freshly installed binary
+    which_stackr = shutil.which("stackr")
+    if which_stackr:
+        ver = subprocess.run(
+            [which_stackr, "--version"], capture_output=True, text=True
+        )
+        new_version = ver.stdout.strip()
+    else:
+        new_version = "unknown"
+
+    console.print(f"[green]Upgrade complete.[/green] {new_version}")
+    console.print(
+        "\n[yellow]Note:[/yellow] Restart your shell or run [bold]exec $SHELL[/bold] "
+        "if the version number above looks unchanged."
+    )
+
+
+# ---------------------------------------------------------------------------
 # stackr uninstall
 # ---------------------------------------------------------------------------
 
