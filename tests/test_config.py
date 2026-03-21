@@ -89,6 +89,18 @@ def test_app_overrides():
     assert app.overrides["services"]["jellyfin"]["mem_limit"] == "4g"
 
 
+def test_apps_none_coerced_to_empty_list():
+    """apps: with no YAML value parses as None — must not raise a validation error."""
+    cfg = _config_from_dict({"apps": None})
+    assert cfg.apps == [] or all(a.name in ("traefik", "socket-proxy") for a in cfg.apps)
+
+
+def test_apps_missing_key_defaults_to_empty():
+    """apps key entirely absent from config must not raise a validation error."""
+    cfg = _config_from_dict({})
+    assert isinstance(cfg.apps, list)
+
+
 def test_load_config_from_file(tmp_path: Path):
     config_file = tmp_path / "stackr.yml"
     config_file.write_text(textwrap.dedent("""
