@@ -31,10 +31,13 @@ info "Python $PYTHON_VERSION detected."
 # --- Install pipx if needed ---
 if ! command -v pipx >/dev/null 2>&1; then
     info "Installing pipx..."
-    python3 -m pip install --user pipx
-    python3 -m pipx ensurepath
+    python3 -m pip install --user pipx --quiet
     export PATH="$PATH:$HOME/.local/bin"
 fi
+
+# --- Ensure pipx bin dir is in PATH (writes to shell rc files) ---
+python3 -m pipx ensurepath --force >/dev/null 2>&1 || true
+export PATH="$PATH:$HOME/.local/bin"
 
 # --- Install stackr ---
 REPO_URL="git+https://github.com/${GITHUB_REPO}.git"
@@ -47,9 +50,6 @@ else
     pipx install --pip-args="--quiet" "$REPO_URL"
 fi
 
-# Ensure the pipx bin dir is on PATH for the version check
-export PATH="$PATH:$HOME/.local/bin"
-
 STACKR_VERSION=$(stackr --version 2>/dev/null || echo "unknown")
 info "Stackr ${STACKR_VERSION} installed successfully."
 
@@ -59,3 +59,19 @@ echo "    stackr init       # interactive setup wizard"
 echo "    stackr list       # browse available apps"
 echo "    stackr deploy     # deploy your stack"
 echo ""
+
+# --- PATH reload reminder ---
+# The installer runs in a subshell so PATH changes don't propagate to the
+# parent shell.  Tell the user to reload if stackr isn't findable yet.
+if ! command -v stackr >/dev/null 2>&1; then
+    echo -e "${YELLOW}[stackr]${NC} 'stackr' is not yet on your PATH."
+    echo ""
+    echo "  Run one of the following to activate it in your current shell:"
+    echo ""
+    echo "    source ~/.bashrc       # bash"
+    echo "    source ~/.zshrc        # zsh"
+    echo "    exec \$SHELL            # reload current shell"
+    echo ""
+    echo "  Or open a new terminal — stackr will be available automatically."
+    echo ""
+fi
