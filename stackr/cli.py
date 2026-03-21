@@ -87,7 +87,8 @@ def init(
     acme_email = typer.prompt("ACME email for Let's Encrypt certs", default="")
     dns_provider = typer.prompt("DNS provider", default="cloudflare")
 
-    config = {
+    # Build the header config (everything except apps)
+    header = {
         "global": {
             "data_dir": data_dir,
             "timezone": timezone,
@@ -117,14 +118,26 @@ def init(
             "destination": "/mnt/backup",
             "schedule": "0 2 * * *",
         },
-        "apps": [
-            {"name": "traefik", "enabled": True},
-            {"name": "portainer", "enabled": True},
-        ],
     }
 
+    # Collect all catalog apps grouped by category.
+    # traefik and portainer are enabled by default; everything else is off.
+    _DEFAULT_ENABLED = {"traefik", "portainer"}
+    catalog = Catalog()
+    apps_by_category: dict[str, list[str]] = {}
+    for cat_app in sorted(catalog.all(), key=lambda a: (a.category, a.name)):
+        apps_by_category.setdefault(cat_app.category, []).append(cat_app.name)
+
+    # Write config file manually so we can insert category comments in the apps block.
     with open(output, "w") as f:
-        yaml.dump(config, f, default_flow_style=False, allow_unicode=True)
+        f.write(yaml.dump(header, default_flow_style=False, allow_unicode=True, sort_keys=False))
+        f.write("\napps:\n")
+        for category, names in sorted(apps_by_category.items()):
+            f.write(f"\n  # --- {category} ---\n")
+            for name in names:
+                enabled = name in _DEFAULT_ENABLED
+                f.write(f"  - name: {name}\n")
+                f.write(f"    enabled: {'true' if enabled else 'false'}\n")
 
     config_dir = output.parent
     env_file = init_env_file(config_dir)
@@ -139,10 +152,13 @@ def init(
     else:
         gitignore.write_text(ignore_entry)
 
+    total = sum(len(v) for v in apps_by_category.values())
     console.print(f"\n[green]Config written to[/green] {output}")
+    console.print(f"  {total} apps listed — traefik and portainer enabled by default.")
     console.print(f"[green]Secrets file:[/green]    {env_file}  (gitignored)")
     console.print("\nNext steps:")
-    console.print("  1. Edit [bold]stackr.yml[/bold] to enable the apps you want")
+    console.print("  1. Run [bold]stackr ui[/bold] to toggle apps on/off interactively")
+    console.print("     or edit [bold]stackr.yml[/bold] directly")
     console.print("  2. Add your DNS API token to [bold].stackr.env[/bold]")
     console.print("  3. Run [bold]stackr validate[/bold] to check your config")
     console.print("  4. Run [bold]stackr deploy[/bold] to start everything")

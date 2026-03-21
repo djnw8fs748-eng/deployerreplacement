@@ -30,7 +30,7 @@ stackr.yml.example  Reference config
 | `doctor.py` | Pre-flight health checks (`stackr doctor`): Docker, networks, secrets, catalog |
 | `images.py` | Image digest inspection via `docker inspect`; change detection for `stackr update` |
 | `catalog_sync.py` | GitHub release download → `~/.stackr/catalog/` user overlay |
-| `tui.py` | Textual TUI app browser (`stackr ui`); optional dep — only imported when textual is installed |
+| `tui.py` | Textual TUI app browser (`stackr ui`); textual is a core dep — `HAS_TEXTUAL` guard handles import errors gracefully |
 | `backup.py` | Restic-based backup/restore; `ensure_secret("STACKR_RESTIC_PASSWORD")` for repo password |
 | `migrate.py` | Deployrr → stackr.yml migration; `_DEPLOYRR_MAP` dict + fuzzy suffix stripping |
 | `alerts.py` | Push notifications on failures; providers: ntfy, Gotify, webhook; HTTP errors always swallowed |
@@ -224,8 +224,8 @@ networks:
 
 ### TUI (`stackr ui`)
 
-- `tui.py` is only importable when `textual` is installed (optional dep `[tui]`).
-- `HAS_TEXTUAL` bool guards the class definition — the module can always be imported safely.
+- `textual` is a **core dependency** — `stackr ui` works out of the box with no extras.
+- `HAS_TEXTUAL` bool guards the class definition — the module can always be imported safely even if textual is somehow absent.
 - `load_enabled(config_path)` and `build_stub_config(config_path)` are standalone helpers
   (no textual dependency) that can be tested unconditionally.
 - The CLI `stackr ui` command wraps the import in `try/except ImportError` and prints an
@@ -233,21 +233,23 @@ networks:
 - `StackrTUI.__init__` accepts `catalog: Any = None` so tests can inject a `Catalog`
   without running the full app.
 - `pyproject.toml` has `[[tool.mypy.overrides]]` with `ignore_missing_imports = true` and
-  `ignore_errors = true` for `stackr.tui` since textual stubs are not available in the base
-  dev environment.
+  `ignore_errors = true` for `stackr.tui` since textual stubs are not available in the dev
+  environment (textual is installed but has no py.typed marker).
 - TUI tests in `tests/test_tui.py` use `pytest.mark.skipif(not HAS_TEXTUAL, ...)` to
   skip class-level tests; the async mount test additionally skips without `pytest-asyncio`.
 
 ### Web UI (`stackr web`)
 
-- `web/__init__.py` exports `HAS_FASTAPI` — mirrors the `HAS_TEXTUAL` pattern in `tui.py`.
+- `fastapi` and `uvicorn` are **core dependencies** — `stackr web` works out of the box with no extras.
+- `web/__init__.py` exports `HAS_FASTAPI` — import guard retained for graceful degradation if fastapi is somehow absent.
 - `web/app.py::create_app(config_path)` returns a FastAPI app; raises `RuntimeError` if fastapi is not installed.
 - `web/routes.py::make_router(config_path)` builds all routes bound to a specific config file.
 - Templates live in `stackr/web/templates/` and are rendered with Jinja2 `FileSystemLoader`.
-- `pyproject.toml` has `[[tool.mypy.overrides]]` with `ignore_errors = true` for `stackr.web.*`.
+- `pyproject.toml` has `[[tool.mypy.overrides]]` with `ignore_errors = true` for `stackr.web.*` and `ignore_missing_imports = true` for `uvicorn` (no type stubs).
 - Tests in `tests/test_web.py` skip route tests when fastapi/httpx are absent; `HAS_FASTAPI` import guard test always runs.
-- The `toggle` route (`POST /api/toggle/{name}`) rewrites `stackr.yml` directly via yaml dump — always returns HTMX partial HTML for the updated app card.
+- The `toggle` route (`POST /api/toggle/{name}`) validates `app_name` against the catalog before writing, uses `threading.Lock` + `tempfile`/`os.replace` for atomic concurrent-safe config writes, and returns HTMX partial HTML.
 - The logs route (`GET /api/logs/{name}`) returns a `StreamingResponse` with `text/event-stream` (Server-Sent Events).
+- The deploy route uses `sys.executable -m stackr` (not bare `stackr`) to ensure the correct virtualenv is used.
 
 ### Backup (`stackr backup` / `restore` / `snapshots`)
 
@@ -268,6 +270,21 @@ networks:
 - `AlertConfig` in `config.py`: `enabled`, `provider` (ntfy/gotify/webhook), `url`, `token`.
 - `alerts.py::send_alert(title, message, config)` never raises — all HTTP errors are caught.
 - Called by `deployer.py` on `_run_compose` failure and by `doctor.py::run_doctor` when any check status is `"fail"`.
+
+### Uninstall (`stackr uninstall`)
+
+- Implemented in `cli.py` — no separate module.
+- Removes the pipx package (`pipx uninstall stackr`), prompts before deleting `~/.stackr`.
+- `--yes` / `-y` flag skips all confirmation prompts for scripted use.
+- Leaves `.stackr.env` files in project directories — only reminds the user to delete them manually.
+- Also available via `install.sh --uninstall` for users who no longer have `stackr` on PATH.
+
+### Installation / installer (`install.sh`)
+
+- Bootstraps pipx via `apt-get`/`apt`/`brew` first to avoid PEP 668 on Debian 12+ / Ubuntu 22.04+; falls back to `pip --break-system-packages`.
+- Calls `python3 -m pipx ensurepath --force` to write `~/.local/bin` into shell rc files.
+- Prints PATH reload instructions when `stackr` is not found after install (subshell cannot propagate `export PATH` to the parent shell).
+- `--uninstall` flag mirrors `stackr uninstall` for users without the command.
 
 ## Testing
 
