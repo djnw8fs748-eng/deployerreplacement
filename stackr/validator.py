@@ -9,6 +9,7 @@ Checks run before any containers are touched:
 - Missing external volumes
 - Auth provider dependency (authentik/authelia must be enabled if configured)
 - CrowdSec dependency (crowdsec must be enabled if security.crowdsec: true)
+- Mutually exclusive apps (traefik+nginx-proxy-manager, pihole+adguardhome)
 """
 
 from __future__ import annotations
@@ -66,6 +67,7 @@ def validate(
     _check_dns_provider(config, env, result)
     _check_dns_provider_env_refs(config, env, result)
     _check_security_stack(config, enabled_names, result)
+    _check_mutually_exclusive(enabled_names, result)
 
     for app_config in config.enabled_apps:
         catalog_app = _resolve_catalog(app_config, catalog, result)
@@ -128,6 +130,27 @@ def _check_security_stack(
             "security.crowdsec is true but 'crowdsec' is not in apps. "
             "Add it or set crowdsec: false.",
         )
+
+
+# Pairs of apps that bind the same host ports and cannot both be enabled.
+_MUTUALLY_EXCLUSIVE: list[tuple[str, str, str]] = [
+    ("traefik", "nginx-proxy-manager", "both bind host ports 80 and 443"),
+    ("pihole", "adguardhome", "both bind host port 53 (DNS)"),
+]
+
+
+def _check_mutually_exclusive(
+    enabled_names: set[str],
+    result: ValidationResult,
+) -> None:
+    """Error when two apps that share host ports are both enabled."""
+    for app_a, app_b, reason in _MUTUALLY_EXCLUSIVE:
+        if app_a in enabled_names and app_b in enabled_names:
+            result.error(
+                app_a,
+                f"'{app_a}' and '{app_b}' cannot both be enabled — {reason}. "
+                f"Disable one of them.",
+            )
 
 
 def _resolve_catalog(
