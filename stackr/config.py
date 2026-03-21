@@ -75,6 +75,23 @@ class AlertConfig(BaseModel):
         return v
 
 
+class MountConfig(BaseModel):
+    name: str
+    type: str = "smb"  # smb | nfs | rclone
+    remote: str
+    mountpoint: Path
+    options: str = ""
+    username: str | None = None
+    password: str | None = None  # resolved from env at mount time
+
+    @field_validator("type")
+    @classmethod
+    def validate_type(cls, v: str) -> str:
+        if v not in ("smb", "nfs", "rclone"):
+            raise ValueError("mount type must be 'smb', 'nfs', or 'rclone'")
+        return v
+
+
 class AppConfig(BaseModel):
     name: str
     enabled: bool = True
@@ -91,6 +108,7 @@ class StackrConfig(BaseModel):
     security: SecurityConfig = Field(default_factory=SecurityConfig)
     backup: BackupConfig = Field(default_factory=BackupConfig)
     alerts: AlertConfig = Field(default_factory=AlertConfig)
+    mounts: list[MountConfig] = Field(default_factory=list)
     apps: list[AppConfig] = Field(default_factory=list)
 
     model_config = {"populate_by_name": True}

@@ -19,8 +19,13 @@ Stackr replaces Deployrr (a closed-source PHP/Bash binary) with a fully open, au
 - **Multi-DNS providers**: Cloudflare, Route 53, Porkbun, Namecheap, DigitalOcean, DuckDNS, GoDaddy, deSEC, Hetzner, OVH
 - **Deep-merge overrides**: apply custom compose keys on top of any catalog template
 - **Health checks**: `stackr doctor` verifies Docker, networks, secrets, and catalog before deploying
+- **Backup/restore**: `stackr backup` / `restore` / `snapshots` — restic-based encrypted backups with auto-generated password
+- **Deployrr migration**: `stackr migrate --from deployrr` maps an existing Deployrr app list to a `stackr.yml`
+- **Alerts**: ntfy, Gotify, or webhook notifications on deploy failures and `stackr doctor` errors
+- **Remote shares**: `stackr mount` / `umount` for SMB, NFS, and Rclone mounts; declared under `mounts:` in `stackr.yml`
 - **Catalog updates**: `stackr catalog update` downloads the latest catalog from GitHub
 - **Interactive TUI**: `stackr ui` opens a terminal app browser — toggle apps on/off, see details, save config
+- **Web UI** (optional): `stackr web` launches a FastAPI + HTMX browser dashboard for point-and-click management
 
 ## Requirements
 
@@ -173,8 +178,13 @@ stackr shell <app>            Open a shell inside the app's primary container
 stackr list [--category C]    List all catalog apps
 stackr search <query>         Search catalog by name or description
 stackr ui                     Launch the interactive TUI app browser
-stackr backup                 Run a backup (Phase 5 — not yet implemented)
-stackr restore <snapshot>     Restore from a backup (Phase 5 — not yet implemented)
+stackr web [--port 8000]      Launch the web UI (requires stackr[web])
+stackr backup                 Run a restic backup to the configured destination
+stackr restore <snapshot>     Restore from a backup snapshot
+stackr snapshots              List available backup snapshots
+stackr migrate [--from deployrr] --input apps.txt --output stackr.yml
+stackr mount                  Mount all remote shares from stackr.yml
+stackr umount                 Unmount all remote shares from stackr.yml
 stackr catalog update         Download the latest catalog from GitHub
 stackr catalog version        Show current catalog version and app count
 ```
@@ -345,6 +355,122 @@ Runs 8+ checks including:
 - `.stackr.env` file exists
 - All enabled apps are in the catalog
 
+## Backup and restore
+
+Stackr uses [restic](https://restic.net/) for encrypted, incremental backups.
+`restic` must be installed on the host.
+
+```bash
+# Enable backups in stackr.yml:
+#   backup:
+#     enabled: true
+#     destination: /mnt/backup    # or s3:bucket/path, sftp:host:/path, etc.
+
+# Run a backup now
+stackr backup
+
+# List snapshots
+stackr snapshots
+
+# Restore a snapshot (default target: global.data_dir)
+stackr restore latest
+stackr restore abc1def2 --target /tmp/restore
+```
+
+The restic repository password is auto-generated on first use and stored in `.stackr.env`
+as `STACKR_RESTIC_PASSWORD`.
+
+## Alerts
+
+Stackr can send a push notification when a deploy fails or `stackr doctor` finds a failure.
+
+```yaml
+alerts:
+  enabled: true
+  provider: ntfy           # ntfy | gotify | webhook
+  url: https://ntfy.sh/my-homelab-alerts
+  token: ${NTFY_TOKEN}     # optional Bearer token
+```
+
+Supported providers: **ntfy**, **Gotify**, and any generic **webhook** (POST with JSON body).
+HTTP errors from the alert provider are always swallowed so they never block a deploy.
+
+## Remote share mounting
+
+Declare SMB, NFS, or Rclone mounts under `mounts:` in `stackr.yml`:
+
+```yaml
+mounts:
+  - name: media
+    type: smb               # smb | nfs | rclone
+    remote: //192.168.1.10/media
+    mountpoint: /mnt/media
+    username: myuser
+    password: ${SMB_PASSWORD}
+
+  - name: photos
+    type: nfs
+    remote: 192.168.1.10:/export/photos
+    mountpoint: /mnt/photos
+    options: ro,noatime
+
+  - name: gdrive
+    type: rclone
+    remote: gdrive:          # rclone remote name (must be configured in rclone.conf)
+    mountpoint: /mnt/gdrive
+```
+
+```bash
+# Mount all configured shares
+stackr mount
+
+# Unmount all configured shares
+stackr umount
+```
+
+**Requirements by mount type:**
+
+| Type | Requirement |
+|------|-------------|
+| `smb` | `cifs-utils` (`mount.cifs` on PATH) |
+| `nfs` | `nfs-common` / `nfs-utils` |
+| `rclone` | `rclone` on PATH + configured remote; `fuse3` for FUSE mounts |
+
+## Migrating from Deployrr
+
+Use `stackr migrate` to convert a Deployrr app list into a `stackr.yml`:
+
+```bash
+# From a file (one app name per line)
+stackr migrate --from deployrr --input my-deployrr-apps.txt --output stackr.yml
+
+# Interactive (enter app names one by one)
+stackr migrate --from deployrr
+```
+
+Apps are matched against the Stackr catalog. Unmapped names are listed so you can
+add them manually.
+
+## Web UI
+
+An optional browser-based dashboard is available via the `[web]` extra:
+
+```bash
+pip install 'stackr[web]'
+
+# Launch on localhost:8000
+stackr web
+
+# Custom host / port
+stackr web --host 0.0.0.0 --port 9000
+```
+
+The web UI provides:
+- App grid showing enabled/deployed status for every configured app
+- One-click enable/disable toggle (updates `stackr.yml`)
+- Per-app and full-stack deploy buttons
+- Live log streaming via Server-Sent Events
+
 ## Interactive TUI
 
 The `stackr ui` command opens a full-terminal app browser built with [Textual](https://textual.textualize.io/).
@@ -435,7 +561,15 @@ stackr/
   network.py        Docker network helpers
   status.py         Rich terminal status table
   tui.py            Textual TUI app browser (stackr ui; requires textual extra)
-  backup.py         Backup stub (Phase 5 — not yet implemented)
+  backup.py         Restic-based backup/restore (backup, restore, snapshots commands)
+  migrate.py        Deployrr → stackr.yml migration (stackr migrate)
+  alerts.py         Push notifications via ntfy, Gotify, or webhook
+  doctor.py         Environment health checks (stackr doctor)
+  mounts.py         Remote share mounting: SMB, NFS, Rclone (stackr mount/umount)
+  web/              Optional FastAPI + HTMX web UI (stackr web; requires web extra)
+    app.py          FastAPI application factory
+    routes.py       API route handlers
+    templates/      Jinja2 + HTMX HTML templates
 
 catalog/
   ai/               ollama, open-webui
@@ -489,6 +623,13 @@ tests/
 |---------|---------|
 | `textual` | Terminal UI framework for `stackr ui` |
 
+**Optional — Web UI (`pip install 'stackr[web]'`):**
+
+| Package | Purpose |
+|---------|---------|
+| `fastapi` | ASGI web framework |
+| `uvicorn` | ASGI server |
+
 **Development:**
 
 | Package | Purpose |
@@ -497,16 +638,6 @@ tests/
 | `pytest-mock` | Mocking utilities |
 | `ruff` | Linting and formatting |
 | `mypy` | Static type checking |
-
-## Migrating from Deployrr
-
-1. Run `stackr init` to generate a fresh config
-2. Map your existing Deployrr app list to catalog app names (`stackr list`)
-3. Copy persistent data directories — `global.data_dir` must point to the same host path
-4. Set secrets in `.stackr.env` or export them in your shell
-5. Run `stackr doctor` to verify your environment
-6. Run `stackr validate` and fix any reported issues
-7. Run `stackr plan` to preview changes before deploying
 
 ## CI
 

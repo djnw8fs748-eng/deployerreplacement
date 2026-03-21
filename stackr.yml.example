@@ -31,9 +31,30 @@ security:
   auth_provider: none          # authentik | authelia | google_oauth | none  (Phase 2)
 
 backup:
-  enabled: false               # Phase 5
-  destination: /mnt/backup
-  schedule: "0 2 * * *"
+  enabled: false
+  destination: /mnt/backup     # restic repository path (local or s3:bucket/path)
+  schedule: "0 2 * * *"       # informational — no built-in scheduler
+
+# Push notifications on deploy failures and doctor errors
+# alerts:
+#   enabled: false
+#   provider: ntfy             # ntfy | gotify | webhook
+#   url: https://ntfy.sh/my-homelab
+#   token: "${NTFY_TOKEN}"    # optional Bearer token
+
+# Remote share mounts — applied by: stackr mount / stackr umount
+# mounts:
+#   - name: media
+#     type: smb                # smb | nfs | rclone
+#     remote: //192.168.1.10/media
+#     mountpoint: /mnt/media
+#     username: myuser
+#     password: "${SMB_PASSWORD}"
+#   - name: photos
+#     type: nfs
+#     remote: 192.168.1.10:/export/photos
+#     mountpoint: /mnt/photos
+#     options: ro,noatime
 
 apps:
   - name: traefik

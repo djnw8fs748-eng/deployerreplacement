@@ -1,0 +1,38 @@
+<div class="app-card"
+     id="card-{{ app.name }}"
+     data-search="{{ app.name }} {{ app.display_name }} {{ app.category }} {{ app.description }}"
+     style="background:#1e293b;border:1px solid #334155;border-radius:0.75rem;padding:1rem;display:flex;flex-direction:column;gap:0.5rem;">
+  <div style="display:flex;align-items:center;justify-content:space-between;">
+    <span style="font-weight:700;font-size:1rem;color:#f1f5f9;">{{ app.display_name }}</span>
+    <span style="font-size:0.75rem;color:#94a3b8;background:#0f172a;padding:0.15rem 0.5rem;border-radius:999px;">{{ app.category }}</span>
+  </div>
+
+  <p style="font-size:0.82rem;color:#94a3b8;flex:1;">{{ app.description or "No description." }}</p>
+
+  <div style="display:flex;align-items:center;gap:0.5rem;margin-top:0.25rem;">
+    <span style="font-size:0.8rem;color:{% if app.deployed %}#4ade80{% else %}#94a3b8{% endif %};">
+      {% if app.deployed %}● deployed{% if app.deployed_at %} {{ app.deployed_at }}{% endif %}{% else %}○ not deployed{% endif %}
+    </span>
+  </div>
+
+  <div style="display:flex;gap:0.5rem;margin-top:0.25rem;">
+    <button hx-post="/api/toggle/{{ app.name }}"
+            hx-target="#card-{{ app.name }}"
+            hx-swap="outerHTML"
+            style="flex:1;background:{% if app.enabled %}#16a34a{% else %}#475569{% endif %};color:#fff;border:none;border-radius:0.4rem;padding:0.4rem 0;cursor:pointer;font-size:0.85rem;font-weight:600;">
+      {% if app.enabled %}Enabled{% else %}Disabled{% endif %}
+    </button>
+    <button hx-post="/api/deploy/{{ app.name }}"
+            hx-target="#deploy-result"
+            hx-swap="innerHTML"
+            {% if not app.enabled %}disabled{% endif %}
+            style="flex:1;background:#0ea5e9;color:#fff;border:none;border-radius:0.4rem;padding:0.4rem 0;cursor:pointer;font-size:0.85rem;font-weight:600;{% if not app.enabled %}opacity:0.4;cursor:not-allowed;{% endif %}">
+      Deploy
+    </button>
+    <a href="/api/logs/{{ app.name }}"
+       title="Stream logs (SSE)"
+       style="padding:0.4rem 0.6rem;background:#1e3a5f;color:#38bdf8;border-radius:0.4rem;font-size:0.85rem;text-decoration:none;">
+      Logs
+    </a>
+  </div>
+</div>
