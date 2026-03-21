@@ -15,11 +15,31 @@ from stackr.config import StackrConfig, load_config
 from stackr.secrets import build_env
 from stackr.state import State
 
+
+def _version_callback(value: bool) -> None:
+    if value:
+        from stackr import __version__
+
+        typer.echo(f"stackr {__version__}")
+        raise typer.Exit()
+
+
 app = typer.Typer(
     name="stackr",
     help="A declarative, composable homelab deployment tool.",
     no_args_is_help=True,
 )
+
+
+@app.callback()
+def _main(
+    version: Annotated[
+        bool,
+        typer.Option("--version", "-V", callback=_version_callback, is_eager=True,
+                     help="Show version and exit."),
+    ] = False,
+) -> None:
+    pass
 catalog_app = typer.Typer(help="Manage the app catalog.")
 app.add_typer(catalog_app, name="catalog")
 

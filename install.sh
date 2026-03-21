@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Stackr installer
-# Usage: curl -fsSL https://raw.githubusercontent.com/your-org/stackr/main/install.sh | bash
+# Usage: curl -fsSL https://raw.githubusercontent.com/djnw8fs748-eng/deployerreplacement/main/install.sh | bash
+
+GITHUB_REPO="djnw8fs748-eng/deployerreplacement"
 
 set -euo pipefail
 
@@ -35,11 +37,21 @@ if ! command -v pipx >/dev/null 2>&1; then
 fi
 
 # --- Install stackr ---
-info "Installing stackr via pipx..."
-pipx install stackr 2>/dev/null || pipx upgrade stackr
+REPO_URL="git+https://github.com/${GITHUB_REPO}.git"
+
+info "Installing stackr via pipx from GitHub..."
+if pipx list 2>/dev/null | grep -q "package stackr"; then
+    info "Existing installation found — upgrading..."
+    pipx upgrade --pip-args="--quiet" stackr
+else
+    pipx install --pip-args="--quiet" "$REPO_URL"
+fi
+
+# Ensure the pipx bin dir is on PATH for the version check
+export PATH="$PATH:$HOME/.local/bin"
 
 STACKR_VERSION=$(stackr --version 2>/dev/null || echo "unknown")
-info "Stackr $STACKR_VERSION installed successfully."
+info "Stackr ${STACKR_VERSION} installed successfully."
 
 echo ""
 echo "  Next steps:"
