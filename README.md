@@ -48,11 +48,7 @@ This installs Stackr via `pipx` into an isolated environment and adds the `stack
 pipx install git+https://github.com/djnw8fs748-eng/deployerreplacement.git
 ```
 
-To include the optional TUI:
-
-```bash
-pipx install "git+https://github.com/djnw8fs748-eng/deployerreplacement.git[tui]"
-```
+The TUI (`stackr ui`) and web UI (`stackr web`) are included in the base install — no extras required.
 
 ### From source
 
@@ -62,6 +58,19 @@ cd deployerreplacement
 pip install uv
 uv pip install -e ".[dev]"
 ```
+
+## Uninstalling
+
+```bash
+# Via the installer script
+curl -fsSL https://raw.githubusercontent.com/djnw8fs748-eng/deployerreplacement/main/install.sh | bash -s -- --uninstall
+
+# Or via the CLI (if stackr is still on your PATH)
+stackr uninstall
+stackr uninstall --yes   # skip all confirmation prompts
+```
+
+Both methods remove the pipx package and prompt before deleting `~/.stackr` (state, catalog, generated secrets). `.stackr.env` files in project directories are left in place — delete them manually if you no longer need the secrets they contain.
 
 ## Quickstart
 
@@ -187,6 +196,7 @@ stackr mount                  Mount all remote shares from stackr.yml
 stackr umount                 Unmount all remote shares from stackr.yml
 stackr catalog update         Download the latest catalog from GitHub
 stackr catalog version        Show current catalog version and app count
+stackr uninstall              Remove the stackr pipx package and optionally ~/.stackr
 ```
 
 ## App catalog
@@ -453,11 +463,9 @@ add them manually.
 
 ## Web UI
 
-An optional browser-based dashboard is available via the `[web]` extra:
+A browser-based dashboard is included in the base install:
 
 ```bash
-pip install 'stackr[web]'
-
 # Launch on localhost:8000
 stackr web
 
@@ -473,12 +481,9 @@ The web UI provides:
 
 ## Interactive TUI
 
-The `stackr ui` command opens a full-terminal app browser built with [Textual](https://textual.textualize.io/).
+The `stackr ui` command opens a full-terminal app browser built with [Textual](https://textual.textualize.io/). It is included in the base install — no extra required.
 
 ```bash
-# Install the TUI extra first
-pip install 'stackr[tui]'
-
 # Launch
 stackr ui
 stackr ui --config /path/to/stackr.yml
@@ -616,19 +621,9 @@ tests/
 | `pyyaml` | YAML parsing |
 | `rich` | Terminal output |
 | `python-dotenv` | `.stackr.env` loading |
-
-**Optional — TUI (`pip install 'stackr[tui]'`):**
-
-| Package | Purpose |
-|---------|---------|
 | `textual` | Terminal UI framework for `stackr ui` |
-
-**Optional — Web UI (`pip install 'stackr[web]'`):**
-
-| Package | Purpose |
-|---------|---------|
-| `fastapi` | ASGI web framework |
-| `uvicorn` | ASGI server |
+| `fastapi` | ASGI web framework for `stackr web` |
+| `uvicorn` | ASGI server for `stackr web` |
 
 **Development:**
 
