@@ -62,17 +62,21 @@ def make_router(config_path: Path) -> fastapi.APIRouter:
         catalog = Catalog()
         state = State()
 
+        # Index config apps by name so we can look up enabled state for any
+        # catalog app, including ones not yet present in the config file.
+        cfg_by_name = {a.name: a for a in config.apps}
+
         app_rows = []
-        for app_cfg in config.apps:
-            cat_app = catalog.get(app_cfg.name)
-            app_state = state.get_app(app_cfg.name)
+        for cat_app in sorted(catalog.all(), key=lambda a: (a.category, a.name)):
+            app_cfg = cfg_by_name.get(cat_app.name)
+            app_state = state.get_app(cat_app.name)
             app_rows.append(
                 {
-                    "name": app_cfg.name,
-                    "display_name": cat_app.display_name if cat_app else app_cfg.name,
-                    "description": cat_app.description if cat_app else "",
-                    "category": cat_app.category if cat_app else "custom",
-                    "enabled": app_cfg.enabled,
+                    "name": cat_app.name,
+                    "display_name": cat_app.display_name,
+                    "description": cat_app.description,
+                    "category": cat_app.category,
+                    "enabled": app_cfg.enabled if app_cfg else False,
                     "deployed": app_state is not None,
                     "deployed_at": (
                         str(app_state.deployed_at)[:19]
@@ -81,6 +85,26 @@ def make_router(config_path: Path) -> fastapi.APIRouter:
                     ),
                 }
             )
+        # Append any config apps that are not in the catalog (local/custom apps)
+        catalog_names = {a.name for a in catalog.all()}
+        for app_cfg in config.apps:
+            if app_cfg.name not in catalog_names:
+                app_state = state.get_app(app_cfg.name)
+                app_rows.append(
+                    {
+                        "name": app_cfg.name,
+                        "display_name": app_cfg.name,
+                        "description": "",
+                        "category": "custom",
+                        "enabled": app_cfg.enabled,
+                        "deployed": app_state is not None,
+                        "deployed_at": (
+                            str(app_state.deployed_at)[:19]
+                            if app_state and app_state.deployed_at
+                            else None
+                        ),
+                    }
+                )
         return _render("index.html", apps=app_rows, config_path=str(config_path))
 
     # ------------------------------------------------------------------
@@ -93,17 +117,18 @@ def make_router(config_path: Path) -> fastapi.APIRouter:
         catalog = Catalog()
         state = State()
 
+        cfg_by_name = {a.name: a for a in config.apps}
         result = []
-        for app_cfg in config.apps:
-            cat_app = catalog.get(app_cfg.name)
-            app_state = state.get_app(app_cfg.name)
+        for cat_app in sorted(catalog.all(), key=lambda a: (a.category, a.name)):
+            app_cfg = cfg_by_name.get(cat_app.name)
+            app_state = state.get_app(cat_app.name)
             result.append(
                 {
-                    "name": app_cfg.name,
-                    "display_name": cat_app.display_name if cat_app else app_cfg.name,
-                    "description": cat_app.description if cat_app else "",
-                    "category": cat_app.category if cat_app else "custom",
-                    "enabled": app_cfg.enabled,
+                    "name": cat_app.name,
+                    "display_name": cat_app.display_name,
+                    "description": cat_app.description,
+                    "category": cat_app.category,
+                    "enabled": app_cfg.enabled if app_cfg else False,
                     "deployed": app_state is not None,
                 }
             )

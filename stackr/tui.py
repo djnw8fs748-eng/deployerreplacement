@@ -202,14 +202,9 @@ if HAS_TEXTUAL:
             for category in self._catalog.categories():
                 for ca in sorted(self._catalog.by_category(category), key=lambda a: a.name):
                     catalog_names.add(ca.name)
-                    if ca.name in self._enabled:
-                        entry = dict(existing.get(ca.name, {"name": ca.name}))
-                        entry["enabled"] = True
-                        apps_out.append(entry)
-                    elif ca.name in existing:
-                        entry = dict(existing[ca.name])
-                        entry["enabled"] = False
-                        apps_out.append(entry)
+                    entry = dict(existing.get(ca.name, {"name": ca.name}))
+                    entry["enabled"] = ca.name in self._enabled
+                    apps_out.append(entry)
             # Preserve apps not present in the current catalog (e.g. local catalog_path apps)
             for name, entry in existing.items():
                 if name not in catalog_names:

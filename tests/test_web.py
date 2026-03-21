@@ -121,6 +121,48 @@ def test_api_apps_json(tmp_path: pytest.FixtureLookupError) -> None:  # type: ig
 
 
 @_SKIP_HTTPX
+def test_api_apps_returns_all_catalog_apps(tmp_path: pytest.FixtureLookupError) -> None:  # type: ignore[override]
+    """GET /api/apps returns all catalog apps even when config only lists a few."""
+    from pathlib import Path
+
+    import yaml
+    from fastapi.testclient import TestClient
+
+    from stackr.catalog import Catalog
+    from stackr.web.app import create_app
+
+    config_path = tmp_path / "stackr.yml"  # type: ignore[operator]
+    # Config lists only one app — dashboard must still show the full catalog
+    config_path.write_text(
+        yaml.dump(
+            {
+                "global": {"data_dir": "/tmp/data"},
+                "network": {"domain": "test.com"},
+                "traefik": {"enabled": False},
+                "security": {"socket_proxy": False},
+                "apps": [{"name": "jellyfin", "enabled": True}],
+            }
+        )
+    )
+
+    application = create_app(Path(str(config_path)))
+    client = TestClient(application)
+    resp = client.get("/api/apps")
+    assert resp.status_code == 200
+    data = resp.json()
+    names = {a["name"] for a in data}
+
+    catalog_names = {a.name for a in Catalog().all()}
+    assert catalog_names <= names, (
+        f"Missing from /api/apps: {catalog_names - names}"
+    )
+    # jellyfin should be marked enabled, grafana should be disabled
+    by_name = {a["name"]: a for a in data}
+    assert by_name["jellyfin"]["enabled"] is True
+    assert by_name["grafana"]["enabled"] is False
+
+
+@_SKIP_HTTPX
 def test_api_catalog_json(tmp_path: pytest.FixtureLookupError) -> None:  # type: ignore[override]
     """GET /api/catalog returns all catalog apps."""
     from pathlib import Path
