@@ -222,3 +222,27 @@ def test_suggests_only_warns():
     assert len(suggest_warns) > 0
     suggest_errors = [e for e in result.errors if "socket-proxy" in e.message]
     assert suggest_errors == []
+
+
+def test_mutually_exclusive_traefik_npm():
+    """traefik and nginx-proxy-manager cannot both be enabled."""
+    catalog = Catalog()
+    config = _make_config([
+        {"name": "traefik", "enabled": True},
+        {"name": "nginx-proxy-manager", "enabled": True},
+    ])
+    result = validate(config, catalog, {})
+    errors = [e for e in result.errors if "nginx-proxy-manager" in e.message]
+    assert errors, "Expected error for traefik + nginx-proxy-manager conflict"
+
+
+def test_mutually_exclusive_pihole_adguard():
+    """pihole and adguardhome cannot both be enabled."""
+    catalog = Catalog()
+    config = _make_config([
+        {"name": "pihole", "enabled": True},
+        {"name": "adguardhome", "enabled": True},
+    ])
+    result = validate(config, catalog, {})
+    errors = [e for e in result.errors if "adguardhome" in e.message]
+    assert errors, "Expected error for pihole + adguardhome conflict"
