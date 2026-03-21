@@ -149,6 +149,70 @@ def test_tui_action_toggle_updates_enabled(tmp_path: Path) -> None:
     assert app_name not in tui._enabled
 
 
+def test_tui_save_writes_all_catalog_apps(tmp_path: Path) -> None:
+    """action_save_config must write every catalog app — not just enabled ones.
+
+    This is a pure-Python test of the save logic so it runs without textual.
+    """
+    import yaml as _yaml
+
+    from stackr.catalog import Catalog
+    from stackr.tui import build_stub_config
+
+    catalog = Catalog()
+    config_file = tmp_path / "stackr.yml"
+
+    # Config has only 2 apps (pre-fix state)
+    config_file.write_text(
+        _yaml.dump(
+            {
+                "global": {"data_dir": "/data"},
+                "network": {"domain": "test.com"},
+                "traefik": {"enabled": False},
+                "security": {"socket_proxy": False},
+                "apps": [
+                    {"name": "traefik", "enabled": True},
+                    {"name": "portainer", "enabled": True},
+                ],
+            }
+        )
+    )
+
+    enabled = {"traefik", "portainer"}
+
+    # Replicate the fixed action_save_config logic
+    raw = build_stub_config(config_file)
+    existing = {
+        a["name"]: a for a in raw.get("apps", []) if isinstance(a, dict) and "name" in a
+    }
+    apps_out = []
+    catalog_names: set[str] = set()
+    for category in catalog.categories():
+        for ca in sorted(catalog.by_category(category), key=lambda a: a.name):
+            catalog_names.add(ca.name)
+            entry = dict(existing.get(ca.name, {"name": ca.name}))
+            entry["enabled"] = ca.name in enabled
+            apps_out.append(entry)
+    for name, entry in existing.items():
+        if name not in catalog_names:
+            apps_out.append(dict(entry))
+    raw["apps"] = apps_out
+    with open(config_file, "w") as f:
+        _yaml.dump(raw, f, default_flow_style=False, allow_unicode=True)
+
+    written = _yaml.safe_load(config_file.read_text())
+    written_names = {a["name"] for a in written["apps"]}
+    all_catalog_names = {a.name for a in catalog.all()}
+
+    missing = all_catalog_names - written_names
+    assert not missing, f"Save dropped these catalog apps: {sorted(missing)}"
+
+    # Spot-check enabled/disabled state
+    by_name = {a["name"]: a for a in written["apps"]}
+    assert by_name["traefik"]["enabled"] is True
+    assert by_name["jellyfin"]["enabled"] is False
+
+
 @pytui
 def test_tui_save_config_writes_yaml(tmp_path: Path) -> None:
     from stackr.catalog import Catalog

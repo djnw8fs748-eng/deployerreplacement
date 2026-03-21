@@ -271,6 +271,15 @@ networks:
 - `alerts.py::send_alert(title, message, config)` never raises — all HTTP errors are caught.
 - Called by `deployer.py` on `_run_compose` failure and by `doctor.py::run_doctor` when any check status is `"fail"`.
 
+### Upgrade (`stackr upgrade`)
+
+- Implemented in `cli.py` — no separate module.
+- Runs `pipx install --force git+https://github.com/<GITHUB_REPO>.git` to pull the latest commit from main.
+- Uses `--force` (not `pipx upgrade`) because `pipx upgrade` compares version metadata which never changes for git-installed packages — it always reports "already at latest version" and does nothing.
+- Reads `GITHUB_REPO` from `catalog_sync.py` — single source of truth for the repo URL.
+- Reports the new version from `stackr --version` after install; reminds user to reload shell if it appears unchanged.
+- Exits non-zero with a clear error if `pipx` is not found on PATH.
+
 ### Uninstall (`stackr uninstall`)
 
 - Implemented in `cli.py` — no separate module.
