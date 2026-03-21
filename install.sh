@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Stackr installer
-# Usage: curl -fsSL https://raw.githubusercontent.com/djnw8fs748-eng/deployerreplacement/main/install.sh | bash
+# Stackr installer / uninstaller
+# Install:   curl -fsSL https://raw.githubusercontent.com/djnw8fs748-eng/deployerreplacement/main/install.sh | bash
+# Uninstall: curl -fsSL https://raw.githubusercontent.com/djnw8fs748-eng/deployerreplacement/main/install.sh | bash -s -- --uninstall
 
 GITHUB_REPO="djnw8fs748-eng/deployerreplacement"
 
@@ -14,6 +15,50 @@ NC='\033[0m'
 info()    { echo -e "${GREEN}[stackr]${NC} $*"; }
 warn()    { echo -e "${YELLOW}[stackr]${NC} $*"; }
 error()   { echo -e "${RED}[stackr]${NC} $*" >&2; exit 1; }
+
+# ---------------------------------------------------------------------------
+# Uninstall
+# ---------------------------------------------------------------------------
+
+if [[ "${1:-}" == "--uninstall" ]]; then
+    info "Uninstalling stackr..."
+
+    # Remove the pipx-managed package
+    if command -v pipx >/dev/null 2>&1 && pipx list 2>/dev/null | grep -q "package stackr"; then
+        pipx uninstall stackr
+        info "pipx package removed."
+    else
+        warn "stackr pipx package not found — skipping."
+    fi
+
+    # Remove state directory (~/.stackr)
+    STACKR_DIR="$HOME/.stackr"
+    if [[ -d "$STACKR_DIR" ]]; then
+        echo ""
+        echo -e "${YELLOW}[stackr]${NC} Found data directory: $STACKR_DIR"
+        echo "  This contains your app state, catalog, and any generated secrets."
+        printf "  Remove it? [y/N] "
+        read -r REPLY </dev/tty
+        if [[ "$REPLY" =~ ^[Yy]$ ]]; then
+            rm -rf "$STACKR_DIR"
+            info "Removed $STACKR_DIR"
+        else
+            warn "Kept $STACKR_DIR"
+        fi
+    fi
+
+    # Remind about .stackr.env files left in project directories
+    echo ""
+    warn "Note: any .stackr.env files in your project directories were not removed."
+    warn "      Delete them manually if you no longer need the secrets they contain."
+    echo ""
+    info "Stackr uninstalled."
+    exit 0
+fi
+
+# ---------------------------------------------------------------------------
+# Install
+# ---------------------------------------------------------------------------
 
 # --- Requirements ---
 command -v docker >/dev/null 2>&1 || error "Docker is required but not installed."
@@ -70,6 +115,8 @@ echo "  Next steps:"
 echo "    stackr init       # interactive setup wizard"
 echo "    stackr list       # browse available apps"
 echo "    stackr deploy     # deploy your stack"
+echo "    stackr ui         # open the terminal UI"
+echo "    stackr web        # start the web UI"
 echo ""
 
 # --- PATH reload reminder ---
