@@ -1,0 +1,20 @@
+services:
+  filebrowser:
+    image: filebrowser/filebrowser:{{ vars.version | default('latest') }}
+    container_name: filebrowser
+    restart: unless-stopped
+    environment:
+      - TZ={{ global.timezone }}
+    volumes:
+      - {{ global.data_dir }}/filebrowser/config:/config
+      - {{ global.data_dir }}:/srv
+    networks:
+      - proxy
+    labels:
+{% for k, v in traefik_labels(80, 'internal').items() %}
+      - "{{ k }}={{ v }}"
+{% endfor %}
+
+networks:
+  proxy:
+    external: true

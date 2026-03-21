@@ -1,0 +1,25 @@
+services:
+  prometheus:
+    image: prom/prometheus:{{ vars.version | default('latest') }}
+    container_name: prometheus
+    restart: unless-stopped
+    environment:
+      - TZ={{ global.timezone }}
+    volumes:
+      - {{ global.data_dir }}/prometheus/config:/etc/prometheus
+      - {{ global.data_dir }}/prometheus/data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time={{ vars.retention | default('15d') }}
+      - --web.enable-lifecycle
+    networks:
+      - proxy
+    labels:
+{% for k, v in traefik_labels(9090, 'internal').items() %}
+      - "{{ k }}={{ v }}"
+{% endfor %}
+
+networks:
+  proxy:
+    external: true

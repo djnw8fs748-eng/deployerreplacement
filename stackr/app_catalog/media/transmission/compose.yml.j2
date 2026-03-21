@@ -1,0 +1,28 @@
+services:
+  transmission:
+    image: lscr.io/linuxserver/transmission:{{ vars.version | default('latest') }}
+    container_name: transmission
+    restart: unless-stopped
+    ports:
+      - "51413:51413/tcp"
+      - "51413:51413/udp"
+    environment:
+      - PUID={{ global.puid }}
+      - PGID={{ global.pgid }}
+      - TZ={{ global.timezone }}
+      - USER={{ vars.user | default('admin') }}
+      - PASS=${TRANSMISSION_PASS}
+    volumes:
+      - {{ global.data_dir }}/transmission/config:/config
+      - /downloads:/downloads
+      - {{ global.data_dir }}/transmission/watch:/watch
+    networks:
+      - proxy
+    labels:
+{% for k, v in traefik_labels(9091).items() %}
+      - "{{ k }}={{ v }}"
+{% endfor %}
+
+networks:
+  proxy:
+    external: true

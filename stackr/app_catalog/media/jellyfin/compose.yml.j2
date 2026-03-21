@@ -1,0 +1,39 @@
+services:
+  jellyfin:
+    image: jellyfin/jellyfin:{{ vars.version | default('latest') }}
+    container_name: jellyfin
+    restart: unless-stopped
+    environment:
+      - PUID={{ global.puid }}
+      - PGID={{ global.pgid }}
+      - TZ={{ global.timezone }}
+    volumes:
+      - {{ global.data_dir }}/jellyfin/config:/config
+      - /media:/media:ro
+{% if vars.hardware_accel == 'vaapi' %}
+    devices:
+      - /dev/dri:/dev/dri
+    group_add:
+      - "render"
+{% elif vars.hardware_accel == 'nvidia' %}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+{% elif vars.hardware_accel == 'intel_qsv' %}
+    devices:
+      - /dev/dri:/dev/dri
+{% endif %}
+    networks:
+      - proxy
+    labels:
+{% for k, v in traefik_labels(8096).items() %}
+      - "{{ k }}={{ v }}"
+{% endfor %}
+
+networks:
+  proxy:
+    external: true

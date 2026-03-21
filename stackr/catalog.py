@@ -13,7 +13,7 @@ from typing import Any
 import yaml
 from pydantic import BaseModel, Field
 
-BUILTIN_CATALOG = Path(__file__).parent.parent / "catalog"
+BUILTIN_CATALOG = Path(__file__).parent / "app_catalog"
 USER_CATALOG = Path.home() / ".stackr" / "catalog"
 
 

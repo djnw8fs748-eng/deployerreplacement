@@ -1,0 +1,27 @@
+name: postgres
+display_name: PostgreSQL
+description: Powerful open source relational database
+category: database
+homepage: https://www.postgresql.org
+version: "16"
+exposure: internal
+requires: []
+vars:
+  version:
+    type: select
+    options: ["15", "16", "17"]
+    default: "16"
+    description: PostgreSQL major version
+  postgres_user:
+    type: string
+    default: postgres
+    description: Default database superuser
+  postgres_db:
+    type: string
+    default: postgres
+    description: Default database name
+ports: []
+host_ports: []
+volumes:
+  - name: data
+    path: /var/lib/postgresql/data

@@ -1,0 +1,22 @@
+name: open-webui
+display_name: Open WebUI
+description: User-friendly web interface for interacting with local LLMs via Ollama
+category: ai
+homepage: https://openwebui.com
+version: main
+exposure: external
+requires:
+  - traefik
+suggests:
+  - ollama
+vars:
+  version:
+    type: string
+    default: main
+    description: Docker image tag
+ports:
+  - 8080
+host_ports: []
+volumes:
+  - name: data
+    path: /app/backend/data

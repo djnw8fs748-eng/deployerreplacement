@@ -1,0 +1,23 @@
+services:
+  radarr:
+    image: lscr.io/linuxserver/radarr:{{ vars.version | default('latest') }}
+    container_name: radarr
+    restart: unless-stopped
+    environment:
+      - PUID={{ global.puid }}
+      - PGID={{ global.pgid }}
+      - TZ={{ global.timezone }}
+    volumes:
+      - {{ global.data_dir }}/radarr/config:/config
+      - /movies:/movies
+      - /downloads:/downloads
+    networks:
+      - proxy
+    labels:
+{% for k, v in traefik_labels(7878).items() %}
+      - "{{ k }}={{ v }}"
+{% endfor %}
+
+networks:
+  proxy:
+    external: true

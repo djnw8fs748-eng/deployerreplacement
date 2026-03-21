@@ -1,0 +1,20 @@
+services:
+  jellyseerr:
+    image: fallenbagel/jellyseerr:{{ vars.version | default('latest') }}
+    container_name: jellyseerr
+    restart: unless-stopped
+    environment:
+      - TZ={{ global.timezone }}
+      - LOG_LEVEL=debug
+    volumes:
+      - {{ global.data_dir }}/jellyseerr/config:/app/config
+    networks:
+      - proxy
+    labels:
+{% for k, v in traefik_labels(5055).items() %}
+      - "{{ k }}={{ v }}"
+{% endfor %}
+
+networks:
+  proxy:
+    external: true

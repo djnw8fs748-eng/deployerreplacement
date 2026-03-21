@@ -1,0 +1,31 @@
+name: wireguard
+display_name: WireGuard
+description: Fast, modern, and secure VPN tunnel
+category: network
+homepage: https://www.wireguard.com
+version: latest
+exposure: internal
+requires: []
+vars:
+  version:
+    type: string
+    default: latest
+    description: Docker image tag
+  peers:
+    type: integer
+    default: 1
+    description: Number of VPN peer configs to generate
+  dns:
+    type: string
+    default: "1.1.1.1"
+    description: DNS server pushed to peers
+  allowed_ips:
+    type: string
+    default: "0.0.0.0/0"
+    description: Allowed IPs for full-tunnel routing
+ports: []
+host_ports:
+  - 51820
+volumes:
+  - name: config
+    path: /config

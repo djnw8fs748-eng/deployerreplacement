@@ -1,0 +1,32 @@
+services:
+  portainer:
+    image: portainer/portainer-ce:{{ vars.version | default('latest') }}
+    container_name: portainer
+    restart: unless-stopped
+    environment:
+      - TZ={{ global.timezone }}
+    volumes:
+      - {{ global.data_dir }}/portainer/data:/data
+{% if not security.socket_proxy %}
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+{% endif %}
+    networks:
+      - proxy
+{% if security.socket_proxy %}
+      - socket_proxy
+{% endif %}
+    labels:
+{% for k, v in traefik_labels(9443).items() %}
+      - "{{ k }}={{ v }}"
+{% endfor %}
+
+{% if security.socket_proxy %}
+    command: --endpoint-name local --endpoint-url tcp://socket-proxy:2375
+{% endif %}
+networks:
+  proxy:
+    external: true
+{% if security.socket_proxy %}
+  socket_proxy:
+    external: true
+{% endif %}

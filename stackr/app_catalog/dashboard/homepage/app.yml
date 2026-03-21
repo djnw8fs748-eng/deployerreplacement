@@ -1,0 +1,14 @@
+name: homepage
+display_name: Homepage
+description: A modern, fully static, fast, secure, fully proxied, highly customizable application dashboard
+category: dashboard
+homepage: https://gethomepage.dev
+version: latest
+exposure: external
+requires:
+  - traefik
+ports:
+  - 3000
+volumes:
+  - name: config
+    path: /app/config

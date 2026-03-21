@@ -1,0 +1,14 @@
+name: prowlarr
+display_name: Prowlarr
+description: Indexer manager and proxy for Sonarr, Radarr, and other *arr apps
+category: media
+homepage: https://github.com/Prowlarr/Prowlarr
+version: latest
+exposure: external
+requires:
+  - traefik
+ports:
+  - 9696
+volumes:
+  - name: config
+    path: /config

@@ -1,0 +1,32 @@
+name: minecraft
+display_name: Minecraft Server
+description: Self-hosted Minecraft Java Edition server
+category: gaming
+homepage: https://www.minecraft.net
+version: latest
+exposure: internal
+requires: []
+vars:
+  version:
+    type: string
+    default: latest
+    description: Docker image tag
+  mc_version:
+    type: string
+    default: LATEST
+    description: Minecraft game version (e.g. 1.21.1 or LATEST)
+  server_type:
+    type: select
+    options: [VANILLA, PAPER, FORGE, FABRIC]
+    default: VANILLA
+    description: Server software type
+  memory:
+    type: string
+    default: 2G
+    description: JVM memory allocation (e.g. 2G, 4G)
+ports: []
+host_ports:
+  - 25565
+volumes:
+  - name: data
+    path: /data

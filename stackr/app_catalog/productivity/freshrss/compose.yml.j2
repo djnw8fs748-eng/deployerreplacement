@@ -1,0 +1,21 @@
+services:
+  freshrss:
+    image: lscr.io/linuxserver/freshrss:{{ vars.version | default('latest') }}
+    container_name: freshrss
+    restart: unless-stopped
+    environment:
+      - PUID={{ global.puid }}
+      - PGID={{ global.pgid }}
+      - TZ={{ global.timezone }}
+    volumes:
+      - {{ global.data_dir }}/freshrss/data:/config
+    networks:
+      - proxy
+    labels:
+{% for k, v in traefik_labels(80).items() %}
+      - "{{ k }}={{ v }}"
+{% endfor %}
+
+networks:
+  proxy:
+    external: true
