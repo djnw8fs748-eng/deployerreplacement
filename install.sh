@@ -31,7 +31,19 @@ info "Python $PYTHON_VERSION detected."
 # --- Install pipx if needed ---
 if ! command -v pipx >/dev/null 2>&1; then
     info "Installing pipx..."
-    python3 -m pip install --user pipx --quiet
+    # Prefer the system package manager (avoids PEP 668 "externally-managed-environment"
+    # errors on Debian 12+ / Ubuntu 22.04+).  Fall back to pip only as a last resort.
+    if command -v apt-get >/dev/null 2>&1; then
+        sudo apt-get install -y -qq pipx
+    elif command -v apt >/dev/null 2>&1; then
+        sudo apt install -y -qq pipx
+    elif command -v brew >/dev/null 2>&1; then
+        brew install pipx --quiet
+    else
+        # Last resort: pip with --break-system-packages (Python 3.11+ flag)
+        python3 -m pip install --user pipx --quiet --break-system-packages 2>/dev/null \
+            || python3 -m pip install --user pipx --quiet
+    fi
     export PATH="$PATH:$HOME/.local/bin"
 fi
 
