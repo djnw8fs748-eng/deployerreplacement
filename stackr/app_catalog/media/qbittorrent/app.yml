@@ -19,8 +19,7 @@ vars:
     description: Web UI port
 ports:
   - 8080
-host_ports:
-  - 6881
+host_ports: []
 volumes:
   - name: config
     path: /config

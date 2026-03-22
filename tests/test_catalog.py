@@ -73,9 +73,10 @@ def test_wireguard_host_ports():
 
 
 def test_qbittorrent_host_ports():
+    # 6881 is owned by gluetun when use_vpn=true; qbittorrent has no host ports
     catalog = Catalog()
     qbt = catalog.get("qbittorrent")
-    assert 6881 in qbt.host_ports
+    assert qbt.host_ports == []
 
 
 def test_all_apps_have_compose_templates():
