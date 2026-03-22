@@ -58,6 +58,46 @@ def test_load_enabled_survives_corrupt_yaml(tmp_path: Path) -> None:
     assert result == set()
 
 
+def test_load_mounts_empty_when_no_config(tmp_path: Path) -> None:
+    from stackr.tui import load_mounts
+
+    assert load_mounts(tmp_path / "stackr.yml") == []
+
+
+def test_load_mounts_returns_mount_list(tmp_path: Path) -> None:
+    from stackr.tui import load_mounts
+
+    cfg = {
+        "mounts": [
+            {"name": "media", "type": "smb",
+             "remote": "//192.168.1.10/media", "mountpoint": "/mnt/media"},
+            {"name": "photos", "type": "nfs",
+             "remote": "192.168.1.10:/photos", "mountpoint": "/mnt/photos"},
+        ]
+    }
+    f = tmp_path / "stackr.yml"
+    f.write_text(yaml.dump(cfg))
+    mounts = load_mounts(f)
+    assert len(mounts) == 2
+    assert mounts[0]["name"] == "media"
+    assert mounts[1]["type"] == "nfs"
+
+
+def test_load_mounts_survives_corrupt_yaml(tmp_path: Path) -> None:
+    from stackr.tui import load_mounts
+
+    (tmp_path / "stackr.yml").write_text("{{{ not valid yaml")
+    assert load_mounts(tmp_path / "stackr.yml") == []
+
+
+def test_load_mounts_handles_null_mounts_key(tmp_path: Path) -> None:
+    from stackr.tui import load_mounts
+
+    f = tmp_path / "stackr.yml"
+    f.write_text("mounts:\n")  # PyYAML parses as None
+    assert load_mounts(f) == []
+
+
 def test_build_stub_config_returns_skeleton_when_missing(tmp_path: Path) -> None:
     from stackr.tui import build_stub_config
 
@@ -211,6 +251,70 @@ def test_tui_save_writes_all_catalog_apps(tmp_path: Path) -> None:
     by_name = {a["name"]: a for a in written["apps"]}
     assert by_name["traefik"]["enabled"] is True
     assert by_name["jellyfin"]["enabled"] is False
+
+
+def test_tui_save_writes_mounts(tmp_path: Path) -> None:
+    """action_save_config must persist the mounts list to stackr.yml."""
+    config_file = tmp_path / "stackr.yml"
+    config_file.write_text(
+        yaml.dump(
+            {
+                "global": {"data_dir": "/data"},
+                "network": {"domain": "test.com"},
+                "traefik": {"enabled": False},
+                "security": {"socket_proxy": False},
+                "apps": [],
+            }
+        )
+    )
+
+    mounts = [
+        {"name": "media", "type": "smb",
+         "remote": "//192.168.1.10/media", "mountpoint": "/mnt/media"},
+        {"name": "photos", "type": "nfs",
+         "remote": "192.168.1.10:/photos", "mountpoint": "/mnt/photos"},
+    ]
+
+    from stackr.tui import build_stub_config
+
+    raw = build_stub_config(config_file)
+    raw["apps"] = []
+    raw["mounts"] = mounts
+    with open(config_file, "w") as f:
+        yaml.dump(raw, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
+
+    written = yaml.safe_load(config_file.read_text())
+    assert len(written["mounts"]) == 2
+    by_name = {m["name"]: m for m in written["mounts"]}
+    assert by_name["media"]["type"] == "smb"
+    assert by_name["photos"]["mountpoint"] == "/mnt/photos"
+
+
+def test_tui_save_removes_mounts_when_empty(tmp_path: Path) -> None:
+    """Saving with no mounts writes an empty list, not null."""
+    config_file = tmp_path / "stackr.yml"
+    config_file.write_text(
+        yaml.dump(
+            {
+                "global": {"data_dir": "/data"},
+                "network": {"domain": "test.com"},
+                "traefik": {"enabled": False},
+                "security": {"socket_proxy": False},
+                "mounts": [{"name": "old", "type": "smb", "remote": "//x", "mountpoint": "/mnt/x"}],
+                "apps": [],
+            }
+        )
+    )
+
+    from stackr.tui import build_stub_config
+
+    raw = build_stub_config(config_file)
+    raw["mounts"] = []
+    with open(config_file, "w") as f:
+        yaml.dump(raw, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
+
+    written = yaml.safe_load(config_file.read_text())
+    assert written.get("mounts") == [] or written.get("mounts") is None
 
 
 @pytui
