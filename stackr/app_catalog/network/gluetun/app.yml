@@ -32,9 +32,9 @@ vars:
       - openvpn
     default: wireguard
     description: VPN protocol
-ports: []
-host_ports:
+ports:
   - 8080
+host_ports:
   - 6881
 volumes:
   - name: config

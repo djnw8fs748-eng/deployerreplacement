@@ -9,6 +9,7 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
+import yaml
 from rich.console import Console
 
 from stackr.catalog import Catalog, CatalogApp
@@ -56,6 +57,7 @@ def deploy(
             continue
 
         compose_content = render_app(app_config, catalog_app, config)
+        _ensure_data_dirs(compose_content, str(config.global_.data_dir))
         compose_path = _write_compose(app_config.name, compose_content)
 
         # Determine whether anything has changed before pulling images so we
@@ -190,6 +192,35 @@ def _write_compose(app_name: str, content: str) -> Path:
     path = app_dir / "docker-compose.yml"
     path.write_text(content)
     return path
+
+
+def _ensure_data_dirs(compose_content: str, data_dir: str) -> None:
+    """Create host-side bind-mount directories that live under data_dir.
+
+    Parses the rendered compose YAML and mkdir -p's any host volume paths
+    that begin with data_dir so Docker doesn't error on missing directories.
+    """
+    try:
+        parsed = yaml.safe_load(compose_content)
+    except yaml.YAMLError:
+        return
+    if not isinstance(parsed, dict):
+        return
+    services = parsed.get("services") or {}
+    data_root = Path(data_dir)
+    for service in services.values():
+        if not isinstance(service, dict):
+            continue
+        for vol in service.get("volumes") or []:
+            if not isinstance(vol, str):
+                continue
+            host_part = vol.split(":")[0]
+            host_path = Path(host_part)
+            try:
+                host_path.relative_to(data_root)
+            except ValueError:
+                continue
+            host_path.mkdir(parents=True, exist_ok=True)
 
 
 def _run_compose(

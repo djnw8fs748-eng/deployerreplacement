@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from stackr.deployer import _run_compose, deploy, remove_app, rollback
+from stackr.deployer import _ensure_data_dirs, _run_compose, deploy, remove_app, rollback
 from stackr.state import State
 
 # ---------------------------------------------------------------------------
@@ -159,6 +159,60 @@ def test_rollback_no_state_exits(tmp_path: Path) -> None:
 
     with pytest.raises(SystemExit):
         rollback("nonexistent-app", config, catalog, state)
+
+
+# ---------------------------------------------------------------------------
+# _ensure_data_dirs
+# ---------------------------------------------------------------------------
+
+
+def test_ensure_data_dirs_creates_bind_mount_paths(tmp_path: Path) -> None:
+    data_dir = tmp_path / "appdata"
+    compose = f"""
+services:
+  myapp:
+    image: test
+    volumes:
+      - {data_dir}/myapp/config:/config
+      - {data_dir}/myapp/data:/data
+"""
+    _ensure_data_dirs(compose, str(data_dir))
+    assert (data_dir / "myapp" / "config").is_dir()
+    assert (data_dir / "myapp" / "data").is_dir()
+
+
+def test_ensure_data_dirs_ignores_paths_outside_data_dir(tmp_path: Path) -> None:
+    data_dir = tmp_path / "appdata"
+    outside = tmp_path / "outside"
+    compose = f"""
+services:
+  myapp:
+    image: test
+    volumes:
+      - {outside}/thing:/thing
+      - {data_dir}/myapp/config:/config
+"""
+    _ensure_data_dirs(compose, str(data_dir))
+    assert not outside.exists()
+    assert (data_dir / "myapp" / "config").is_dir()
+
+
+def test_ensure_data_dirs_ignores_named_volumes(tmp_path: Path) -> None:
+    data_dir = tmp_path / "appdata"
+    compose = """
+services:
+  myapp:
+    image: test
+    volumes:
+      - myapp_data:/data
+"""
+    # Should not raise even though it's a named volume (no absolute path)
+    _ensure_data_dirs(compose, str(data_dir))
+
+
+def test_ensure_data_dirs_tolerates_invalid_yaml(tmp_path: Path) -> None:
+    data_dir = tmp_path / "appdata"
+    _ensure_data_dirs("not: valid: yaml: [{", str(data_dir))
 
 
 def test_rollback_applies_stored_compose(tmp_path: Path) -> None:
