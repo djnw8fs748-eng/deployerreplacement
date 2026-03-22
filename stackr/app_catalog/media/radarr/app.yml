@@ -8,6 +8,7 @@ exposure: external
 requires: []
 suggests:
   - traefik
+  - prowlarr
 ports:
   - 7878
 volumes:

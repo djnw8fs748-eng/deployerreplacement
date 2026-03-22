@@ -8,6 +8,10 @@ exposure: external
 requires: []
 suggests:
   - traefik
+  - sonarr
+  - radarr
+  - lidarr
+  - readarr
 ports:
   - 9696
 volumes:

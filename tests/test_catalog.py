@@ -33,6 +33,8 @@ def test_seed_apps_present():
         "nextcloud", "filebrowser", "duplicati",
         # Phase 3 — network
         "pihole", "wireguard", "headscale", "nginx-proxy-manager",
+        # Gluetun VPN gateway
+        "gluetun",
         # Phase 3 — productivity
         "gitea", "paperless-ngx", "freshrss", "miniflux",
         # Phase 3 — gaming

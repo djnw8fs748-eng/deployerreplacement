@@ -30,7 +30,8 @@ class TestCrowdSecRender:
         parsed = yaml.safe_load(rendered)
         assert "services" in parsed
         assert "crowdsec" in parsed["services"]
-        assert "crowdsec-bouncer" in parsed["services"]
+        # crowdsec-bouncer sidecar removed — native Traefik plugin handles bouncing
+        assert "crowdsec-bouncer" not in parsed["services"]
 
     def test_mounts_traefik_log_volume(self):
         catalog = Catalog()

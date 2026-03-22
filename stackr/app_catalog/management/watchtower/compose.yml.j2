@@ -10,15 +10,23 @@ services:
       - WATCHTOWER_INCLUDE_RESTARTING=true
 {% if security.socket_proxy %}
       - DOCKER_HOST=tcp://socket-proxy:2375
-    networks:
-      - socket_proxy
-{% else %}
+{% endif %}
+{% if not security.socket_proxy %}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
 {% endif %}
+    networks:
 {% if security.socket_proxy %}
+      - socket_proxy
+{% else %}
+      - proxy
+{% endif %}
 
 networks:
+{% if security.socket_proxy %}
   socket_proxy:
+    external: true
+{% else %}
+  proxy:
     external: true
 {% endif %}

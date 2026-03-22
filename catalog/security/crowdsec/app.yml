@@ -5,9 +5,9 @@ category: security
 homepage: https://crowdsec.net
 version: latest
 exposure: internal
-requires:
-  - traefik
+requires: []
 suggests:
+  - traefik
   - socket-proxy
 ports: []
 volumes:
@@ -15,3 +15,4 @@ volumes:
     path: /etc/crowdsec
   - name: data
     path: /var/lib/crowdsec/data
+host_ports: []

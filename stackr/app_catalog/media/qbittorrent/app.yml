@@ -8,6 +8,7 @@ exposure: external
 requires: []
 suggests:
   - traefik
+  - gluetun
 vars:
   version:
     type: string
@@ -17,6 +18,10 @@ vars:
     type: integer
     default: 8080
     description: Web UI port
+  use_vpn:
+    type: boolean
+    default: false
+    description: Route all traffic through Gluetun VPN (requires gluetun app enabled)
 ports:
   - 8080
 host_ports:

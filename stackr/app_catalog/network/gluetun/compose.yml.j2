@@ -1,0 +1,41 @@
+services:
+  gluetun:
+    image: ghcr.io/qdm12/gluetun:{{ vars.version | default('latest') }}
+    container_name: gluetun
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    environment:
+      - VPN_SERVICE_PROVIDER={{ vars.vpn_service | default('mullvad') }}
+      - VPN_TYPE={{ vars.vpn_type | default('wireguard') }}
+      # WireGuard credentials (used when vpn_type: wireguard)
+      - WIREGUARD_PRIVATE_KEY=${GLUETUN_WIREGUARD_PRIVATE_KEY}
+      - WIREGUARD_ADDRESSES=${GLUETUN_WIREGUARD_ADDRESSES}
+      # OpenVPN credentials (used when vpn_type: openvpn)
+      # - OPENVPN_USER=${GLUETUN_OPENVPN_USER}
+      # - OPENVPN_PASSWORD=${GLUETUN_OPENVPN_PASSWORD}
+    volumes:
+      - {{ global.data_dir }}/gluetun/config:/gluetun
+    # Expose ports for containers that route through gluetun.
+    # Add/remove entries to match the apps using use_vpn: true.
+    ports:
+      # qBittorrent web UI and torrent port
+      - "8080:8080"
+      - "6881:6881/tcp"
+      - "6881:6881/udp"
+      # Transmission web UI and torrent port (uncomment if using transmission with VPN)
+      # - "9091:9091"
+      # - "51413:51413/tcp"
+      # - "51413:51413/udp"
+    networks:
+      - proxy
+    labels:
+{% for k, v in traefik_labels(8080).items() %}
+      - "{{ k }}={{ v }}"
+{% endfor %}
+
+networks:
+  proxy:
+    external: true

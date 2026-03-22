@@ -5,6 +5,9 @@ services:
     restart: unless-stopped
     environment:
       - TZ={{ global.timezone }}
+{% if security.socket_proxy %}
+    command: --endpoint-name local --endpoint-url tcp://socket-proxy:2375
+{% endif %}
     volumes:
       - {{ global.data_dir }}/portainer/data:/data
 {% if not security.socket_proxy %}
@@ -19,10 +22,6 @@ services:
 {% for k, v in traefik_labels(9443).items() %}
       - "{{ k }}={{ v }}"
 {% endfor %}
-
-{% if security.socket_proxy %}
-    command: --endpoint-name local --endpoint-url tcp://socket-proxy:2375
-{% endif %}
 networks:
   proxy:
     external: true
