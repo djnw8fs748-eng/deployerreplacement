@@ -5,7 +5,8 @@ category: network
 homepage: https://adguard.com/adguard-home.html
 version: latest
 exposure: internal
-requires:
+requires: []
+suggests:
   - traefik
 ports:
   - 3000

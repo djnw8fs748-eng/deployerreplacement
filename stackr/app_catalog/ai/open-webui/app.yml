@@ -5,9 +5,9 @@ category: ai
 homepage: https://openwebui.com
 version: main
 exposure: external
-requires:
-  - traefik
+requires: []
 suggests:
+  - traefik
   - ollama
 vars:
   version:

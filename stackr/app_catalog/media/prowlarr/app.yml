@@ -5,7 +5,8 @@ category: media
 homepage: https://github.com/Prowlarr/Prowlarr
 version: latest
 exposure: external
-requires:
+requires: []
+suggests:
   - traefik
 ports:
   - 9696

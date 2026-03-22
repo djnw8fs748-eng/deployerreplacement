@@ -5,7 +5,8 @@ category: monitoring
 homepage: https://www.netdata.cloud
 version: stable
 exposure: internal
-requires:
+requires: []
+suggests:
   - traefik
 vars:
   version:

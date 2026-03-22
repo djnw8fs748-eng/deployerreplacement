@@ -5,9 +5,9 @@ category: media
 homepage: https://docs.jellyseerr.dev
 version: latest
 exposure: external
-requires:
-  - traefik
+requires: []
 suggests:
+  - traefik
   - sonarr
   - radarr
   - jellyfin

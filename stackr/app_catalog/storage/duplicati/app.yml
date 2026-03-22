@@ -5,7 +5,8 @@ category: storage
 homepage: https://www.duplicati.com
 version: latest
 exposure: internal
-requires:
+requires: []
+suggests:
   - traefik
 vars:
   version:

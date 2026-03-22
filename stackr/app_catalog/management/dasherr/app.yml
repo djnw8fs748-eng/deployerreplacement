@@ -5,7 +5,8 @@ category: management
 homepage: https://github.com/erohtar/Dasherr
 version: latest
 exposure: external
-requires:
+requires: []
+suggests:
   - traefik
 vars:
   version:

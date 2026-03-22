@@ -5,7 +5,8 @@ category: dashboard
 homepage: https://gethomepage.dev
 version: latest
 exposure: external
-requires:
+requires: []
+suggests:
   - traefik
 ports:
   - 3000

@@ -26,9 +26,13 @@ network:
 traefik:
   enabled: true
   acme_email: you@example.com
-  dns_provider: cloudflare     # cloudflare | route53 | namecheap | porkbun | duckdns | ...
+  dns_provider: cloudflare     # cloudflare | route53 | namecheap | porkbun | duckdns | hetzner | ...
   dns_provider_env:
-    CF_DNS_API_TOKEN: "${CF_DNS_API_TOKEN}"  # Resolved from .stackr.env or shell env
+    # Set the env vars required by your DNS provider. Examples:
+    CF_DNS_API_TOKEN: "${CF_DNS_API_TOKEN}"        # cloudflare
+    # HETZNER_API_KEY: "${HETZNER_API_KEY}"        # hetzner
+    # DO_AUTH_TOKEN: "${DO_AUTH_TOKEN}"            # digitalocean
+    # Run: stackr init   to auto-populate this for your chosen provider
 
 security:
   socket_proxy: true           # Recommended: proxy Docker socket access

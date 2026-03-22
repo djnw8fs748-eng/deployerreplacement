@@ -85,7 +85,20 @@ def init(
     mode = typer.prompt("Network mode", default="external", show_choices=True,
                         prompt_suffix=" [external/internal/hybrid]: ")
     acme_email = typer.prompt("ACME email for Let's Encrypt certs", default="")
-    dns_provider = typer.prompt("DNS provider", default="cloudflare")
+    from stackr.dns_providers import list_providers, required_env_vars
+    provider_names = ", ".join(list_providers())
+    dns_provider = typer.prompt(f"DNS provider ({provider_names}, or custom)", default="")
+
+    # Build dns_provider_env from the registry; for unknown/custom providers
+    # generate a generic placeholder so the user knows to fill it in.
+    env_vars = required_env_vars(dns_provider)
+    if env_vars:
+        dns_provider_env: dict[str, str] = {v: f"${{{v}}}" for v in env_vars}
+    elif dns_provider:
+        key = f"{dns_provider.upper()}_API_TOKEN"
+        dns_provider_env = {key: f"${{{key}}}"}
+    else:
+        dns_provider_env = {}
 
     # Build the header config (everything except apps)
     header = {
@@ -104,9 +117,7 @@ def init(
             "enabled": True,
             "acme_email": acme_email,
             "dns_provider": dns_provider,
-            "dns_provider_env": {
-                "CF_DNS_API_TOKEN": "${CF_DNS_API_TOKEN}",
-            },
+            "dns_provider_env": dns_provider_env,
         },
         "security": {
             "socket_proxy": True,

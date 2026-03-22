@@ -5,7 +5,8 @@ category: media
 homepage: https://radarr.video
 version: latest
 exposure: external
-requires:
+requires: []
+suggests:
   - traefik
 ports:
   - 7878

@@ -136,7 +136,9 @@ def test_traefik_requires_nothing():
     assert traefik.requires == []
 
 
-def test_portainer_requires_traefik():
+def test_portainer_suggests_traefik():
+    """traefik is a soft dependency (suggests) for portainer, not a hard one."""
     catalog = Catalog()
     portainer = catalog.get("portainer")
-    assert "traefik" in portainer.requires
+    assert "traefik" not in portainer.requires
+    assert "traefik" in portainer.suggests

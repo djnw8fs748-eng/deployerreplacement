@@ -5,7 +5,8 @@ category: network
 homepage: https://headscale.net
 version: latest
 exposure: external
-requires:
+requires: []
+suggests:
   - traefik
 vars:
   version:

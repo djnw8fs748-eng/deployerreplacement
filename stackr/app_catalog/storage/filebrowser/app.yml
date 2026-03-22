@@ -5,7 +5,8 @@ category: storage
 homepage: https://filebrowser.org
 version: latest
 exposure: internal
-requires:
+requires: []
+suggests:
   - traefik
 vars:
   version:

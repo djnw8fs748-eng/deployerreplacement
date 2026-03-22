@@ -5,9 +5,9 @@ category: security
 homepage: https://goauthentik.io
 version: "2024.10"
 exposure: external
-requires:
-  - traefik
+requires: []
 suggests:
+  - traefik
   - socket-proxy
 ports:
   - 9000

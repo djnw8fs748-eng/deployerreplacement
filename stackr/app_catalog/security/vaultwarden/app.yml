@@ -5,7 +5,8 @@ category: security
 homepage: https://github.com/dani-garcia/vaultwarden
 version: latest
 exposure: external
-requires:
+requires: []
+suggests:
   - traefik
 vars:
   admin_token:

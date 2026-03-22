@@ -5,9 +5,9 @@ category: security
 homepage: https://crowdsec.net
 version: latest
 exposure: internal
-requires:
-  - traefik
+requires: []
 suggests:
+  - traefik
   - socket-proxy
 ports: []
 volumes:
