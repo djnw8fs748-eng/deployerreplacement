@@ -16,8 +16,9 @@ import yaml
 try:
     from textual.app import App, ComposeResult
     from textual.binding import Binding
-    from textual.containers import Horizontal, ScrollableContainer
-    from textual.widgets import Footer, Header, Static, Tree
+    from textual.containers import Horizontal, ScrollableContainer, Vertical
+    from textual.screen import ModalScreen
+    from textual.widgets import Button, Footer, Header, Input, Label, Static, Tree
     from textual.widgets.tree import TreeNode
 
     HAS_TEXTUAL = True
@@ -45,6 +46,20 @@ def load_enabled(config_path: Path) -> set[str]:
         }
     except Exception:  # noqa: BLE001
         return set()
+
+
+def load_settings(config_path: Path) -> dict[str, Any]:
+    """Return a dict with 'global', 'network', 'traefik' sections from config_path."""
+    if not config_path.exists():
+        return {}
+    try:
+        with open(config_path) as f:
+            raw: dict[str, Any] = yaml.safe_load(f) or {}
+        return {
+            k: dict(raw[k]) for k in ("global", "network", "traefik") if k in raw
+        }
+    except Exception:  # noqa: BLE001
+        return {}
 
 
 def build_stub_config(config_path: Path) -> dict[str, Any]:
@@ -81,6 +96,119 @@ def build_stub_config(config_path: Path) -> dict[str, Any]:
 
 if HAS_TEXTUAL:
 
+    class SettingsEditorScreen(ModalScreen):  # type: ignore[misc]
+        """Modal dialog for editing global/network/traefik settings."""
+
+        CSS = """
+        SettingsEditorScreen {
+            align: center middle;
+        }
+        #settings-dialog {
+            width: 64;
+            background: $surface;
+            border: solid $primary;
+            padding: 1 2;
+        }
+        #settings-buttons {
+            margin-top: 1;
+            align: right middle;
+        }
+        #settings-buttons Button {
+            margin-left: 1;
+        }
+        """
+
+        def __init__(self, settings: dict[str, Any]) -> None:
+            super().__init__()
+            self._settings = settings
+
+        def compose(self) -> ComposeResult:
+            g = self._settings.get("global") or {}
+            n = self._settings.get("network") or {}
+            t = self._settings.get("traefik") or {}
+            with Vertical(id="settings-dialog"):
+                yield Label("[bold]Global[/bold]")
+                yield Input(
+                    placeholder="Data directory",
+                    value=str(g.get("data_dir", "/opt/appdata")),
+                    id="inp-data-dir",
+                )
+                yield Input(
+                    placeholder="Timezone (e.g. UTC)",
+                    value=str(g.get("timezone", "UTC")),
+                    id="inp-timezone",
+                )
+                yield Input(
+                    placeholder="PUID",
+                    value=str(g.get("puid", 1000)),
+                    id="inp-puid",
+                )
+                yield Input(
+                    placeholder="PGID",
+                    value=str(g.get("pgid", 1000)),
+                    id="inp-pgid",
+                )
+                yield Label("[bold]Network[/bold]")
+                yield Input(
+                    placeholder="Public domain",
+                    value=str(n.get("domain", "")),
+                    id="inp-domain",
+                )
+                yield Input(
+                    placeholder="Local domain",
+                    value=str(n.get("local_domain", "")),
+                    id="inp-local-domain",
+                )
+                yield Input(
+                    placeholder="Mode: external | internal | hybrid",
+                    value=str(n.get("mode", "external")),
+                    id="inp-mode",
+                )
+                yield Label("[bold]Traefik[/bold]")
+                yield Input(
+                    placeholder="ACME email",
+                    value=str(t.get("acme_email", "")),
+                    id="inp-acme-email",
+                )
+                yield Input(
+                    placeholder="DNS provider (e.g. cloudflare)",
+                    value=str(t.get("dns_provider", "")),
+                    id="inp-dns-provider",
+                )
+                with Horizontal(id="settings-buttons"):
+                    yield Button("Save", variant="primary", id="btn-save")
+                    yield Button("Cancel", variant="default", id="btn-cancel")
+
+        def on_button_pressed(self, event: Button.Pressed) -> None:
+            if event.button.id == "btn-cancel":
+                self.dismiss(None)
+                return
+            # Save — collect all field values
+            g = dict(self._settings.get("global") or {})
+            n = dict(self._settings.get("network") or {})
+            t = dict(self._settings.get("traefik") or {})
+
+            g["data_dir"] = self.query_one("#inp-data-dir", Input).value
+            g["timezone"] = self.query_one("#inp-timezone", Input).value
+            try:
+                g["puid"] = int(self.query_one("#inp-puid", Input).value)
+            except ValueError:
+                g["puid"] = 1000
+            try:
+                g["pgid"] = int(self.query_one("#inp-pgid", Input).value)
+            except ValueError:
+                g["pgid"] = 1000
+
+            n["domain"] = self.query_one("#inp-domain", Input).value
+            n["local_domain"] = self.query_one("#inp-local-domain", Input).value
+            n["mode"] = self.query_one("#inp-mode", Input).value
+
+            # Preserve existing traefik fields not in the form
+            t["acme_email"] = self.query_one("#inp-acme-email", Input).value
+            t["dns_provider"] = self.query_one("#inp-dns-provider", Input).value
+
+            self.dismiss({"global": g, "network": n, "traefik": t})
+
     class StackrTUI(App[None]):  # type: ignore[misc]
         """Browse and toggle catalog apps interactively."""
 
@@ -103,6 +231,7 @@ if HAS_TEXTUAL:
         BINDINGS = [
             Binding("space", "toggle_app", "Toggle on/off", show=True, priority=True),
             Binding("enter", "toggle_app", "Toggle on/off", show=False, priority=True),
+            Binding("e", "edit_settings", "Edit settings", show=True),
             Binding("s", "save_config", "Save config", show=True),
             Binding("q", "quit", "Quit", show=True),
         ]
@@ -121,6 +250,8 @@ if HAS_TEXTUAL:
             else:
                 self._catalog = catalog
             self._enabled: set[str] = load_enabled(config_path)
+            self._settings: dict[str, Any] = load_settings(config_path)
+            self._settings_node: Any = None
 
         # ------------------------------------------------------------------
         # Compose
@@ -133,8 +264,9 @@ if HAS_TEXTUAL:
                     yield Tree("Catalog", id="catalog-tree")
                 with ScrollableContainer(id="detail-pane"):
                     yield Static(
-                        "Highlight an app to see details.\n\n"
-                        "[dim]Space[/dim] toggle  •  [dim]S[/dim] save  •  [dim]Q[/dim] quit",
+                        "Highlight an app or [bold]Settings[/bold] to see details.\n\n"
+                        "[dim]Space[/dim] toggle  •  [dim]E[/dim] edit settings  •  "
+                        "[dim]S[/dim] save  •  [dim]Q[/dim] quit",
                         id="detail-content",
                     )
             yield Footer()
@@ -142,6 +274,10 @@ if HAS_TEXTUAL:
         def on_mount(self) -> None:
             tree: Tree[str | None] = self.query_one("#catalog-tree", Tree)  # type: ignore[type-arg]
             tree.root.expand()
+
+            self._settings_node = tree.root.add_leaf(
+                "⚙  Settings", data={"_type": "settings"}
+            )
 
             for category in self._catalog.categories():
                 cat_node: TreeNode[str | None] = tree.root.add(  # type: ignore[type-arg]
@@ -160,9 +296,15 @@ if HAS_TEXTUAL:
             self,
             event: Tree.NodeHighlighted[str | None],
         ) -> None:
-            if event.node.data is None:
+            node = event.node
+            if isinstance(node.data, dict) and node.data.get("_type") == "settings":
+                self.query_one("#detail-content", Static).update(
+                    self._settings_detail_markup()
+                )
+                return
+            if node.data is None:
                 return  # category node
-            app_name: str = event.node.data
+            app_name: str = node.data  # type: ignore[assignment]
             ca = self._catalog.get(app_name)
             if ca is None:
                 return
@@ -177,7 +319,9 @@ if HAS_TEXTUAL:
             node = tree.cursor_node
             if node is None or node.data is None:
                 return  # no selection or category node
-            app_name: str = node.data
+            if isinstance(node.data, dict):
+                return  # settings node — ignore toggle
+            app_name: str = node.data  # type: ignore[assignment]
             if app_name in self._enabled:
                 self._enabled.discard(app_name)
                 marker = "○"
@@ -189,6 +333,28 @@ if HAS_TEXTUAL:
             node.set_label(f"{marker} {display}")
             if ca:
                 self.query_one("#detail-content", Static).update(self._detail_markup(ca))
+
+        def action_edit_settings(self) -> None:
+            tree: Tree[str | None] = self.query_one("#catalog-tree", Tree)  # type: ignore[type-arg]
+            node = tree.cursor_node
+            if (
+                node is None
+                or not isinstance(node.data, dict)
+                or node.data.get("_type") != "settings"
+            ):
+                self.notify("Highlight the Settings entry to edit", severity="warning")
+                return
+
+            def _on_result(result: dict[str, Any] | None) -> None:
+                if result is None:
+                    return
+                self._settings = result
+                self.query_one("#detail-content", Static).update(
+                    self._settings_detail_markup()
+                )
+                self.notify("Settings updated — press S to save", title="Settings updated")
+
+            self.push_screen(SettingsEditorScreen(self._settings), _on_result)
 
         def action_save_config(self) -> None:
             """Write current toggle state back to stackr.yml."""
@@ -211,6 +377,9 @@ if HAS_TEXTUAL:
                 if name not in catalog_names:
                     apps_out.append(dict(entry))
             raw["apps"] = apps_out
+            for section in ("global", "network", "traefik"):
+                if section in self._settings:
+                    raw[section] = self._settings[section]
             with open(self._config_path, "w") as f:
                 yaml.dump(raw, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
             self.notify(f"Saved to {self._config_path}", title="Config saved")
@@ -218,6 +387,32 @@ if HAS_TEXTUAL:
         # ------------------------------------------------------------------
         # Helpers
         # ------------------------------------------------------------------
+
+        def _settings_detail_markup(self) -> str:
+            g = self._settings.get("global") or {}
+            n = self._settings.get("network") or {}
+            t = self._settings.get("traefik") or {}
+            lines = [
+                "[bold]Settings[/bold]",
+                "",
+                "[dim]── Global ──[/dim]",
+                f"  data_dir   {g.get('data_dir', '/opt/appdata')}",
+                f"  timezone   {g.get('timezone', 'UTC')}",
+                f"  puid/pgid  {g.get('puid', 1000)} / {g.get('pgid', 1000)}",
+                "",
+                "[dim]── Network ──[/dim]",
+                f"  domain       {n.get('domain', '')}",
+                f"  local_domain {n.get('local_domain', '')}",
+                f"  mode         {n.get('mode', 'external')}",
+                "",
+                "[dim]── Traefik ──[/dim]",
+                f"  acme_email   {t.get('acme_email', '')}",
+                f"  dns_provider {t.get('dns_provider', '')}",
+                "",
+                "[dim]──────────────────────────[/dim]",
+                "[dim]E[/dim] edit  •  [dim]S[/dim] save  •  [dim]Q[/dim] quit",
+            ]
+            return "\n".join(lines)
 
         def _detail_markup(self, ca: Any) -> str:
             enabled_str = (

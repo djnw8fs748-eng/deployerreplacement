@@ -79,6 +79,65 @@ def test_build_stub_config_reads_existing_file(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
+# _load_settings / _settings_detail_markup tests — no textual required for
+# the static methods, but they live on StackrTUI so we skip if not available.
+# ---------------------------------------------------------------------------
+
+
+def test_load_settings_empty_when_no_config(tmp_path: Path) -> None:
+    from stackr.tui import load_settings
+
+    result = load_settings(tmp_path / "stackr.yml")
+    assert result == {}
+
+
+def test_load_settings_reads_sections(tmp_path: Path) -> None:
+    from stackr.tui import load_settings
+
+    data = {
+        "global": {
+            "data_dir": "/srv/data",
+            "timezone": "Europe/London",
+            "puid": 1001,
+            "pgid": 1001,
+        },
+        "network": {
+            "domain": "example.net",
+            "local_domain": "home.example.net",
+            "mode": "hybrid",
+        },
+        "traefik": {"acme_email": "me@example.net", "dns_provider": "cloudflare"},
+        "apps": [],
+    }
+    cfg = tmp_path / "stackr.yml"
+    cfg.write_text(yaml.dump(data))
+
+    result = load_settings(cfg)
+    assert result["global"]["data_dir"] == "/srv/data"
+    assert result["network"]["domain"] == "example.net"
+    assert result["traefik"]["dns_provider"] == "cloudflare"
+
+
+@pytest.mark.skipif(not HAS_TEXTUAL, reason="textual not installed")
+def test_settings_detail_markup_contains_domain(tmp_path: Path) -> None:
+    from stackr.catalog import Catalog
+    from stackr.tui import StackrTUI
+
+    data = {
+        "global": {"data_dir": "/data", "timezone": "UTC", "puid": 1000, "pgid": 1000},
+        "network": {"domain": "mylab.io", "local_domain": "home.mylab.io", "mode": "external"},
+        "traefik": {"acme_email": "admin@mylab.io", "dns_provider": "cloudflare"},
+        "apps": [],
+    }
+    cfg = tmp_path / "stackr.yml"
+    cfg.write_text(yaml.dump(data))
+
+    tui = StackrTUI(config_path=cfg, catalog=Catalog())
+    markup = tui._settings_detail_markup()
+    assert "mylab.io" in markup
+
+
+# ---------------------------------------------------------------------------
 # Class-level tests — skipped when textual is not installed
 # ---------------------------------------------------------------------------
 
