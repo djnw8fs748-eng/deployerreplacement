@@ -5,8 +5,10 @@ category: media
 homepage: https://sonarr.tv
 version: latest
 exposure: external
-requires:
+requires: []
+suggests:
   - traefik
+  - prowlarr
 ports:
   - 8989
 volumes:

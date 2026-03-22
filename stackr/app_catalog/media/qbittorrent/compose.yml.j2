@@ -3,9 +3,9 @@ services:
     image: lscr.io/linuxserver/qbittorrent:{{ vars.version | default('latest') }}
     container_name: qbittorrent
     restart: unless-stopped
-    ports:
-      - "6881:6881/tcp"
-      - "6881:6881/udp"
+{% if vars.use_vpn | default(false) %}
+    network_mode: "service:gluetun"
+{% endif %}
     environment:
       - PUID={{ global.puid }}
       - PGID={{ global.pgid }}
@@ -14,13 +14,20 @@ services:
     volumes:
       - {{ global.data_dir }}/qbittorrent/config:/config
       - /downloads:/downloads
+{% if not vars.use_vpn | default(false) %}
+    ports:
+      - "6881:6881/tcp"
+      - "6881:6881/udp"
     networks:
       - proxy
     labels:
-{% for k, v in traefik_labels(8080).items() %}
+{% for k, v in traefik_labels(vars.webui_port | default(8080)).items() %}
       - "{{ k }}={{ v }}"
 {% endfor %}
+{% endif %}
 
+{% if not vars.use_vpn | default(false) %}
 networks:
   proxy:
     external: true
+{% endif %}

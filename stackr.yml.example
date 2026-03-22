@@ -156,6 +156,8 @@ apps:
   # --- network ---
   - name: adguardhome
     enabled: false
+  - name: gluetun
+    enabled: false
   - name: headscale
     enabled: false
   - name: nginx-proxy-manager

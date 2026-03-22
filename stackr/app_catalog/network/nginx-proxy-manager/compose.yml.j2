@@ -12,3 +12,9 @@ services:
     volumes:
       - {{ global.data_dir }}/nginx-proxy-manager/data:/data
       - {{ global.data_dir }}/nginx-proxy-manager/letsencrypt:/etc/letsencrypt
+    networks:
+      - npm-net
+
+networks:
+  npm-net:
+    external: false

@@ -8,6 +8,9 @@ services:
 {% if vars.filter | default('') %}
       - DOZZLE_FILTER={{ vars.filter }}
 {% endif %}
+{% if security.socket_proxy %}
+      - DOCKER_HOST=tcp://socket-proxy:2375
+{% endif %}
 {% if not security.socket_proxy %}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro

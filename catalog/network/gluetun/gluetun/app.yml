@@ -1,0 +1,41 @@
+name: gluetun
+display_name: Gluetun
+description: VPN client container — routes other containers (qBittorrent, Transmission) through a VPN tunnel
+category: network
+homepage: https://github.com/qdm12/gluetun
+version: latest
+exposure: internal
+requires: []
+suggests: []
+vars:
+  version:
+    type: string
+    default: latest
+    description: Docker image tag
+  vpn_service:
+    type: select
+    options:
+      - mullvad
+      - nordvpn
+      - expressvpn
+      - privateinternetaccess
+      - surfshark
+      - protonvpn
+      - airvpn
+      - custom
+    default: mullvad
+    description: VPN service provider
+  vpn_type:
+    type: select
+    options:
+      - wireguard
+      - openvpn
+    default: wireguard
+    description: VPN protocol
+ports: []
+host_ports:
+  - 8080
+  - 6881
+volumes:
+  - name: config
+    path: /gluetun

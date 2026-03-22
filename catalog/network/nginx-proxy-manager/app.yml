@@ -11,8 +11,7 @@ vars:
     type: string
     default: latest
     description: Docker image tag
-ports:
-  - 81
+ports: []
 host_ports:
   - 80
   - 443

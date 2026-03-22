@@ -8,6 +8,7 @@ exposure: external
 requires: []
 suggests:
   - traefik
+  - socket-proxy
 ports:
   - 3000
 volumes:

@@ -5,8 +5,10 @@ category: media
 homepage: https://transmissionbt.com
 version: latest
 exposure: external
-requires:
+requires: []
+suggests:
   - traefik
+  - gluetun
 vars:
   version:
     type: string
@@ -16,6 +18,10 @@ vars:
     type: string
     default: admin
     description: Web UI username
+  use_vpn:
+    type: boolean
+    default: false
+    description: Route all traffic through Gluetun VPN (requires gluetun app enabled)
 ports:
   - 9091
 host_ports:

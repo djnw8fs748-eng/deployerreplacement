@@ -5,8 +5,10 @@ category: dashboard
 homepage: https://gethomepage.dev
 version: latest
 exposure: external
-requires:
+requires: []
+suggests:
   - traefik
+  - socket-proxy
 ports:
   - 3000
 volumes:

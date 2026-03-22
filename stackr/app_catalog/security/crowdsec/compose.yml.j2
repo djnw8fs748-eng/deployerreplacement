@@ -17,20 +17,6 @@ services:
       - socket_proxy
 {% endif %}
 
-  crowdsec-bouncer:
-    image: fbonalair/traefik-crowdsec-bouncer:latest
-    container_name: crowdsec-bouncer
-    restart: unless-stopped
-    environment:
-      - TZ={{ global.timezone }}
-      - CROWDSEC_BOUNCER_API_KEY=${CROWDSEC_BOUNCER_API_KEY}
-      - CROWDSEC_AGENT_HOST=crowdsec:8080
-      - GIN_MODE=release
-    depends_on:
-      - crowdsec
-    networks:
-      - proxy
-
 networks:
   proxy:
     external: true
