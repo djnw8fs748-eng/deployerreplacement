@@ -319,6 +319,38 @@ networks:
 - Port declarations in `app.yml` and `traefik_labels()` calls in `compose.yml.j2` are tested for consistency in `test_catalog.py` — keep these in sync
 - Security/validator tests that call `validate()` must supply DNS provider env vars (e.g. `{"CF_DNS_API_TOKEN": "x"}`) or the DNS provider check will produce unexpected failures
 
+### Integration tests (`.github/workflows/integration.yml`)
+
+The integration workflow deploys every catalog app into real Docker containers on a self-hosted runner and asserts the service responds. It runs weekly and on `workflow_dispatch`.
+
+**When to update the integration workflow:**
+- **Adding a new catalog app** — add a matrix entry (see format below)
+- **Changing an app's port** — update `container_port` / `host_port` / `tcp_port` in its matrix entry
+- **Changing an app's primary container name** — update `container_name` if it differs from the app name
+- **Changing an app's network** — update `network_name` if the app no longer joins the `proxy` network
+
+**Matrix entry fields:**
+
+| Field | When to use |
+|-------|-------------|
+| `app` | Catalog app name (required) |
+| `host_port` + `health_url` | App binds a port directly on the host (npm, plex) |
+| `container_port` + `health_path` | Web UI reachable via container IP (most apps) |
+| `tcp_port` | No HTTP — databases, game servers; uses `nc` TCP probe |
+| `health_type: running` | Daemon with no port — verify container is in running state |
+| `health_proto: https` | Use `curl -k` for self-signed TLS (portainer) |
+| `container_name` | Primary container name differs from app name (authentik → authentik-server) |
+| `network_name` | App is not on the `proxy` network (socket-proxy → socket_proxy) |
+| `extra_vars` | JSON string of per-app var overrides passed to `render_app()` (gitea SSH port) |
+
+**Skipped apps** (document the reason here when skipping):
+- `traefik` — conflicts with nginx-proxy-manager on host ports 80/443
+- `pihole` — conflicts with adguardhome on host port 53
+- `authelia` — requires a `configuration.yml` file pre-mounted at `/config`
+- `gluetun` — requires live VPN credentials
+
+**Adding a secret:** if a new app reads a `${MY_SECRET}` env var, add a dummy value to the `env:` block at the top of `integration.yml` so Docker Compose can expand it.
+
 ## Adding a new catalog app — checklist
 
 1. Create `catalog/<category>/<name>/app.yml` with all required fields
@@ -331,8 +363,9 @@ networks:
 5. If the app uses the Docker socket, condition it on `{% if security.socket_proxy %}`
 6. Add the app name to `seed_apps` in `tests/test_catalog.py`
 7. Add a render test in `tests/test_renderer.py` if the app has non-trivial var combinations
-8. Run `pytest tests/ -v` and confirm all tests pass
-9. Run `ruff check stackr/ tests/` and `mypy stackr/`
+8. Add a matrix entry to `.github/workflows/integration.yml` — see Integration tests section above
+9. Run `pytest tests/ -v` and confirm all tests pass
+10. Run `ruff check stackr/ tests/` and `mypy stackr/`
 
 ## Common pitfalls
 

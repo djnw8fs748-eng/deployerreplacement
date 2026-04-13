@@ -3,10 +3,41 @@ name: Integration Tests
 # Runs weekly (Sunday 03:00 UTC) and on manual trigger.
 # Each app is tested in its own matrix job: stackr renders the compose,
 # Docker starts the container, and we assert the service responds.
+#
+# Skipped apps (require special infrastructure not available in CI):
+#   traefik          — conflicts with nginx-proxy-manager on ports 80/443
+#   pihole           — conflicts with adguardhome on host port 53
+#   authelia         — requires a configuration.yml file pre-mounted at /config
+#   gluetun          — requires live VPN credentials
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 3 * * 0"
+    - cron: "0 3 * * *"
+
+# Dummy credentials for apps that read secrets from environment variables.
+# Docker Compose expands ${VAR} from the environment — these values are
+# intentionally fake and only sufficient to allow containers to start.
+env:
+  AUTHENTIK_POSTGRES_PASSWORD: ci-integration-test
+  AUTHENTIK_SECRET_KEY: ci-integration-test-secret-key-at-least-fifty-chars-x
+  FLAME_PASSWORD: ci-integration-test
+  GRAFANA_ADMIN_PASSWORD: ci-integration-test
+  MARIADB_PASSWORD: ci-integration-test
+  MARIADB_ROOT_PASSWORD: ci-integration-test
+  MINIFLUX_DB_PASSWORD: ci-integration-test
+  MINIFLUX_ADMIN_PASSWORD: ci-integration-test-12345
+  MONGO_ROOT_PASSWORD: ci-integration-test
+  MONGO_ROOT_USERNAME: ci-root
+  NEXTCLOUD_DB_PASSWORD: ci-integration-test
+  NEXTCLOUD_DB_ROOT_PASSWORD: ci-integration-test
+  NEXTCLOUD_ADMIN_PASSWORD: ci-integration-test
+  OPENWEBUI_SECRET_KEY: ci-integration-test
+  PAPERLESS_DB_PASSWORD: ci-integration-test
+  PAPERLESS_SECRET_KEY: ci-integration-test-paperless-secret-key-32chars-min
+  PAPERLESS_ADMIN_PASSWORD: ci-integration-test
+  POSTGRES_PASSWORD: ci-integration-test
+  TRANSMISSION_PASS: ci-integration-test
+  VAULTWARDEN_ADMIN_TOKEN: ci-integration-test
 
 jobs:
   deploy-test:
@@ -16,34 +47,231 @@ jobs:
       fail-fast: false  # run all apps even if one fails
       matrix:
         include:
+          # ----------------------------------------------------------------
+          # Proxy / Network
+          # ----------------------------------------------------------------
           # nginx-proxy-manager binds port 81 (admin UI) directly on the host
           - app: nginx-proxy-manager
             host_port: 81
             health_url: "http://localhost:81/"
 
-          # ollama has no host-bound port — check via container IP on proxy network
+          # adguardhome binds host port 53 (DNS) — web UI is on container port 3000
+          - app: adguardhome
+            container_port: 3000
+            health_path: "/"
+
+          - app: headscale
+            container_port: 8080
+            health_path: "/"
+
+          # wireguard is a UDP VPN tunnel — verify it reaches running state
+          - app: wireguard
+            health_type: running
+
+          # ----------------------------------------------------------------
+          # AI
+          # ----------------------------------------------------------------
           - app: ollama
             container_port: 11434
             health_path: "/"
 
-          # plex binds port 32400 directly on the host
+          - app: open-webui
+            container_port: 8080
+            health_path: "/"
+
+          # ----------------------------------------------------------------
+          # Media
+          # ----------------------------------------------------------------
           - app: plex
             host_port: 32400
             health_url: "http://localhost:32400/"
 
-          # sonarr has no host-bound port — /ping returns {"status":"OK"}
+          - app: jellyfin
+            container_port: 8096
+            health_path: "/"
+
           - app: sonarr
             container_port: 8989
             health_path: "/ping"
 
-          # radarr has no host-bound port — /ping returns {"status":"OK"}
           - app: radarr
             container_port: 7878
             health_path: "/ping"
 
-          # homepage has no host-bound port — returns HTML on /
+          - app: lidarr
+            container_port: 8686
+            health_path: "/ping"
+
+          - app: readarr
+            container_port: 8787
+            health_path: "/ping"
+
+          - app: prowlarr
+            container_port: 9696
+            health_path: "/ping"
+
+          - app: bazarr
+            container_port: 6767
+            health_path: "/"
+
+          - app: overseerr
+            container_port: 5055
+            health_path: "/"
+
+          - app: jellyseerr
+            container_port: 5055
+            health_path: "/"
+
+          - app: sabnzbd
+            container_port: 8080
+            health_path: "/"
+
+          - app: qbittorrent
+            container_port: 8080
+            health_path: "/"
+
+          - app: transmission
+            container_port: 9091
+            health_path: "/"
+
+          - app: tdarr
+            container_port: 8265
+            health_path: "/"
+
+          # ----------------------------------------------------------------
+          # Management / Dashboard
+          # ----------------------------------------------------------------
           - app: homepage
             container_port: 3000
+            health_path: "/"
+
+          - app: dasherr
+            container_port: 3000
+            health_path: "/"
+
+          - app: heimdall
+            container_port: 80
+            health_path: "/"
+
+          - app: flame
+            container_port: 5005
+            health_path: "/"
+
+          - app: dozzle
+            container_port: 8080
+            health_path: "/"
+
+          # portainer serves HTTPS on 9443
+          - app: portainer
+            container_port: 9443
+            health_path: "/"
+            health_proto: https
+
+          # watchtower is a daemon with no web UI — verify running state
+          - app: watchtower
+            health_type: running
+
+          # ----------------------------------------------------------------
+          # Monitoring
+          # ----------------------------------------------------------------
+          - app: uptime-kuma
+            container_port: 3001
+            health_path: "/"
+
+          - app: grafana
+            container_port: 3000
+            health_path: "/api/health"
+
+          - app: prometheus
+            container_port: 9090
+            health_path: "/-/healthy"
+
+          - app: loki
+            container_port: 3100
+            health_path: "/ready"
+
+          - app: netdata
+            container_port: 19999
+            health_path: "/"
+
+          # ----------------------------------------------------------------
+          # Security
+          # ----------------------------------------------------------------
+          - app: vaultwarden
+            container_port: 80
+            health_path: "/"
+
+          # socket-proxy lives on the socket_proxy network, not proxy
+          - app: socket-proxy
+            container_port: 2375
+            health_path: "/version"
+            network_name: socket_proxy
+
+          # crowdsec is a log-analysis daemon — verify running state
+          - app: crowdsec
+            health_type: running
+
+          # authentik: primary web container is authentik-server, not authentik
+          - app: authentik
+            container_name: authentik-server
+            container_port: 9000
+            health_path: "/"
+
+          # ----------------------------------------------------------------
+          # Databases  (TCP port reachability check — no HTTP interface)
+          # ----------------------------------------------------------------
+          - app: postgres
+            tcp_port: 5432
+
+          - app: mariadb
+            tcp_port: 3306
+
+          - app: redis
+            tcp_port: 6379
+
+          - app: mongo
+            tcp_port: 27017
+
+          # ----------------------------------------------------------------
+          # Gaming
+          # ----------------------------------------------------------------
+          - app: minecraft
+            tcp_port: 25565
+
+          # ----------------------------------------------------------------
+          # Productivity
+          # ----------------------------------------------------------------
+          - app: freshrss
+            container_port: 80
+            health_path: "/"
+
+          # gitea binds SSH on port 22 by default — use 2222 to avoid host conflict
+          - app: gitea
+            container_port: 3000
+            health_path: "/"
+            extra_vars: '{"ssh_port":"2222"}'
+
+          - app: miniflux
+            container_port: 8080
+            health_path: "/"
+
+          - app: paperless-ngx
+            container_port: 8000
+            health_path: "/"
+
+          # ----------------------------------------------------------------
+          # Storage
+          # ----------------------------------------------------------------
+          - app: nextcloud
+            container_port: 80
+            health_path: "/"
+
+          - app: filebrowser
+            container_port: 80
+            health_path: "/"
+
+          - app: duplicati
+            container_port: 8200
             health_path: "/"
 
     steps:
@@ -60,33 +288,39 @@ jobs:
       - name: Install stackr
         run: uv pip install --system -e ".[dev]"
 
-      # Create the proxy network that Traefik-proxied apps join as external.
-      # nginx-proxy-manager uses its own npm-net so it doesn't need this, but
-      # creating it unconditionally is harmless and keeps the step uniform.
+      # proxy is used by most apps; socket_proxy is used by socket-proxy itself.
       - name: Create Docker networks
-        run: docker network create proxy || true
+        run: |
+          docker network create proxy || true
+          docker network create socket_proxy || true
 
-      # Some compose templates bind-mount paths that must exist on the host.
+      # Create host directories that compose templates bind-mount.
+      # crowdsec reads traefik access logs; create that path so the mount succeeds.
       - name: Create required host directories
         run: |
           sudo mkdir -p /opt/appdata/${{ matrix.app }}
-          sudo mkdir -p /tv /movies /downloads /media
-          sudo chmod -R 777 /opt/appdata /tv /movies /downloads /media
+          sudo mkdir -p /opt/appdata/traefik/logs
+          sudo mkdir -p /tv /movies /downloads /media /books /music
+          sudo chmod -R 777 /opt/appdata /tv /movies /downloads /media /books /music
 
-      # Render the compose file using stackr's Python API — this is what a real
-      # deploy would do.  Traefik is enabled so labels render with real content
-      # (Docker Compose rejects empty/null labels blocks).  No Traefik instance
-      # runs in CI so the labels are harmless container metadata.
+      # Render the compose file using stackr's Python API.
+      # Traefik is enabled so labels render with real content (Docker Compose
+      # rejects null/empty labels blocks). No Traefik runs in CI so the labels
+      # are harmless container metadata.
+      # extra_vars allows per-app overrides (e.g. gitea SSH port).
       - name: Render compose via stackr
+        env:
+          EXTRA_VARS: ${{ matrix.extra_vars || '{}' }}
         run: |
           python - << 'PYEOF'
-          import sys
+          import json, os, sys
           from pathlib import Path
           from stackr.catalog import Catalog
           from stackr.config import AppConfig, StackrConfig
           from stackr.renderer import render_app
 
           app_name = "${{ matrix.app }}"
+          extra_vars = json.loads(os.environ.get("EXTRA_VARS", "{}"))
 
           config = StackrConfig.model_validate({
               "global": {
@@ -114,7 +348,7 @@ jobs:
               print(f"ERROR: '{app_name}' not found in catalog", file=sys.stderr)
               sys.exit(1)
 
-          rendered = render_app(AppConfig(name=app_name), catalog_app, config)
+          rendered = render_app(AppConfig(name=app_name, vars=extra_vars), catalog_app, config)
 
           out = Path(f"/tmp/stackr-ci/{app_name}/docker-compose.yml")
           out.parent.mkdir(parents=True, exist_ok=True)
@@ -124,76 +358,127 @@ jobs:
           print(rendered)
           PYEOF
 
-      - name: Start container
+      - name: Start containers
         run: |
           docker compose \
             -f /tmp/stackr-ci/${{ matrix.app }}/docker-compose.yml \
             up -d
 
-      # Wait for the service to respond, then assert a final check.
-      # Host-port apps (npm, plex): curl localhost:PORT
-      # Container-IP apps: resolve the container IP on its Docker network
-      # and curl from the runner host.
+      # Health check strategy depends on matrix fields:
+      #   health_type: running  — daemon apps; just verify container state
+      #   host_port + health_url — apps that bind a host port directly
+      #   tcp_port              — databases / game servers; nc TCP probe
+      #   container_port        — all other web apps; curl via container IP
+      #     health_proto: https — use curl -k for self-signed TLS (portainer)
+      #     network_name        — override network for IP lookup (socket-proxy)
+      #     container_name      — override container name for IP lookup (authentik)
       - name: Wait for service and assert health
-        timeout-minutes: 5
+        timeout-minutes: 8
         run: |
           APP="${{ matrix.app }}"
+          CONTAINER="${{ matrix.container_name || matrix.app }}"
           HOST_PORT="${{ matrix.host_port }}"
           CONTAINER_PORT="${{ matrix.container_port }}"
+          TCP_PORT="${{ matrix.tcp_port }}"
           HEALTH_PATH="${{ matrix.health_path }}"
+          HEALTH_PROTO="${{ matrix.health_proto || 'http' }}"
+          HEALTH_TYPE="${{ matrix.health_type }}"
+          NETWORK="${{ matrix.network_name || 'proxy' }}"
+          MAX=420  # 7 minutes — generous for slow-starting apps (nextcloud, authentik)
+          ELAPSED=0
 
-          if [ -n "$HOST_PORT" ]; then
-            HEALTH_URL="http://localhost:${HOST_PORT}$HEALTH_PATH"
-          else
-            # Resolve the container's IP on whatever network it joined.
-            # Try the proxy network first; fall back to the first network assigned.
-            CONTAINER_IP=$(
-              docker inspect \
-                -f '{{index .NetworkSettings.Networks "proxy" "IPAddress"}}' \
-                "$APP" 2>/dev/null || true
-            )
-            if [ -z "$CONTAINER_IP" ]; then
-              CONTAINER_IP=$(
-                docker inspect \
-                  -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' \
-                  "$APP" 2>/dev/null | head -1
-              )
-            fi
-            if [ -z "$CONTAINER_IP" ]; then
-              echo "ERROR: could not determine container IP for $APP"
-              exit 1
-            fi
-            echo "Container IP for $APP: $CONTAINER_IP"
-            HEALTH_URL="http://${CONTAINER_IP}:${CONTAINER_PORT}${HEALTH_PATH}"
+          # --- running check: daemon with no port ---
+          if [ "$HEALTH_TYPE" = "running" ]; then
+            echo "Waiting for $APP container to reach running state..."
+            until [ "$(docker inspect -f '{{.State.Status}}' "$CONTAINER" 2>/dev/null)" = "running" ]; do
+              if [ "$ELAPSED" -ge "$MAX" ]; then
+                echo "TIMEOUT: $APP did not reach running state within ${MAX}s"
+                exit 1
+              fi
+              echo "  waiting... (${ELAPSED}s elapsed)"
+              sleep 5; ELAPSED=$((ELAPSED + 5))
+            done
+            echo "PASS: $APP is $(docker inspect -f '{{.State.Status}}' "$CONTAINER")"
+            exit 0
           fi
 
-          echo "Polling $HEALTH_URL ..."
-          ELAPSED=0
-          MAX=270  # 4.5 minutes — plex is slow on first start
+          # --- host port check: app binds a port directly on the runner ---
+          if [ -n "$HOST_PORT" ]; then
+            HEALTH_URL="${{ matrix.health_url }}"
+            echo "Polling $HEALTH_URL ..."
+            until curl -sf -o /dev/null -w "%{http_code}" "$HEALTH_URL" 2>/dev/null \
+                | grep -qE '^[23]'; do
+              if [ "$ELAPSED" -ge "$MAX" ]; then
+                echo "TIMEOUT: $APP did not respond at $HEALTH_URL within ${MAX}s"
+                exit 1
+              fi
+              echo "  waiting... (${ELAPSED}s elapsed)"
+              sleep 10; ELAPSED=$((ELAPSED + 10))
+            done
+            HTTP=$(curl -sf -o /dev/null -w "%{http_code}" "$HEALTH_URL")
+            echo "PASS: $APP → $HEALTH_URL → HTTP $HTTP"
+            exit 0
+          fi
 
-          until curl -sf -o /dev/null -w "%{http_code}" "$HEALTH_URL" 2>/dev/null | \
-                grep -qE '^[23]'; do
+          # Resolve container IP for remaining checks
+          echo "Resolving IP for container '$CONTAINER' on network '$NETWORK'..."
+          until CONTAINER_IP=$(
+            docker inspect \
+              -f "{{(index .NetworkSettings.Networks \"$NETWORK\").IPAddress}}" \
+              "$CONTAINER" 2>/dev/null
+          ) && [ -n "$CONTAINER_IP" ]; do
+            if [ "$ELAPSED" -ge 60 ]; then
+              # Fall back to first assigned IP across any network
+              CONTAINER_IP=$(
+                docker inspect \
+                  -f '{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}' \
+                  "$CONTAINER" 2>/dev/null \
+                | tr ' ' '\n' | grep -v '^$' | head -1
+              )
+              [ -n "$CONTAINER_IP" ] && break
+              echo "ERROR: could not determine IP for $CONTAINER"
+              exit 1
+            fi
+            sleep 5; ELAPSED=$((ELAPSED + 5))
+          done
+          echo "Container IP: $CONTAINER_IP"
+
+          # --- TCP check: databases and game servers ---
+          if [ -n "$TCP_PORT" ]; then
+            echo "Waiting for TCP $CONTAINER_IP:$TCP_PORT ..."
+            until nc -z -w5 "$CONTAINER_IP" "$TCP_PORT" 2>/dev/null; do
+              if [ "$ELAPSED" -ge "$MAX" ]; then
+                echo "TIMEOUT: TCP $CONTAINER_IP:$TCP_PORT not reachable within ${MAX}s"
+                exit 1
+              fi
+              echo "  waiting... (${ELAPSED}s elapsed)"
+              sleep 10; ELAPSED=$((ELAPSED + 10))
+            done
+            echo "PASS: $APP → TCP $CONTAINER_IP:$TCP_PORT is open"
+            exit 0
+          fi
+
+          # --- HTTP/HTTPS check via container IP ---
+          HEALTH_URL="${HEALTH_PROTO}://${CONTAINER_IP}:${CONTAINER_PORT}${HEALTH_PATH}"
+          if [ "$HEALTH_PROTO" = "https" ]; then
+            CURL_FLAGS="-sfk"
+          else
+            CURL_FLAGS="-sf"
+          fi
+          echo "Polling $HEALTH_URL ..."
+          until curl $CURL_FLAGS -o /dev/null -w "%{http_code}" "$HEALTH_URL" 2>/dev/null \
+              | grep -qE '^[23]'; do
             if [ "$ELAPSED" -ge "$MAX" ]; then
-              echo "TIMEOUT: $APP did not become healthy within ${MAX}s"
+              echo "TIMEOUT: $APP did not respond at $HEALTH_URL within ${MAX}s"
               exit 1
             fi
             echo "  waiting... (${ELAPSED}s elapsed)"
-            sleep 10
-            ELAPSED=$((ELAPSED + 10))
+            sleep 10; ELAPSED=$((ELAPSED + 10))
           done
+          HTTP=$(curl $CURL_FLAGS -o /dev/null -w "%{http_code}" "$HEALTH_URL")
+          echo "PASS: $APP → $HEALTH_URL → HTTP $HTTP"
 
-          echo "Service is up. Final assertion:"
-          HTTP_CODE=$(curl -sf -o /dev/null -w "%{http_code}" "$HEALTH_URL")
-          echo "  $APP → $HEALTH_URL → HTTP $HTTP_CODE"
-
-          # Accept any 2xx or 3xx (redirect to /web/index.html etc. is expected)
-          if ! echo "$HTTP_CODE" | grep -qE '^[23]'; then
-            echo "FAIL: expected 2xx/3xx, got $HTTP_CODE"
-            exit 1
-          fi
-          echo "PASS: $APP responded with HTTP $HTTP_CODE"
-
-      # Always print container logs — useful for debugging failures
+      # Always print logs — useful for diagnosing failures
       - name: Print container logs
         if: always()
         run: |
@@ -201,7 +486,7 @@ jobs:
             -f /tmp/stackr-ci/${{ matrix.app }}/docker-compose.yml \
             logs --no-color || true
 
-      # Always tear down — remove containers and named volumes
+      # Always tear down — containers, networks created by compose, and named volumes
       - name: Tear down
         if: always()
         run: |
