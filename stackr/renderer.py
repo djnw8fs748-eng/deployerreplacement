@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 import yaml
@@ -98,11 +99,34 @@ def render_app(
     template = env.get_template("compose.yml.j2")
     rendered = template.render(**ctx)
 
+    # When Traefik is disabled, traefik_labels() returns {} and the for-loop
+    # in catalog templates emits nothing, leaving a bare ``labels:`` key with
+    # no value.  Docker Compose rejects null labels — strip them here so that
+    # NPM-mode deploys always produce valid compose files.
+    rendered = _strip_empty_labels(rendered)
+
     # Apply user overrides (deep-merged on top of rendered compose)
     if app_config.overrides:
         rendered = _apply_overrides(rendered, app_config.overrides)
 
     return rendered
+
+
+def _strip_empty_labels(rendered: str) -> str:
+    """Remove ``labels:`` keys with no following content.
+
+    A bare ``labels:`` with no indented children is null in YAML, which Docker
+    Compose V2 rejects.  This arises whenever traefik_labels() returns {} and
+    the template for-loop emits nothing.
+    """
+    # Match a labels: line at any indentation whose next non-blank line is at
+    # the same or lesser indentation (i.e. no deeper-indented children follow).
+    return re.sub(
+        r"^( *)labels:\s*\n(?!(?:\1 |\1\t))",
+        "",
+        rendered,
+        flags=re.MULTILINE,
+    )
 
 
 def _apply_overrides(rendered_yaml: str, overrides: dict[str, Any]) -> str:
