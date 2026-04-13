@@ -11,6 +11,7 @@ on:
 jobs:
   deploy-test:
     name: "Deploy: ${{ matrix.app }}"
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false  # run all apps even if one fails
       matrix:
