@@ -182,6 +182,8 @@ def _check_dns_provider_env_refs(
     This is a global check run once — not per-app — so duplicate errors are not
     emitted for every enabled app when a Traefik secret is missing.
     """
+    if not config.traefik.enabled:
+        return
     for key, val in config.traefik.dns_provider_env.items():
         for u in find_unresolved(val, env):
             result.error(

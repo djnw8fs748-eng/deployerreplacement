@@ -92,7 +92,9 @@ def test_app_overrides():
 def test_apps_none_coerced_to_empty_list():
     """apps: with no YAML value parses as None — must not raise a validation error."""
     cfg = _config_from_dict({"apps": None})
-    assert cfg.apps == [] or all(a.name in ("traefik", "socket-proxy") for a in cfg.apps)
+    # Auto-injection may prepend nginx-proxy-manager (default) or traefik+socket-proxy
+    auto_injected = {"traefik", "socket-proxy", "nginx-proxy-manager"}
+    assert cfg.apps == [] or all(a.name in auto_injected for a in cfg.apps)
 
 
 def test_apps_missing_key_defaults_to_empty():

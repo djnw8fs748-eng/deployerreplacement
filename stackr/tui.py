@@ -62,6 +62,18 @@ def load_settings(config_path: Path) -> dict[str, Any]:
         return {}
 
 
+def load_mounts(config_path: Path) -> list[dict[str, Any]]:
+    """Return the list of mount dicts from an existing stackr.yml, or empty list."""
+    if not config_path.exists():
+        return []
+    try:
+        with open(config_path) as f:
+            raw: dict[str, Any] = yaml.safe_load(f) or {}
+        return [dict(m) for m in (raw.get("mounts") or []) if isinstance(m, dict)]
+    except Exception:  # noqa: BLE001
+        return []
+
+
 def build_stub_config(config_path: Path) -> dict[str, Any]:
     """Return the raw YAML dict from config_path, or a minimal skeleton."""
     if config_path.exists():
@@ -209,8 +221,101 @@ if HAS_TEXTUAL:
 
             self.dismiss({"global": g, "network": n, "traefik": t})
 
+    class MountEditorScreen(ModalScreen):  # type: ignore[misc]
+        """Modal dialog for adding or editing a mount entry."""
+
+        CSS = """
+        MountEditorScreen {
+            align: center middle;
+        }
+        #mount-dialog {
+            width: 64;
+            height: auto;
+            border: solid $primary;
+            background: $surface;
+            padding: 1 2;
+        }
+        #mount-dialog Label {
+            margin-bottom: 1;
+        }
+        #mount-dialog Input {
+            margin-bottom: 1;
+        }
+        #mount-buttons {
+            margin-top: 1;
+            height: auto;
+        }
+        """
+
+        def __init__(self, mount: dict[str, Any] | None = None) -> None:
+            super().__init__()
+            self._existing: dict[str, Any] = mount or {}
+
+        def compose(self) -> ComposeResult:
+            m = self._existing
+            with Vertical(id="mount-dialog"):
+                yield Label("[bold]Mount Editor[/bold]")
+                yield Input(
+                    placeholder="name (e.g. media)",
+                    value=str(m.get("name", "")),
+                    id="inp-name",
+                )
+                yield Input(
+                    placeholder="type: smb | nfs | rclone",
+                    value=str(m.get("type", "smb")),
+                    id="inp-type",
+                )
+                yield Input(
+                    placeholder="remote (e.g. //192.168.1.10/share)",
+                    value=str(m.get("remote", "")),
+                    id="inp-remote",
+                )
+                yield Input(
+                    placeholder="mountpoint (e.g. /mnt/media)",
+                    value=str(m.get("mountpoint", "")),
+                    id="inp-mountpoint",
+                )
+                yield Input(
+                    placeholder="options (optional, e.g. ro,noatime)",
+                    value=str(m.get("options", "")),
+                    id="inp-options",
+                )
+                yield Input(
+                    placeholder="username (optional)",
+                    value=str(m.get("username", "")),
+                    id="inp-username",
+                )
+                with Horizontal(id="mount-buttons"):
+                    yield Button("Save", variant="primary", id="btn-save")
+                    yield Button("Cancel", variant="default", id="btn-cancel")
+
+        def on_button_pressed(self, event: Button.Pressed) -> None:
+            if event.button.id == "btn-cancel":
+                self.dismiss(None)
+                return
+            name = self.query_one("#inp-name", Input).value.strip()
+            if not name:
+                self.notify("Name is required", severity="error")
+                return
+            mount_type = self.query_one("#inp-type", Input).value.strip() or "smb"
+            remote = self.query_one("#inp-remote", Input).value.strip()
+            mountpoint = self.query_one("#inp-mountpoint", Input).value.strip()
+            options = self.query_one("#inp-options", Input).value.strip()
+            username = self.query_one("#inp-username", Input).value.strip()
+            result: dict[str, Any] = {
+                "name": name,
+                "type": mount_type,
+                "remote": remote,
+                "mountpoint": mountpoint,
+            }
+            if options:
+                result["options"] = options
+            if username:
+                result["username"] = username
+            self.dismiss(result)
+
     class StackrTUI(App[None]):  # type: ignore[misc]
-        """Browse and toggle catalog apps interactively."""
+        """Browse and toggle catalog apps, and manage remote mounts."""
 
         TITLE = "Stackr"
         SUB_TITLE = "App Catalog Browser"
@@ -231,7 +336,9 @@ if HAS_TEXTUAL:
         BINDINGS = [
             Binding("space", "toggle_app", "Toggle on/off", show=True, priority=True),
             Binding("enter", "toggle_app", "Toggle on/off", show=False, priority=True),
-            Binding("e", "edit_settings", "Edit settings", show=True),
+            Binding("a", "add_mount", "Add mount", show=True),
+            Binding("e", "edit", "Edit", show=True),
+            Binding("d", "delete_mount", "Del mount", show=True),
             Binding("s", "save_config", "Save config", show=True),
             Binding("q", "quit", "Quit", show=True),
         ]
@@ -252,6 +359,8 @@ if HAS_TEXTUAL:
             self._enabled: set[str] = load_enabled(config_path)
             self._settings: dict[str, Any] = load_settings(config_path)
             self._settings_node: Any = None
+            self._mounts: list[dict[str, Any]] = load_mounts(config_path)
+            self._mounts_node: Any = None  # set in on_mount
 
         # ------------------------------------------------------------------
         # Compose
@@ -264,23 +373,30 @@ if HAS_TEXTUAL:
                     yield Tree("Catalog", id="catalog-tree")
                 with ScrollableContainer(id="detail-pane"):
                     yield Static(
-                        "Highlight an app or [bold]Settings[/bold] to see details.\n\n"
-                        "[dim]Space[/dim] toggle  •  [dim]E[/dim] edit settings  •  "
+                        "Highlight an app, mount, or [bold]Settings[/bold] to see details.\n\n"
+                        "[dim]Space[/dim] toggle  •  [dim]A[/dim] add mount  •  "
+                        "[dim]E[/dim] edit  •  [dim]D[/dim] del mount\n"
                         "[dim]S[/dim] save  •  [dim]Q[/dim] quit",
                         id="detail-content",
                     )
             yield Footer()
 
         def on_mount(self) -> None:
-            tree: Tree[str | None] = self.query_one("#catalog-tree", Tree)  # type: ignore[type-arg]
+            tree: Tree[Any] = self.query_one("#catalog-tree", Tree)
             tree.root.expand()
 
+            # Settings node (top of tree)
             self._settings_node = tree.root.add_leaf(
                 "⚙  Settings", data={"_type": "settings"}
             )
 
+            # Mounts section
+            self._mounts_node = tree.root.add("[bold]mounts[/bold]", expand=True)
+            self._refresh_mount_nodes()
+
+            # Apps sections by category
             for category in self._catalog.categories():
-                cat_node: TreeNode[str | None] = tree.root.add(  # type: ignore[type-arg]
+                cat_node: TreeNode[Any] = tree.root.add(
                     f"[bold]{category}[/bold]", expand=True
                 )
                 for app in sorted(self._catalog.by_category(category), key=lambda a: a.name):
@@ -294,34 +410,38 @@ if HAS_TEXTUAL:
 
         def on_tree_node_highlighted(  # type: ignore[override]
             self,
-            event: Tree.NodeHighlighted[str | None],
+            event: Tree.NodeHighlighted[Any],
         ) -> None:
             node = event.node
-            if isinstance(node.data, dict) and node.data.get("_type") == "settings":
-                self.query_one("#detail-content", Static).update(
-                    self._settings_detail_markup()
-                )
-                return
             if node.data is None:
-                return  # category node
-            app_name: str = node.data  # type: ignore[assignment]
+                return  # section header node
+            if isinstance(node.data, dict):
+                if node.data.get("_type") == "settings":
+                    self.query_one("#detail-content", Static).update(
+                        self._settings_detail_markup()
+                    )
+                elif node.data.get("_type") == "mount":
+                    self.query_one("#detail-content", Static).update(
+                        self._mount_detail_markup(node.data)
+                    )
+                return
+            # String data → app node
+            app_name: str = node.data
             ca = self._catalog.get(app_name)
             if ca is None:
                 return
             self.query_one("#detail-content", Static).update(self._detail_markup(ca))
 
         # ------------------------------------------------------------------
-        # Actions
+        # Actions — apps
         # ------------------------------------------------------------------
 
         def action_toggle_app(self) -> None:
-            tree: Tree[str | None] = self.query_one("#catalog-tree", Tree)  # type: ignore[type-arg]
+            tree: Tree[Any] = self.query_one("#catalog-tree", Tree)
             node = tree.cursor_node
-            if node is None or node.data is None:
-                return  # no selection or category node
-            if isinstance(node.data, dict):
-                return  # settings node — ignore toggle
-            app_name: str = node.data  # type: ignore[assignment]
+            if node is None or not isinstance(node.data, str):
+                return  # not an app node
+            app_name: str = node.data
             if app_name in self._enabled:
                 self._enabled.discard(app_name)
                 marker = "○"
@@ -334,17 +454,29 @@ if HAS_TEXTUAL:
             if ca:
                 self.query_one("#detail-content", Static).update(self._detail_markup(ca))
 
-        def action_edit_settings(self) -> None:
-            tree: Tree[str | None] = self.query_one("#catalog-tree", Tree)  # type: ignore[type-arg]
-            node = tree.cursor_node
-            if (
-                node is None
-                or not isinstance(node.data, dict)
-                or node.data.get("_type") != "settings"
-            ):
-                self.notify("Highlight the Settings entry to edit", severity="warning")
-                return
+        # ------------------------------------------------------------------
+        # Actions — edit (context-sensitive: settings or mount)
+        # ------------------------------------------------------------------
 
+        def action_edit(self) -> None:
+            """Edit the currently highlighted settings node or mount node."""
+            tree: Tree[Any] = self.query_one("#catalog-tree", Tree)
+            node = tree.cursor_node
+            if node is None or not isinstance(node.data, dict):
+                self.notify(
+                    "Select the Settings entry or a mount to edit", severity="warning"
+                )
+                return
+            if node.data.get("_type") == "settings":
+                self._do_edit_settings()
+            elif node.data.get("_type") == "mount":
+                self._do_edit_mount(node.data)
+            else:
+                self.notify(
+                    "Select the Settings entry or a mount to edit", severity="warning"
+                )
+
+        def _do_edit_settings(self) -> None:
             def _on_result(result: dict[str, Any] | None) -> None:
                 if result is None:
                     return
@@ -356,8 +488,60 @@ if HAS_TEXTUAL:
 
             self.push_screen(SettingsEditorScreen(self._settings), _on_result)
 
+        def _do_edit_mount(self, data: dict[str, Any]) -> None:
+            idx: int = data["_idx"]
+            existing = {k: v for k, v in data.items() if not k.startswith("_")}
+
+            def _on_result(result: dict[str, Any] | None) -> None:
+                if result is None:
+                    return
+                self._mounts[idx] = result
+                self._refresh_mount_nodes()
+                self.notify(
+                    f"Mount '{result['name']}' updated — press S to save",
+                    title="Mount updated",
+                )
+
+            self.push_screen(MountEditorScreen(mount=existing), _on_result)
+
+        # ------------------------------------------------------------------
+        # Actions — mounts
+        # ------------------------------------------------------------------
+
+        def action_add_mount(self) -> None:
+            def _on_result(result: dict[str, Any] | None) -> None:
+                if result is None:
+                    return
+                self._mounts.append(result)
+                self._refresh_mount_nodes()
+                self.notify(
+                    f"Mount '{result['name']}' added — press S to save",
+                    title="Mount added",
+                )
+
+            self.push_screen(MountEditorScreen(), _on_result)
+
+        def action_delete_mount(self) -> None:
+            tree: Tree[Any] = self.query_one("#catalog-tree", Tree)
+            node = tree.cursor_node
+            if (
+                node is None
+                or not isinstance(node.data, dict)
+                or node.data.get("_type") != "mount"
+            ):
+                self.notify("Select a mount entry to delete", severity="warning")
+                return
+            idx: int = node.data["_idx"]
+            name = node.data.get("name", "?")
+            self._mounts.pop(idx)
+            self._refresh_mount_nodes()
+            self.query_one("#detail-content", Static).update(
+                "Mount deleted. Press [bold]S[/bold] to save."
+            )
+            self.notify(f"Mount '{name}' deleted — press S to save", title="Mount deleted")
+
         def action_save_config(self) -> None:
-            """Write current toggle state back to stackr.yml."""
+            """Write current toggle state, settings, and mounts back to stackr.yml."""
             raw = build_stub_config(self._config_path)
             existing: dict[str, dict[str, Any]] = {
                 a["name"]: a
@@ -380,6 +564,7 @@ if HAS_TEXTUAL:
             for section in ("global", "network", "traefik"):
                 if section in self._settings:
                     raw[section] = self._settings[section]
+            raw["mounts"] = self._mounts
             with open(self._config_path, "w") as f:
                 yaml.dump(raw, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
             self.notify(f"Saved to {self._config_path}", title="Config saved")
@@ -387,6 +572,23 @@ if HAS_TEXTUAL:
         # ------------------------------------------------------------------
         # Helpers
         # ------------------------------------------------------------------
+
+        def _refresh_mount_nodes(self) -> None:
+            """Rebuild the mounts subtree from self._mounts."""
+            self._mounts_node.remove_children()
+            for i, m in enumerate(self._mounts):
+                label = (
+                    f"⊞ {m.get('name', '?')}  "
+                    f"[{m.get('type', 'smb')}] → {m.get('mountpoint', '')}"
+                )
+                self._mounts_node.add_leaf(
+                    label, data={"_type": "mount", "_idx": i, **m}
+                )
+            if not self._mounts:
+                self._mounts_node.add_leaf(
+                    "[dim]No mounts — press A to add one[/dim]",
+                    data={"_type": "mount-empty"},
+                )
 
         def _settings_detail_markup(self) -> str:
             g = self._settings.get("global") or {}
@@ -411,6 +613,27 @@ if HAS_TEXTUAL:
                 "",
                 "[dim]──────────────────────────[/dim]",
                 "[dim]E[/dim] edit  •  [dim]S[/dim] save  •  [dim]Q[/dim] quit",
+            ]
+            return "\n".join(lines)
+
+        def _mount_detail_markup(self, data: dict[str, Any]) -> str:
+            name = data.get("name", "?")
+            lines: list[str] = [
+                f"[bold]{name}[/bold]  [dim](mount)[/dim]",
+                "",
+                f"[dim]Type:[/dim]       {data.get('type', 'smb')}",
+                f"[dim]Remote:[/dim]     {data.get('remote', '')}",
+                f"[dim]Mountpoint:[/dim] {data.get('mountpoint', '')}",
+            ]
+            if data.get("options"):
+                lines.append(f"[dim]Options:[/dim]    {data['options']}")
+            if data.get("username"):
+                lines.append(f"[dim]Username:[/dim]   {data['username']}")
+            lines += [
+                "",
+                "[dim]──────────────────────────[/dim]",
+                "[dim]E[/dim] edit  •  [dim]D[/dim] delete  •  "
+                "[dim]S[/dim] save  •  [dim]Q[/dim] quit",
             ]
             return "\n".join(lines)
 
