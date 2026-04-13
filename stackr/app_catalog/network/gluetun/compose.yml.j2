@@ -18,17 +18,19 @@ services:
       # - OPENVPN_PASSWORD=${GLUETUN_OPENVPN_PASSWORD}
     volumes:
       - {{ global.data_dir }}/gluetun/config:/gluetun
-    # Expose ports for containers that route through gluetun.
-    # Add/remove entries to match the apps using use_vpn: true.
+    # Ports for all containers that may route through gluetun (use_vpn: true).
+    # Unused ports are harmless when the corresponding app is not enabled.
     ports:
       # qBittorrent web UI and torrent port
       - "8080:8080"
       - "6881:6881/tcp"
       - "6881:6881/udp"
-      # Transmission web UI and torrent port (uncomment if using transmission with VPN)
-      # - "9091:9091"
-      # - "51413:51413/tcp"
-      # - "51413:51413/udp"
+      # Transmission web UI and torrent port
+      - "9091:9091"
+      - "51413:51413/tcp"
+      - "51413:51413/udp"
+      # Prowlarr web UI
+      - "9696:9696"
     networks:
       - proxy
     labels:

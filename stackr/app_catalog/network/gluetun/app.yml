@@ -1,6 +1,6 @@
 name: gluetun
 display_name: Gluetun
-description: VPN client container — routes other containers (qBittorrent, Transmission) through a VPN tunnel
+description: VPN client container — routes other containers (qBittorrent, Transmission, Prowlarr) through a VPN tunnel
 category: network
 homepage: https://github.com/qdm12/gluetun
 version: latest
