@@ -1,0 +1,1362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Stackr — User Guide</title>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --surface2: #22253a;
+      --border: #2e3150;
+      --accent: #6c8aff;
+      --accent2: #4ade80;
+      --warn: #fbbf24;
+      --danger: #f87171;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --code-bg: #111827;
+      --radius: 8px;
+      --font-mono: "JetBrains Mono", "Fira Code", "Cascadia Code", Menlo, monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 15px;
+      line-height: 1.7;
+      display: flex;
+    }
+
+    /* ── Sidebar ── */
+    nav#sidebar {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      width: 260px;
+      min-width: 260px;
+      overflow-y: auto;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      padding: 24px 0 32px;
+      scrollbar-width: thin;
+    }
+
+    nav#sidebar .logo {
+      padding: 0 20px 20px;
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      color: var(--accent);
+      border-bottom: 1px solid var(--border);
+    }
+    nav#sidebar .logo span { color: var(--accent2); }
+
+    nav#sidebar ul { list-style: none; padding: 12px 0; }
+    nav#sidebar li a {
+      display: block;
+      padding: 6px 20px;
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 13px;
+      transition: color 0.15s, background 0.15s;
+      border-left: 2px solid transparent;
+    }
+    nav#sidebar li a:hover,
+    nav#sidebar li a.active {
+      color: var(--text);
+      background: var(--surface2);
+      border-left-color: var(--accent);
+    }
+
+    nav#sidebar .section-head {
+      padding: 14px 20px 4px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    /* ── Main ── */
+    main {
+      flex: 1;
+      min-width: 0;
+      padding: 48px 64px;
+      max-width: 900px;
+    }
+
+    @media (max-width: 900px) {
+      body { flex-direction: column; }
+      nav#sidebar { position: static; height: auto; width: 100%; border-right: none; border-bottom: 1px solid var(--border); }
+      main { padding: 32px 24px; }
+    }
+
+    /* ── Typography ── */
+    h1 { font-size: 36px; font-weight: 800; letter-spacing: -1px; margin-bottom: 8px; }
+    h2 {
+      font-size: 24px; font-weight: 700; letter-spacing: -0.5px;
+      margin: 56px 0 16px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+      scroll-margin-top: 24px;
+    }
+    h3 { font-size: 17px; font-weight: 600; margin: 32px 0 10px; scroll-margin-top: 24px; }
+    h4 { font-size: 14px; font-weight: 600; margin: 20px 0 6px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+
+    p { margin-bottom: 12px; color: var(--text); }
+    p + p { margin-top: 4px; }
+    ul, ol { padding-left: 22px; margin-bottom: 14px; }
+    li { margin-bottom: 4px; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    strong { color: #f1f5f9; }
+
+    .lead {
+      font-size: 17px;
+      color: var(--muted);
+      margin-bottom: 32px;
+      line-height: 1.8;
+    }
+
+    /* ── Code ── */
+    code {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 1px 6px;
+      color: #93c5fd;
+    }
+
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px 20px;
+      overflow-x: auto;
+      margin: 14px 0 20px;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      line-height: 1.65;
+    }
+    pre code {
+      background: none;
+      border: none;
+      padding: 0;
+      color: var(--text);
+    }
+
+    .comment { color: #64748b; }
+    .kw { color: #c084fc; }
+    .str { color: #86efac; }
+    .key { color: #93c5fd; }
+    .num { color: #fbbf24; }
+    .cmd { color: #4ade80; }
+    .flag { color: #f9a8d4; }
+
+    /* ── Callouts ── */
+    .callout {
+      border-left: 3px solid var(--accent);
+      background: rgba(108, 138, 255, 0.08);
+      padding: 14px 18px;
+      border-radius: 0 var(--radius) var(--radius) 0;
+      margin: 18px 0;
+    }
+    .callout.warn {
+      border-left-color: var(--warn);
+      background: rgba(251, 191, 36, 0.07);
+    }
+    .callout.danger {
+      border-left-color: var(--danger);
+      background: rgba(248, 113, 113, 0.07);
+    }
+    .callout.success {
+      border-left-color: var(--accent2);
+      background: rgba(74, 222, 128, 0.07);
+    }
+    .callout-title {
+      font-weight: 700;
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+    .callout.warn .callout-title  { color: var(--warn); }
+    .callout.danger .callout-title { color: var(--danger); }
+    .callout.success .callout-title { color: var(--accent2); }
+    .callout .callout-title { color: var(--accent); }
+
+    /* ── Tables ── */
+    .table-wrap { overflow-x: auto; margin: 16px 0; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13.5px;
+    }
+    thead th {
+      background: var(--surface2);
+      padding: 10px 14px;
+      text-align: left;
+      font-weight: 600;
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      border-bottom: 1px solid var(--border);
+    }
+    tbody td {
+      padding: 9px 14px;
+      border-bottom: 1px solid rgba(46, 49, 80, 0.6);
+      vertical-align: top;
+    }
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr:hover td { background: rgba(255,255,255,0.02); }
+
+    /* ── Badge ── */
+    .badge {
+      display: inline-block;
+      padding: 1px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+    }
+    .badge-blue  { background: rgba(108,138,255,0.2); color: #93c5fd; }
+    .badge-green { background: rgba(74,222,128,0.2);  color: #86efac; }
+    .badge-yellow{ background: rgba(251,191,36,0.2);  color: #fde68a; }
+    .badge-red   { background: rgba(248,113,113,0.2); color: #fca5a5; }
+    .badge-gray  { background: rgba(148,163,184,0.15); color: #94a3b8; }
+
+    /* ── Step list ── */
+    .steps { counter-reset: step; list-style: none; padding: 0; }
+    .steps li {
+      counter-increment: step;
+      padding: 14px 16px 14px 52px;
+      position: relative;
+      border-left: 2px solid var(--border);
+      margin-left: 16px;
+      margin-bottom: 8px;
+    }
+    .steps li::before {
+      content: counter(step);
+      position: absolute;
+      left: -16px;
+      top: 14px;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: #fff;
+      font-size: 12px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* ── Command reference cards ── */
+    .cmd-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+      gap: 12px;
+      margin: 16px 0;
+    }
+    .cmd-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+    }
+    .cmd-card .cmd-name {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      color: var(--accent2);
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .cmd-card .cmd-desc {
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    /* ── App category pills ── */
+    .cat-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 12px 0;
+    }
+    .cat-pill {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 4px 14px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+    }
+
+    /* ── TOC divider ── */
+    hr { border: none; border-top: 1px solid var(--border); margin: 40px 0; }
+
+    /* ── Header banner ── */
+    .hero {
+      background: linear-gradient(135deg, rgba(108,138,255,0.12), rgba(74,222,128,0.08));
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 36px 40px;
+      margin-bottom: 48px;
+    }
+    .hero h1 { margin-bottom: 10px; }
+    .hero-meta { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 16px; }
+  </style>
+</head>
+<body>
+
+<!-- ───────────────────────── SIDEBAR ───────────────────────── -->
+<nav id="sidebar">
+  <div class="logo">stack<span>r</span></div>
+  <ul>
+    <li class="section-head">Getting Started</li>
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#installation">Installation</a></li>
+    <li><a href="#quickstart">Quick Start</a></li>
+
+    <li class="section-head">Configuration</li>
+    <li><a href="#config-file">stackr.yml Reference</a></li>
+    <li><a href="#secrets">Secrets &amp; .stackr.env</a></li>
+    <li><a href="#network-modes">Network Modes</a></li>
+    <li><a href="#security">Security Options</a></li>
+    <li><a href="#alerts">Alerts</a></li>
+    <li><a href="#mounts">Remote Mounts</a></li>
+
+    <li class="section-head">App Catalog</li>
+    <li><a href="#catalog-browse">Browse &amp; Search</a></li>
+    <li><a href="#catalog-categories">Categories</a></li>
+    <li><a href="#catalog-update">Updating the Catalog</a></li>
+
+    <li class="section-head">Deploying</li>
+    <li><a href="#tui">TUI App Browser</a></li>
+    <li><a href="#validate">Validate &amp; Plan</a></li>
+    <li><a href="#deploy">Deploy</a></li>
+    <li><a href="#update">Update Images</a></li>
+
+    <li class="section-head">Managing Apps</li>
+    <li><a href="#status">Status</a></li>
+    <li><a href="#stop-restart">Stop &amp; Restart</a></li>
+    <li><a href="#logs-shell">Logs &amp; Shell</a></li>
+    <li><a href="#rollback">Rollback</a></li>
+    <li><a href="#remove">Remove</a></li>
+
+    <li class="section-head">Tools</li>
+    <li><a href="#doctor">Doctor</a></li>
+    <li><a href="#web-ui">Web UI</a></li>
+    <li><a href="#backup">Backup &amp; Restore</a></li>
+    <li><a href="#migrate">Migrate from Deployrr</a></li>
+
+    <li class="section-head">Advanced</li>
+    <li><a href="#custom-apps">Custom Local Apps</a></li>
+    <li><a href="#overrides">Compose Overrides</a></li>
+    <li><a href="#render">Render Debug</a></li>
+    <li><a href="#upgrade">Upgrade &amp; Uninstall</a></li>
+
+    <li class="section-head">Reference</li>
+    <li><a href="#command-reference">All Commands</a></li>
+    <li><a href="#config-reference">Full Config Reference</a></li>
+  </ul>
+</nav>
+
+<!-- ───────────────────────── MAIN ───────────────────────── -->
+<main>
+
+  <!-- HERO -->
+  <div class="hero">
+    <h1>Stackr</h1>
+    <p class="lead">
+      A declarative, composable homelab deployment tool. Define your self-hosted stack in a
+      single <code>stackr.yml</code> file — Stackr renders Jinja2 Docker Compose templates,
+      validates your config, and deploys everything with a single command.
+    </p>
+    <div class="hero-meta">
+      <span class="badge badge-blue">Python 3.11+</span>
+      <span class="badge badge-green">Docker Compose</span>
+      <span class="badge badge-yellow">Traefik-first</span>
+      <span class="badge badge-gray">50+ catalog apps</span>
+    </div>
+  </div>
+
+
+  <!-- ─────────────────────────────── OVERVIEW ─────────────────────────────── -->
+  <h2 id="overview">Overview</h2>
+  <p>
+    Stackr manages your entire homelab as code. Instead of maintaining individual
+    <code>docker-compose.yml</code> files per app, you maintain one <code>stackr.yml</code>
+    that declares <em>which</em> apps are enabled and <em>how</em> they should be configured.
+    Stackr handles the rest.
+  </p>
+
+  <h3>How it works</h3>
+  <ol>
+    <li>You run <code>stackr init</code> to generate a <code>stackr.yml</code> from an interactive wizard.</li>
+    <li>You toggle apps on or off via <code>stackr ui</code> (TUI) or by editing the YAML directly.</li>
+    <li>Stackr validates your config, renders Jinja2 templates for each enabled app, and runs <code>docker compose up -d</code>.</li>
+    <li>State is tracked in <code>~/.stackr/state.json</code> — unchanged apps are skipped on the next deploy.</li>
+  </ol>
+
+  <h3>Key concepts</h3>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Concept</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td><strong>App catalog</strong></td><td>A library of pre-built <code>app.yml</code> + <code>compose.yml.j2</code> pairs for 50+ popular apps.</td></tr>
+      <tr><td><strong>stackr.yml</strong></td><td>Your personal config — global settings, network mode, enabled apps, vars, and secrets references.</td></tr>
+      <tr><td><strong>.stackr.env</strong></td><td>Secrets file (gitignored). Auto-generated; holds API tokens, passwords, and auto-generated secrets.</td></tr>
+      <tr><td><strong>State file</strong></td><td><code>~/.stackr/state.json</code> — tracks deployed compose hashes and image digests for drift detection.</td></tr>
+      <tr><td><strong>Traefik</strong></td><td>The built-in reverse proxy. Most catalog apps route through Traefik automatically.</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+
+  <!-- ─────────────────────────────── INSTALLATION ─────────────────────────────── -->
+  <h2 id="installation">Installation</h2>
+
+  <h3>Requirements</h3>
+  <ul>
+    <li>Python 3.11 or later</li>
+    <li>Docker Engine with Compose v2 (<code>docker compose</code> — not <code>docker-compose</code>)</li>
+    <li><code>pipx</code> (recommended) or <code>pip</code></li>
+  </ul>
+
+  <h3>Install via the bootstrap script (recommended)</h3>
+  <pre><code><span class="cmd">curl</span> -fsSL https://raw.githubusercontent.com/your-org/stackr/main/install.sh | bash</code></pre>
+  <p>
+    The installer bootstraps <code>pipx</code> if it is not present, installs Stackr into an
+    isolated environment, and adds it to your <code>PATH</code>.
+  </p>
+
+  <h3>Install with pipx</h3>
+  <pre><code><span class="comment"># Install pipx if you don't have it</span>
+<span class="cmd">python3</span> -m pip install --user pipx
+<span class="cmd">python3</span> -m pipx ensurepath
+
+<span class="comment"># Install Stackr</span>
+<span class="cmd">pipx</span> install git+https://github.com/your-org/stackr.git</code></pre>
+
+  <h3>Verify the installation</h3>
+  <pre><code><span class="cmd">stackr</span> --version
+<span class="comment"># stackr 0.4.1</span></code></pre>
+
+  <div class="callout">
+    <div class="callout-title">Tip</div>
+    If <code>stackr</code> is not found after install, reload your shell:
+    <code>exec $SHELL</code> — the installer writes <code>~/.local/bin</code> to your shell rc
+    file, but the current session needs to pick it up.
+  </div>
+
+
+  <!-- ─────────────────────────────── QUICKSTART ─────────────────────────────── -->
+  <h2 id="quickstart">Quick Start</h2>
+  <p>Get from zero to a running stack in under five minutes.</p>
+
+  <ol class="steps">
+    <li>
+      <strong>Run the setup wizard</strong>
+      <pre><code><span class="cmd">stackr</span> init</code></pre>
+      Answer a few prompts (data directory, domain, DNS provider). Stackr writes
+      <code>stackr.yml</code> and <code>.stackr.env</code> in the current directory, with
+      <strong>traefik</strong> and <strong>portainer</strong> enabled by default.
+    </li>
+    <li>
+      <strong>Add your DNS API token to <code>.stackr.env</code></strong>
+      <pre><code><span class="comment"># Example for Cloudflare</span>
+CF_DNS_API_TOKEN=your-cloudflare-api-token-here</code></pre>
+    </li>
+    <li>
+      <strong>Toggle apps on/off interactively</strong>
+      <pre><code><span class="cmd">stackr</span> ui</code></pre>
+      A terminal UI shows all catalog apps. Press <kbd>Space</kbd> to toggle,
+      <kbd>Enter</kbd> to confirm, <kbd>q</kbd> to quit and save.
+    </li>
+    <li>
+      <strong>Validate your configuration</strong>
+      <pre><code><span class="cmd">stackr</span> validate</code></pre>
+      Stackr checks port conflicts, missing secrets, dependency order, and more.
+    </li>
+    <li>
+      <strong>Deploy everything</strong>
+      <pre><code><span class="cmd">stackr</span> deploy</code></pre>
+      Stackr pulls images, renders compose files, and starts every enabled app.
+    </li>
+    <li>
+      <strong>Check status</strong>
+      <pre><code><span class="cmd">stackr</span> status</code></pre>
+    </li>
+  </ol>
+
+
+  <!-- ─────────────────────────────── CONFIG FILE ─────────────────────────────── -->
+  <h2 id="config-file">stackr.yml Reference</h2>
+  <p>
+    The config file lives in your project directory (wherever you run Stackr commands from).
+    Use <code>--config / -c</code> on any command to point to a different file.
+  </p>
+
+  <h3>global</h3>
+  <pre><code><span class="key">global</span>:
+  <span class="key">data_dir</span>: <span class="str">/opt/appdata</span>    <span class="comment"># Where container volumes are stored on the host</span>
+  <span class="key">timezone</span>: <span class="str">America/New_York</span>
+  <span class="key">puid</span>: <span class="num">1000</span>             <span class="comment"># UID for container processes</span>
+  <span class="key">pgid</span>: <span class="num">1000</span>             <span class="comment"># GID for container processes</span></code></pre>
+
+  <h3>network</h3>
+  <pre><code><span class="key">network</span>:
+  <span class="key">mode</span>: <span class="str">external</span>         <span class="comment"># external | internal | hybrid  (see Network Modes below)</span>
+  <span class="key">domain</span>: <span class="str">example.com</span>    <span class="comment"># Public domain — used for Traefik routing</span>
+  <span class="key">local_domain</span>: <span class="str">home.example.com</span>  <span class="comment"># Internal-only domain</span></code></pre>
+
+  <h3>traefik</h3>
+  <pre><code><span class="key">traefik</span>:
+  <span class="key">enabled</span>: <span class="kw">true</span>
+  <span class="key">acme_email</span>: <span class="str">you@example.com</span>  <span class="comment"># Let's Encrypt registration email</span>
+  <span class="key">dns_provider</span>: <span class="str">cloudflare</span>       <span class="comment"># Your DNS provider (see dns_providers.py)</span>
+  <span class="key">dns_provider_env</span>:
+    <span class="key">CF_DNS_API_TOKEN</span>: <span class="str">${CF_DNS_API_TOKEN}</span>  <span class="comment"># Reference a secret from .stackr.env</span></code></pre>
+
+  <div class="callout">
+    <div class="callout-title">Supported DNS providers</div>
+    cloudflare, route53, namecheap, porkbun, duckdns, hetzner, digitalocean, and more.
+    Run <code>stackr init</code> to auto-populate the correct env var name for your provider.
+  </div>
+
+  <h3>security</h3>
+  <pre><code><span class="key">security</span>:
+  <span class="key">socket_proxy</span>: <span class="kw">true</span>   <span class="comment"># Proxy Docker socket access via tecnativa/docker-socket-proxy</span>
+  <span class="key">crowdsec</span>: <span class="kw">false</span>      <span class="comment"># Enable CrowdSec intrusion prevention (requires crowdsec app)</span>
+  <span class="key">auth_provider</span>: <span class="str">none</span>  <span class="comment"># none | google_oauth | authentik | authelia</span></code></pre>
+
+  <h3>backup</h3>
+  <pre><code><span class="key">backup</span>:
+  <span class="key">enabled</span>: <span class="kw">false</span>
+  <span class="key">destination</span>: <span class="str">/mnt/backup</span>  <span class="comment"># Restic repository — local path or s3:bucket/prefix</span>
+  <span class="key">schedule</span>: <span class="str">"0 2 * * *"</span>     <span class="comment"># Informational cron string (no built-in scheduler)</span></code></pre>
+
+  <h3>alerts</h3>
+  <pre><code><span class="key">alerts</span>:
+  <span class="key">enabled</span>: <span class="kw">false</span>
+  <span class="key">provider</span>: <span class="str">ntfy</span>           <span class="comment"># ntfy | gotify | webhook</span>
+  <span class="key">url</span>: <span class="str">https://ntfy.sh/my-homelab</span>
+  <span class="key">token</span>: <span class="str">${NTFY_TOKEN}</span>      <span class="comment"># Optional Bearer token</span></code></pre>
+
+  <h3>apps</h3>
+  <pre><code><span class="key">apps</span>:
+  <span class="comment"># Minimal — just flip enabled: true</span>
+  - <span class="key">name</span>: <span class="str">jellyfin</span>
+    <span class="key">enabled</span>: <span class="kw">true</span>
+
+  <span class="comment"># With custom vars</span>
+  - <span class="key">name</span>: <span class="str">qbittorrent</span>
+    <span class="key">enabled</span>: <span class="kw">true</span>
+    <span class="key">vars</span>:
+      <span class="key">webui_port</span>: <span class="num">8080</span>
+
+  <span class="comment"># Local catalog path (custom app)</span>
+  - <span class="key">name</span>: <span class="str">my-app</span>
+    <span class="key">enabled</span>: <span class="kw">true</span>
+    <span class="key">catalog_path</span>: <span class="str">./local-catalog/my-app</span>
+
+  <span class="comment"># With raw compose overrides</span>
+  - <span class="key">name</span>: <span class="str">postgres</span>
+    <span class="key">enabled</span>: <span class="kw">true</span>
+    <span class="key">overrides</span>:
+      <span class="key">services</span>:
+        <span class="key">postgres</span>:
+          <span class="key">mem_limit</span>: <span class="str">512m</span></code></pre>
+
+
+  <!-- ─────────────────────────────── SECRETS ─────────────────────────────── -->
+  <h2 id="secrets">Secrets &amp; .stackr.env</h2>
+  <p>
+    Secrets are never stored directly in <code>stackr.yml</code>. Instead, reference them
+    using the <code>${VAR_NAME}</code> syntax. Stackr resolves them in this priority order:
+  </p>
+  <ol>
+    <li><strong>Shell environment</strong> — highest priority; set with <code>export VAR=value</code></li>
+    <li><strong><code>.stackr.env</code> file</strong> — in the same directory as <code>stackr.yml</code></li>
+    <li><strong>Auto-generated</strong> — Stackr generates random values for passwords/keys on first deploy</li>
+  </ol>
+
+  <h3>.stackr.env file format</h3>
+  <pre><code><span class="comment"># DNS provider token</span>
+CF_DNS_API_TOKEN=my-cloudflare-token
+
+<span class="comment"># Database password (can also be auto-generated by Stackr)</span>
+POSTGRES_PASSWORD=super-secret
+
+<span class="comment"># Notification token</span>
+NTFY_TOKEN=bearer-token-here</code></pre>
+
+  <div class="callout warn">
+    <div class="callout-title">Keep .stackr.env secret</div>
+    This file is automatically added to <code>.gitignore</code> by <code>stackr init</code>.
+    Never commit it to version control.
+  </div>
+
+
+  <!-- ─────────────────────────────── NETWORK MODES ─────────────────────────────── -->
+  <h2 id="network-modes">Network Modes</h2>
+  <p>The <code>network.mode</code> setting controls how Traefik issues and routes TLS certificates.</p>
+
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Mode</th><th>Description</th><th>Use case</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><code>external</code></td>
+        <td>All apps use your public domain with Let's Encrypt DNS-01 certs.</td>
+        <td>Standard homelab with a public domain and DNS provider.</td>
+      </tr>
+      <tr>
+        <td><code>internal</code></td>
+        <td>All apps use your local domain only, with a separate internal cert resolver.</td>
+        <td>Air-gapped or fully private setups.</td>
+      </tr>
+      <tr>
+        <td><code>hybrid</code></td>
+        <td>Some apps expose on <code>domain</code>, others on <code>local_domain</code>.
+            Controlled per-app via <code>exposure:</code> in the catalog entry.</td>
+        <td>Most homelabs — public apps (Jellyfin, Nextcloud) on external; internal tools on local.</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+
+
+  <!-- ─────────────────────────────── SECURITY ─────────────────────────────── -->
+  <h2 id="security">Security Options</h2>
+
+  <h3>Docker socket proxy</h3>
+  <p>
+    When <code>security.socket_proxy: true</code>, Stackr deploys
+    <a href="https://github.com/Tecnativa/docker-socket-proxy">docker-socket-proxy</a> and
+    routes Traefik through it instead of mounting <code>/var/run/docker.sock</code> directly.
+    This limits what a compromised container can do to your host.
+  </p>
+  <p>
+    <strong>Recommended for all deployments.</strong> Stackr automatically injects
+    <code>socket-proxy</code> before <code>traefik</code> in the deploy order.
+  </p>
+
+  <h3>CrowdSec</h3>
+  <p>
+    Set <code>security.crowdsec: true</code> and add <code>crowdsec</code> to your enabled
+    apps. CrowdSec acts as an intrusion-prevention system that reads Traefik access logs
+    and blocks malicious IPs via a Traefik bouncer middleware.
+  </p>
+  <pre><code><span class="key">security</span>:
+  <span class="key">crowdsec</span>: <span class="kw">true</span>
+
+<span class="key">apps</span>:
+  - <span class="key">name</span>: <span class="str">crowdsec</span>
+    <span class="key">enabled</span>: <span class="kw">true</span></code></pre>
+
+  <h3>Auth providers</h3>
+  <p>
+    Set <code>security.auth_provider</code> to add forward-auth to all public-facing apps:
+  </p>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Value</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td><code>none</code></td><td>No additional auth layer (default).</td></tr>
+      <tr><td><code>google_oauth</code></td><td>Google OAuth2 via Traefik forward-auth.</td></tr>
+      <tr><td><code>authentik</code></td><td>Authentik SSO — requires <code>authentik</code> app enabled.</td></tr>
+      <tr><td><code>authelia</code></td><td>Authelia — requires <code>authelia</code> app enabled.</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+
+  <!-- ─────────────────────────────── ALERTS ─────────────────────────────── -->
+  <h2 id="alerts">Alerts &amp; Notifications</h2>
+  <p>
+    Stackr can push notifications on deploy failures and doctor errors.
+    Configure the <code>alerts</code> block in <code>stackr.yml</code>:
+  </p>
+  <pre><code><span class="key">alerts</span>:
+  <span class="key">enabled</span>: <span class="kw">true</span>
+  <span class="key">provider</span>: <span class="str">ntfy</span>
+  <span class="key">url</span>: <span class="str">https://ntfy.sh/my-homelab-alerts</span>
+  <span class="key">token</span>: <span class="str">${NTFY_TOKEN}</span>  <span class="comment"># Optional</span></code></pre>
+  <p>Supported providers: <strong>ntfy</strong>, <strong>Gotify</strong>, and any generic <strong>webhook</strong> (POST with JSON body).</p>
+
+
+  <!-- ─────────────────────────────── MOUNTS ─────────────────────────────── -->
+  <h2 id="mounts">Remote Mounts</h2>
+  <p>
+    Stackr can mount network shares before deploying apps, ensuring volumes are available.
+    Configure under the <code>mounts:</code> key.
+  </p>
+  <pre><code><span class="key">mounts</span>:
+  - <span class="key">name</span>: <span class="str">media</span>
+    <span class="key">type</span>: <span class="str">smb</span>            <span class="comment"># smb | nfs | rclone</span>
+    <span class="key">remote</span>: <span class="str">//192.168.1.10/media</span>
+    <span class="key">mountpoint</span>: <span class="str">/mnt/media</span>
+    <span class="key">username</span>: <span class="str">myuser</span>
+    <span class="key">password</span>: <span class="str">${SMB_PASSWORD}</span>
+
+  - <span class="key">name</span>: <span class="str">photos</span>
+    <span class="key">type</span>: <span class="str">nfs</span>
+    <span class="key">remote</span>: <span class="str">192.168.1.10:/export/photos</span>
+    <span class="key">mountpoint</span>: <span class="str">/mnt/photos</span>
+    <span class="key">options</span>: <span class="str">ro,noatime</span></code></pre>
+
+  <h3>Mount commands</h3>
+  <pre><code><span class="cmd">stackr</span> mount    <span class="comment"># Mount all configured shares</span>
+<span class="cmd">stackr</span> umount   <span class="comment"># Unmount all configured shares</span></code></pre>
+
+  <div class="callout">
+    <div class="callout-title">Requirements by type</div>
+    <strong>smb</strong> — requires <code>cifs-utils</code> (<code>apt install cifs-utils</code>)<br>
+    <strong>nfs</strong> — uses system <code>mount</code><br>
+    <strong>rclone</strong> — requires <code>rclone</code> binary with a configured remote
+  </div>
+
+
+  <!-- ─────────────────────────────── CATALOG BROWSE ─────────────────────────────── -->
+  <h2 id="catalog-browse">Browse &amp; Search the Catalog</h2>
+
+  <h3>List all apps</h3>
+  <pre><code><span class="cmd">stackr</span> list</code></pre>
+
+  <h3>Filter by category</h3>
+  <pre><code><span class="cmd">stackr</span> list <span class="flag">--category</span> media</code></pre>
+
+  <h3>Search</h3>
+  <pre><code><span class="cmd">stackr</span> search jellyfin
+<span class="cmd">stackr</span> search torrent</code></pre>
+
+
+  <!-- ─────────────────────────────── CATALOG CATEGORIES ─────────────────────────────── -->
+  <h2 id="catalog-categories">App Categories</h2>
+  <div class="cat-list">
+    <span class="cat-pill">ai</span>
+    <span class="cat-pill">dashboard</span>
+    <span class="cat-pill">database</span>
+    <span class="cat-pill">gaming</span>
+    <span class="cat-pill">management</span>
+    <span class="cat-pill">media</span>
+    <span class="cat-pill">monitoring</span>
+    <span class="cat-pill">network</span>
+    <span class="cat-pill">productivity</span>
+    <span class="cat-pill">security</span>
+    <span class="cat-pill">storage</span>
+  </div>
+
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Category</th><th>Notable Apps</th></tr></thead>
+    <tbody>
+      <tr><td><strong>ai</strong></td><td>ollama, open-webui</td></tr>
+      <tr><td><strong>dashboard</strong></td><td>homepage</td></tr>
+      <tr><td><strong>database</strong></td><td>postgres, mariadb, mongo, redis</td></tr>
+      <tr><td><strong>gaming</strong></td><td>minecraft</td></tr>
+      <tr><td><strong>management</strong></td><td>portainer, dozzle, watchtower, heimdall, flame, dasherr</td></tr>
+      <tr><td><strong>media</strong></td><td>jellyfin, plex, sonarr, radarr, lidarr, readarr, bazarr, prowlarr, qbittorrent, transmission, sabnzbd, overseerr, jellyseerr, tdarr</td></tr>
+      <tr><td><strong>monitoring</strong></td><td>grafana, prometheus, loki, netdata, uptime-kuma</td></tr>
+      <tr><td><strong>network</strong></td><td>traefik, pihole, adguardhome, wireguard, gluetun, headscale, nginx-proxy-manager</td></tr>
+      <tr><td><strong>productivity</strong></td><td>nextcloud... wait — nextcloud is storage. freshrss, gitea, miniflux, paperless-ngx</td></tr>
+      <tr><td><strong>security</strong></td><td>authelia, authentik, vaultwarden, crowdsec, socket-proxy</td></tr>
+      <tr><td><strong>storage</strong></td><td>nextcloud, filebrowser, duplicati</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+
+  <!-- ─────────────────────────────── CATALOG UPDATE ─────────────────────────────── -->
+  <h2 id="catalog-update">Updating the Catalog</h2>
+  <p>
+    Stackr ships a built-in catalog. You can update it independently of the main tool
+    by downloading the latest release from GitHub.
+  </p>
+  <pre><code><span class="comment"># Update to latest release</span>
+<span class="cmd">stackr</span> catalog update
+
+<span class="comment"># Pin to a specific release tag</span>
+<span class="cmd">stackr</span> catalog update <span class="flag">--tag</span> v1.5.0
+
+<span class="comment"># Show current catalog version and app count</span>
+<span class="cmd">stackr</span> catalog version</code></pre>
+
+  <p>
+    The user catalog is installed at <code>~/.stackr/catalog/</code> and takes priority over
+    the built-in catalog. To revert to the built-in catalog, delete that directory.
+  </p>
+
+  <div class="callout warn">
+    <div class="callout-title">All-or-nothing overlay</div>
+    If <code>~/.stackr/catalog/</code> contains any apps, it completely replaces the
+    built-in catalog. You cannot partially overlay — your user catalog must contain
+    all apps you want to use.
+  </div>
+
+
+  <!-- ─────────────────────────────── TUI ─────────────────────────────── -->
+  <h2 id="tui">TUI App Browser</h2>
+  <p>
+    The interactive terminal UI lets you toggle apps on and off without editing YAML.
+  </p>
+  <pre><code><span class="cmd">stackr</span> ui</code></pre>
+  <p>Keyboard controls:</p>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Key</th><th>Action</th></tr></thead>
+    <tbody>
+      <tr><td><kbd>↑</kbd> / <kbd>↓</kbd></td><td>Navigate apps</td></tr>
+      <tr><td><kbd>Space</kbd></td><td>Toggle selected app on/off</td></tr>
+      <tr><td><kbd>Enter</kbd></td><td>Save changes and exit</td></tr>
+      <tr><td><kbd>q</kbd></td><td>Quit (saves changes)</td></tr>
+      <tr><td><kbd>/</kbd></td><td>Filter/search apps</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p>
+    Changes are written directly to your <code>stackr.yml</code>. After toggling,
+    run <code>stackr deploy</code> to apply.
+  </p>
+
+
+  <!-- ─────────────────────────────── VALIDATE & PLAN ─────────────────────────────── -->
+  <h2 id="validate">Validate &amp; Plan</h2>
+
+  <h3>Validate</h3>
+  <p>Check your config for errors before deploying:</p>
+  <pre><code><span class="cmd">stackr</span> validate</code></pre>
+  <p>Checks performed:</p>
+  <ul>
+    <li>Required secrets are present in the environment</li>
+    <li>Port conflicts between apps</li>
+    <li>Hard dependencies (<code>requires:</code>) are enabled</li>
+    <li>DNS provider env vars are set</li>
+    <li>Security stack consistency (auth provider, CrowdSec)</li>
+    <li>Volume paths exist (warns for <code>external: true</code> volumes)</li>
+  </ul>
+
+  <h3>Plan (dry run)</h3>
+  <p>See what <em>would</em> change without touching anything:</p>
+  <pre><code><span class="cmd">stackr</span> plan</code></pre>
+  <p>
+    Compares the rendered compose output against the stored state. Shows
+    <span class="badge badge-green">deploy</span> for apps that would be updated and
+    <span class="badge badge-gray">no-op</span> for unchanged ones.
+  </p>
+
+
+  <!-- ─────────────────────────────── DEPLOY ─────────────────────────────── -->
+  <h2 id="deploy">Deploy</h2>
+
+  <h3>Deploy all enabled apps</h3>
+  <pre><code><span class="cmd">stackr</span> deploy</code></pre>
+  <p>Stackr will:</p>
+  <ol>
+    <li>Run validation (abort if there are errors)</li>
+    <li>Pull the latest images for each app</li>
+    <li>Render the Jinja2 compose template</li>
+    <li>Run <code>docker compose up -d</code></li>
+    <li>Record the state and image digests</li>
+  </ol>
+
+  <h3>Deploy a single app</h3>
+  <pre><code><span class="cmd">stackr</span> deploy jellyfin</code></pre>
+
+  <h3>Skip image pull</h3>
+  <pre><code><span class="cmd">stackr</span> deploy <span class="flag">--skip-pull</span></code></pre>
+
+  <h3>Custom config file</h3>
+  <pre><code><span class="cmd">stackr</span> deploy <span class="flag">--config</span> /path/to/my-stack.yml</code></pre>
+
+
+  <!-- ─────────────────────────────── UPDATE ─────────────────────────────── -->
+  <h2 id="update">Update Images</h2>
+  <p>
+    Pull the latest images for all apps and redeploy only those with changes:
+  </p>
+  <pre><code><span class="cmd">stackr</span> update</code></pre>
+  <p>
+    Unlike <code>stackr deploy</code>, <code>stackr update</code> skips an app only when
+    <em>both</em> the compose content and all image digests are unchanged. This detects
+    upstream image updates (e.g. <code>:latest</code> pointing to a new build) even when
+    your config hasn't changed.
+  </p>
+  <div class="callout">
+    <div class="callout-title">Tip</div>
+    Schedule <code>stackr update</code> in a cron job or systemd timer to automatically
+    keep your stack up to date:
+    <pre style="margin: 8px 0 0;"><code>0 3 * * * cd /opt/stackr && stackr update &gt;&gt; /var/log/stackr-update.log 2&gt;&amp;1</code></pre>
+  </div>
+
+
+  <!-- ─────────────────────────────── STATUS ─────────────────────────────── -->
+  <h2 id="status">Status</h2>
+  <pre><code><span class="cmd">stackr</span> status            <span class="comment"># All apps</span>
+<span class="cmd">stackr</span> status jellyfin   <span class="comment"># Single app</span></code></pre>
+  <p>Shows a table with each app's state:</p>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>State</th><th>Meaning</th></tr></thead>
+    <tbody>
+      <tr><td><span class="badge badge-green">running</span></td><td>Container is up and healthy.</td></tr>
+      <tr><td><span class="badge badge-red">stopped</span></td><td>Container exists but is not running.</td></tr>
+      <tr><td><span class="badge badge-yellow">drifted</span></td><td>Running config differs from the last deployed state.</td></tr>
+      <tr><td><span class="badge badge-gray">unknown</span></td><td>App has never been deployed or state is missing.</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+
+  <!-- ─────────────────────────────── STOP RESTART ─────────────────────────────── -->
+  <h2 id="stop-restart">Stop &amp; Restart</h2>
+  <pre><code><span class="comment"># Stop a running app</span>
+<span class="cmd">stackr</span> stop jellyfin
+
+<span class="comment"># Restart without a full redeploy (just docker compose restart)</span>
+<span class="cmd">stackr</span> restart jellyfin</code></pre>
+
+  <div class="callout">
+    <div class="callout-title">Tip</div>
+    <code>stackr restart</code> is a fast restart (equivalent to <code>docker compose restart</code>)
+    and does not re-render templates or pull images. Use <code>stackr deploy appname</code>
+    for a full redeploy of a single app.
+  </div>
+
+
+  <!-- ─────────────────────────────── LOGS SHELL ─────────────────────────────── -->
+  <h2 id="logs-shell">Logs &amp; Shell</h2>
+
+  <h3>Tail logs</h3>
+  <pre><code><span class="comment"># Follow logs (default)</span>
+<span class="cmd">stackr</span> logs jellyfin
+
+<span class="comment"># Print without following</span>
+<span class="cmd">stackr</span> logs jellyfin <span class="flag">--no-follow</span></code></pre>
+
+  <h3>Open a shell inside a container</h3>
+  <pre><code><span class="comment"># Opens /bin/sh by default</span>
+<span class="cmd">stackr</span> shell jellyfin
+
+<span class="comment"># Use bash</span>
+<span class="cmd">stackr</span> shell jellyfin <span class="flag">--shell</span> bash
+
+<span class="comment"># Target a specific service in a multi-service app</span>
+<span class="cmd">stackr</span> shell nextcloud <span class="flag">--service</span> nextcloud-app</code></pre>
+
+
+  <!-- ─────────────────────────────── ROLLBACK ─────────────────────────────── -->
+  <h2 id="rollback">Rollback</h2>
+  <p>
+    If an update breaks an app, roll back to the last known-good compose configuration:
+  </p>
+  <pre><code><span class="cmd">stackr</span> rollback jellyfin</code></pre>
+  <p>
+    Stackr stores the full rendered compose YAML for each app in the state file.
+    Rollback re-deploys that saved compose without pulling new images.
+  </p>
+  <div class="callout warn">
+    <div class="callout-title">Note</div>
+    Rollback restores the <em>compose configuration</em>, not the container data.
+    Use <code>stackr restore</code> to restore data from a backup snapshot.
+  </div>
+
+
+  <!-- ─────────────────────────────── REMOVE ─────────────────────────────── -->
+  <h2 id="remove">Remove an App</h2>
+  <pre><code><span class="comment"># Prompts for confirmation</span>
+<span class="cmd">stackr</span> remove jellyfin
+
+<span class="comment"># Skip confirmation (for scripts)</span>
+<span class="cmd">stackr</span> remove jellyfin <span class="flag">--yes</span></code></pre>
+  <p>
+    This stops and removes the containers (<code>docker compose down</code>).
+    Named volumes are <strong>not</strong> deleted — your data is safe.
+    To also disable the app, set <code>enabled: false</code> in <code>stackr.yml</code>.
+  </p>
+
+
+  <!-- ─────────────────────────────── DOCTOR ─────────────────────────────── -->
+  <h2 id="doctor">Doctor — Pre-flight Health Checks</h2>
+  <pre><code><span class="cmd">stackr</span> doctor</code></pre>
+  <p>Runs a suite of pre-flight checks and reports pass/warn/fail for each:</p>
+  <ul>
+    <li>Docker daemon is reachable</li>
+    <li>Required Docker networks exist (<code>proxy</code>, etc.)</li>
+    <li>Required secrets are present in the environment</li>
+    <li>Catalog is loadable and consistent</li>
+    <li>DNS provider env vars are set</li>
+  </ul>
+  <p>
+    Doctor is also called automatically before deploy. If any check fails, you get a push
+    notification if <code>alerts</code> is configured.
+  </p>
+
+
+  <!-- ─────────────────────────────── WEB UI ─────────────────────────────── -->
+  <h2 id="web-ui">Web UI</h2>
+  <p>
+    Stackr includes a browser-based dashboard powered by FastAPI and HTMX.
+  </p>
+  <pre><code><span class="comment"># Start on localhost:8000 (default)</span>
+<span class="cmd">stackr</span> web
+
+<span class="comment"># Listen on all interfaces, custom port</span>
+<span class="cmd">stackr</span> web <span class="flag">--host</span> 0.0.0.0 <span class="flag">--port</span> 9000</code></pre>
+  <p>The web UI provides:</p>
+  <ul>
+    <li>Dashboard view of all apps with current status</li>
+    <li>Toggle apps on/off with a click</li>
+    <li>Trigger a deploy from the browser</li>
+    <li>Live log streaming (Server-Sent Events)</li>
+  </ul>
+
+
+  <!-- ─────────────────────────────── BACKUP ─────────────────────────────── -->
+  <h2 id="backup">Backup &amp; Restore</h2>
+  <p>
+    Stackr uses <a href="https://restic.net">restic</a> under the hood. You must have
+    <code>restic</code> installed and accessible on <code>PATH</code>.
+  </p>
+
+  <h3>Run a backup now</h3>
+  <pre><code><span class="cmd">stackr</span> backup</code></pre>
+  <p>
+    Backs up <code>data_dir</code>, the state directory (<code>~/.stackr/</code>),
+    and the config directory (where <code>stackr.yml</code> lives).
+    The restic repository password is auto-generated on first run and stored in
+    <code>.stackr.env</code> as <code>STACKR_RESTIC_PASSWORD</code>.
+  </p>
+
+  <h3>List snapshots</h3>
+  <pre><code><span class="cmd">stackr</span> snapshots</code></pre>
+
+  <h3>Restore from a snapshot</h3>
+  <pre><code><span class="comment"># Restore the latest snapshot to data_dir</span>
+<span class="cmd">stackr</span> restore latest
+
+<span class="comment"># Restore a specific snapshot by ID</span>
+<span class="cmd">stackr</span> restore a1b2c3d4
+
+<span class="comment"># Restore to a different directory</span>
+<span class="cmd">stackr</span> restore latest <span class="flag">--target</span> /tmp/restore</code></pre>
+
+  <h3>Remote backup destinations</h3>
+  <p>Set <code>backup.destination</code> to any restic-supported backend:</p>
+  <pre><code><span class="key">backup</span>:
+  <span class="key">enabled</span>: <span class="kw">true</span>
+  <span class="key">destination</span>: <span class="str">s3:s3.amazonaws.com/my-bucket/stackr</span></code></pre>
+
+
+  <!-- ─────────────────────────────── MIGRATE ─────────────────────────────── -->
+  <h2 id="migrate">Migrate from Deployrr</h2>
+  <p>
+    If you're coming from Deployrr, Stackr can generate a <code>stackr.yml</code>
+    from your existing Deployrr app list:
+  </p>
+  <pre><code><span class="comment"># Interactive — enter app names one per line</span>
+<span class="cmd">stackr</span> migrate
+
+<span class="comment"># From a file (one app name per line)</span>
+<span class="cmd">stackr</span> migrate <span class="flag">--input</span> deployrr-apps.txt
+
+<span class="comment"># Custom output path</span>
+<span class="cmd">stackr</span> migrate <span class="flag">--input</span> deployrr-apps.txt <span class="flag">--output</span> my-stack.yml</code></pre>
+  <p>
+    Stackr fuzzy-matches Deployrr app names against the catalog and reports any names
+    it couldn't map so you can add them manually.
+  </p>
+
+
+  <!-- ─────────────────────────────── CUSTOM APPS ─────────────────────────────── -->
+  <h2 id="custom-apps">Custom Local Apps</h2>
+  <p>
+    You can add apps not in the built-in catalog by pointing to a local directory
+    that contains <code>app.yml</code> and <code>compose.yml.j2</code>.
+  </p>
+  <pre><code><span class="key">apps</span>:
+  - <span class="key">name</span>: <span class="str">my-intranet</span>
+    <span class="key">enabled</span>: <span class="kw">true</span>
+    <span class="key">catalog_path</span>: <span class="str">./local-catalog/my-intranet</span></code></pre>
+
+  <h3>Minimal app.yml</h3>
+  <pre><code><span class="key">name</span>: <span class="str">my-intranet</span>
+<span class="key">display_name</span>: <span class="str">My Intranet</span>
+<span class="key">description</span>: <span class="str">Custom internal app</span>
+<span class="key">category</span>: <span class="str">management</span>
+<span class="key">version</span>: <span class="str">latest</span>
+<span class="key">exposure</span>: <span class="str">internal</span>
+<span class="key">ports</span>: [<span class="num">8080</span>]
+<span class="key">host_ports</span>: []
+<span class="key">volumes</span>:
+  - <span class="key">name</span>: <span class="str">config</span>
+    <span class="key">path</span>: <span class="str">/config</span></code></pre>
+
+  <h3>Minimal compose.yml.j2</h3>
+  <pre><code>services:
+  my-intranet:
+    image: myorg/my-intranet:{{ vars.version | default('latest') }}
+    container_name: my-intranet
+    restart: unless-stopped
+    volumes:
+      - {{ global.data_dir }}/my-intranet/config:/config
+    networks:
+      - proxy
+    labels:
+{% for k, v in traefik_labels(8080).items() %}
+      - "{{ k }}={{ v }}"
+{% endfor %}
+
+networks:
+  proxy:
+    external: true</code></pre>
+
+
+  <!-- ─────────────────────────────── OVERRIDES ─────────────────────────────── -->
+  <h2 id="overrides">Compose Overrides</h2>
+  <p>
+    Override any part of the rendered Docker Compose output without modifying the
+    catalog template. Overrides are deep-merged on top of the rendered compose YAML.
+  </p>
+  <pre><code><span class="key">apps</span>:
+  - <span class="key">name</span>: <span class="str">jellyfin</span>
+    <span class="key">enabled</span>: <span class="kw">true</span>
+    <span class="key">overrides</span>:
+      <span class="key">services</span>:
+        <span class="key">jellyfin</span>:
+          <span class="key">mem_limit</span>: <span class="str">4g</span>
+          <span class="key">devices</span>:
+            - <span class="str">/dev/dri:/dev/dri</span>  <span class="comment"># Pass through GPU for hardware transcoding</span></code></pre>
+
+
+  <!-- ─────────────────────────────── RENDER ─────────────────────────────── -->
+  <h2 id="render">Render Debug</h2>
+  <p>
+    Print the fully rendered Docker Compose YAML for any app without deploying it.
+    Useful for debugging template issues or verifying overrides:
+  </p>
+  <pre><code><span class="cmd">stackr</span> render jellyfin
+<span class="cmd">stackr</span> render traefik <span class="flag">--config</span> staging.yml</code></pre>
+
+
+  <!-- ─────────────────────────────── UPGRADE UNINSTALL ─────────────────────────────── -->
+  <h2 id="upgrade">Upgrade &amp; Uninstall</h2>
+
+  <h3>Upgrade to the latest version</h3>
+  <pre><code><span class="cmd">stackr</span> upgrade</code></pre>
+  <p>
+    Pulls the latest commit from the main GitHub branch and reinstalls the pipx package.
+    After upgrading, run <code>exec $SHELL</code> if the version number looks unchanged.
+  </p>
+
+  <h3>Uninstall</h3>
+  <pre><code><span class="comment"># Interactive — prompts before deleting ~/.stackr</span>
+<span class="cmd">stackr</span> uninstall
+
+<span class="comment"># Non-interactive — removes everything without prompts</span>
+<span class="cmd">stackr</span> uninstall <span class="flag">--yes</span></code></pre>
+  <p>
+    Removes the pipx package and optionally the <code>~/.stackr/</code> state directory.
+    <code>.stackr.env</code> files in your project directories are left in place — delete
+    them manually if you no longer need the secrets they contain.
+  </p>
+
+  <hr>
+
+  <!-- ─────────────────────────────── COMMAND REFERENCE ─────────────────────────────── -->
+  <h2 id="command-reference">All Commands</h2>
+  <div class="cmd-grid">
+    <div class="cmd-card">
+      <div class="cmd-name">stackr init</div>
+      <div class="cmd-desc">Interactive wizard — generates stackr.yml and .stackr.env.</div>
+    </div>
+    <div class="cmd-card">
+      <div class="cmd-name">stackr validate</div>
+      <div class="cmd-desc">Validate config without deploying.</div>
+    </div>
+    <div class="cmd-card">
+      <div class="cmd-name">stackr plan</div>
+      <div class="cmd-desc">Dry-run — show what would change vs. current state.</div>
+    </div>
+    <div class="cmd-card">
+      <div class="cmd-name">stackr deploy [app]</div>
+      <div class="cmd-desc">Deploy all enabled apps or a single app.</div>
+    </div>
+    <div class="cmd-card">
+      <div class="cmd-name">stackr update</div>
+      <div class="cmd-desc">Pull latest images, redeploy apps with changes.</div>
+    </div>
+    <div class="cmd-card">
+      <div class="cmd-name">stackr status [app]</div>
+      <div class="cmd-desc">Show running/stopped/drifted status.</div>
+    </div>
+    <div class="cmd-card">
+      <div class="cmd-name">stackr stop &lt;app&gt;</div>
+      <div class="cmd-desc">Stop an app.</div>
+    </div>
+    <div class="cmd-card">
+      <div class="cmd-name">stackr restart &lt;app&gt;</div>
+      <div class="cmd-desc">Restart without full redeploy.</div>
+    </div>
+    <div class="cmd-card">
+      <div class="cmd-name">stackr remove &lt;app&gt;</div>
+      <div class="cmd-desc">Remove containers (data is kept).</div>
+    </div>
+    <div class="cmd-card">
+      <div class="cmd-name">stackr rollback &lt;app&gt;</div>
+      <div class="cmd-desc">Redeploy last known-good compose.</div>
+    </div>
+    <div class="cmd-card">
+      <div class="cmd-name">stackr logs &lt;app&gt;</div>
+      <div class="cmd-desc">Tail logs for an app (<code>-f</code> to follow).</div>
+    </div>
+    <div class="cmd-card">
+      <div class="cmd-name">stackr shell &lt;app&gt;</div>
+      <div class="cmd-desc">Open an interactive shell inside a container.</div>
+    </div>
+    <div class="cmd-card">
+      <div class="cmd-name">stackr render &lt;app&gt;</div>
+      <div class="cmd-desc">Print rendered compose YAML for debugging.</div>
+    </div>
+    <div class="cmd-card">
+      <div class="cmd-name">stackr doctor</div>
+      <div class="cmd-desc">Pre-flight health checks for the environment.</div>
+    </div>
+    <div class="cmd-card">
+      <div class="cmd-name">stackr list</div>
+      <div class="cmd-desc">List catalog apps (<code>--category</code> to filter).</div>
+    </div>
+    <div class="cmd-card">
+      <div class="cmd-name">stackr search &lt;query&gt;</div>
+      <div class="cmd-desc">Search the app catalog.</div>
+    </div>
+    <div class="cmd-card">
+      <div class="cmd-name">stackr ui</div>
+      <div class="cmd-desc">Interactive TUI app browser.</div>
+    </div>
+    <div class="cmd-card">
+      <div class="cmd-name">stackr web</div>
+      <div class="cmd-desc">Launch the browser-based web UI.</div>
+    </div>
+    <div class="cmd-card">
+      <div class="cmd-name">stackr backup</div>
+      <div class="cmd-desc">Run a restic backup now.</div>
+    </div>
+    <div class="cmd-card">
+      <div class="cmd-name">stackr restore &lt;snapshot&gt;</div>
+      <div class="cmd-desc">Restore from a backup snapshot.</div>
+    </div>
+    <div class="cmd-card">
+      <div class="cmd-name">stackr snapshots</div>
+      <div class="cmd-desc">List available backup snapshots.</div>
+    </div>
+    <div class="cmd-card">
+      <div class="cmd-name">stackr mount / umount</div>
+      <div class="cmd-desc">Mount/unmount configured remote shares.</div>
+    </div>
+    <div class="cmd-card">
+      <div class="cmd-name">stackr migrate</div>
+      <div class="cmd-desc">Generate stackr.yml from a Deployrr app list.</div>
+    </div>
+    <div class="cmd-card">
+      <div class="cmd-name">stackr catalog update</div>
+      <div class="cmd-desc">Download the latest catalog from GitHub.</div>
+    </div>
+    <div class="cmd-card">
+      <div class="cmd-name">stackr catalog version</div>
+      <div class="cmd-desc">Show catalog path, version, and app count.</div>
+    </div>
+    <div class="cmd-card">
+      <div class="cmd-name">stackr upgrade</div>
+      <div class="cmd-desc">Upgrade stackr to the latest version.</div>
+    </div>
+    <div class="cmd-card">
+      <div class="cmd-name">stackr uninstall</div>
+      <div class="cmd-desc">Remove stackr and its state directory.</div>
+    </div>
+  </div>
+
+  <hr>
+
+  <!-- ─────────────────────────────── CONFIG REFERENCE ─────────────────────────────── -->
+  <h2 id="config-reference">Full Config Reference</h2>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Key</th><th>Default</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td colspan="3" style="background:var(--surface2);color:var(--muted);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;padding:8px 14px;">global</td></tr>
+      <tr><td><code>global.data_dir</code></td><td><code>/opt/appdata</code></td><td>Host path for container data volumes.</td></tr>
+      <tr><td><code>global.timezone</code></td><td><code>UTC</code></td><td>TZ database name (e.g. <code>America/New_York</code>).</td></tr>
+      <tr><td><code>global.puid</code></td><td><code>1000</code></td><td>UID for container processes.</td></tr>
+      <tr><td><code>global.pgid</code></td><td><code>1000</code></td><td>GID for container processes.</td></tr>
+
+      <tr><td colspan="3" style="background:var(--surface2);color:var(--muted);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;padding:8px 14px;">network</td></tr>
+      <tr><td><code>network.mode</code></td><td><code>external</code></td><td><code>external</code> | <code>internal</code> | <code>hybrid</code>.</td></tr>
+      <tr><td><code>network.domain</code></td><td><code>example.com</code></td><td>Public domain used by Traefik.</td></tr>
+      <tr><td><code>network.local_domain</code></td><td><code>home.example.com</code></td><td>Local domain (internal/hybrid mode).</td></tr>
+
+      <tr><td colspan="3" style="background:var(--surface2);color:var(--muted);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;padding:8px 14px;">traefik</td></tr>
+      <tr><td><code>traefik.enabled</code></td><td><code>true</code></td><td>Deploy the Traefik reverse proxy.</td></tr>
+      <tr><td><code>traefik.acme_email</code></td><td><code>""</code></td><td>Email for Let's Encrypt registration.</td></tr>
+      <tr><td><code>traefik.dns_provider</code></td><td><code>""</code></td><td>DNS provider name for DNS-01 challenge.</td></tr>
+      <tr><td><code>traefik.dns_provider_env</code></td><td><code>{}</code></td><td>Env var map for the DNS provider.</td></tr>
+
+      <tr><td colspan="3" style="background:var(--surface2);color:var(--muted);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;padding:8px 14px;">security</td></tr>
+      <tr><td><code>security.socket_proxy</code></td><td><code>true</code></td><td>Proxy Docker socket via socket-proxy.</td></tr>
+      <tr><td><code>security.crowdsec</code></td><td><code>false</code></td><td>Enable CrowdSec bouncer middleware.</td></tr>
+      <tr><td><code>security.auth_provider</code></td><td><code>none</code></td><td><code>none</code> | <code>google_oauth</code> | <code>authentik</code> | <code>authelia</code>.</td></tr>
+
+      <tr><td colspan="3" style="background:var(--surface2);color:var(--muted);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;padding:8px 14px;">backup</td></tr>
+      <tr><td><code>backup.enabled</code></td><td><code>false</code></td><td>Enable backup support.</td></tr>
+      <tr><td><code>backup.destination</code></td><td><code>/mnt/backup</code></td><td>Restic repository path or URL.</td></tr>
+      <tr><td><code>backup.schedule</code></td><td><code>0 2 * * *</code></td><td>Informational cron string.</td></tr>
+
+      <tr><td colspan="3" style="background:var(--surface2);color:var(--muted);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;padding:8px 14px;">alerts</td></tr>
+      <tr><td><code>alerts.enabled</code></td><td><code>false</code></td><td>Enable push notifications.</td></tr>
+      <tr><td><code>alerts.provider</code></td><td><code>ntfy</code></td><td><code>ntfy</code> | <code>gotify</code> | <code>webhook</code>.</td></tr>
+      <tr><td><code>alerts.url</code></td><td><code>""</code></td><td>Notification endpoint URL.</td></tr>
+      <tr><td><code>alerts.token</code></td><td><code>null</code></td><td>Optional Bearer token.</td></tr>
+
+      <tr><td colspan="3" style="background:var(--surface2);color:var(--muted);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;padding:8px 14px;">apps (per entry)</td></tr>
+      <tr><td><code>apps[].name</code></td><td>—</td><td>Catalog app name (required).</td></tr>
+      <tr><td><code>apps[].enabled</code></td><td><code>true</code></td><td>Deploy this app.</td></tr>
+      <tr><td><code>apps[].vars</code></td><td><code>{}</code></td><td>App-specific variable overrides.</td></tr>
+      <tr><td><code>apps[].overrides</code></td><td><code>{}</code></td><td>Raw compose YAML deep-merged on top of rendered output.</td></tr>
+      <tr><td><code>apps[].catalog_path</code></td><td><code>null</code></td><td>Local directory containing <code>app.yml</code> + <code>compose.yml.j2</code>.</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+</main>
+
+<script>
+  // Highlight active sidebar link based on scroll position
+  const sections = document.querySelectorAll('h2[id], h3[id]');
+  const navLinks = document.querySelectorAll('nav#sidebar a');
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        navLinks.forEach(link => {
+          link.classList.toggle('active', link.getAttribute('href') === '#' + entry.target.id);
+        });
+      }
+    });
+  }, { rootMargin: '-20% 0% -70% 0%' });
+
+  sections.forEach(s => observer.observe(s));
+</script>
+</body>
+</html>
