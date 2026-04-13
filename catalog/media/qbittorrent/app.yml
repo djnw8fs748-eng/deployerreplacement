@@ -24,8 +24,7 @@ vars:
     description: Route all traffic through Gluetun VPN (requires gluetun app enabled)
 ports:
   - 8080
-host_ports:
-  - 6881
+host_ports: []
 volumes:
   - name: config
     path: /config

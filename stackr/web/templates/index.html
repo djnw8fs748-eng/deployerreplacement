@@ -33,15 +33,44 @@
     #deploy-result.ok { background: #14532d; border: 1px solid #16a34a; }
     #deploy-result.fail { background: #450a0a; border: 1px solid #b91c1c; }
 
+    /* Settings panel */
     .settings-panel { background: #1e293b; border: 1px solid #334155; border-radius: 0.5rem; margin-bottom: 1.5rem; }
     .settings-panel summary { padding: 0.75rem 1rem; cursor: pointer; color: #94a3b8; font-size: 0.9rem; user-select: none; }
     .settings-panel summary:hover { color: #e2e8f0; }
-    .settings-form { padding: 1rem; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0.75rem; }
-    .settings-form label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.8rem; color: #94a3b8; }
-    .settings-form input, .settings-form select { background: #0f172a; border: 1px solid #334155; border-radius: 0.375rem; color: #e2e8f0; padding: 0.4rem 0.6rem; font-size: 0.875rem; }
-    .settings-form input:focus, .settings-form select:focus { outline: none; border-color: #38bdf8; }
+
+    /* Tabs */
+    .tab-bar { display: flex; gap: 0; border-bottom: 1px solid #334155; padding: 0 1rem; flex-wrap: wrap; }
+    .tab-btn { background: none; border: none; color: #94a3b8; padding: 0.6rem 1rem; cursor: pointer; font-size: 0.85rem; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: color 0.15s, border-color 0.15s; }
+    .tab-btn:hover { color: #e2e8f0; }
+    .tab-btn.active { color: #38bdf8; border-bottom-color: #38bdf8; }
+    .tab-pane { display: none; padding: 1rem; }
+    .tab-pane.active { display: block; }
+
+    .field-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0.75rem; }
+    .field-grid.wide { grid-template-columns: 1fr; }
+    .form-label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.8rem; color: #94a3b8; }
+    .form-label input, .form-label select, .form-label textarea {
+      background: #0f172a; border: 1px solid #334155; border-radius: 0.375rem;
+      color: #e2e8f0; padding: 0.4rem 0.6rem; font-size: 0.875rem;
+    }
+    .form-label input:focus, .form-label select:focus, .form-label textarea:focus {
+      outline: none; border-color: #38bdf8;
+    }
+    .form-label textarea { resize: vertical; min-height: 80px; font-family: monospace; }
+    .checkbox-label { display: flex; align-items: center; gap: 0.5rem; font-size: 0.875rem; color: #e2e8f0; cursor: pointer; }
+    .checkbox-label input[type=checkbox] { width: 1rem; height: 1rem; cursor: pointer; accent-color: #38bdf8; }
     .settings-actions { padding: 0 1rem 1rem; display: flex; align-items: center; gap: 1rem; }
     #settings-status { font-size: 0.85rem; }
+
+    /* Mounts section */
+    .mounts-section { padding: 1rem; border-top: 1px solid #334155; }
+    .mounts-section h3 { font-size: 0.9rem; color: #94a3b8; margin-bottom: 0.75rem; }
+    .add-mount-form { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 0.5rem; margin-top: 0.75rem; }
+    .add-mount-form input, .add-mount-form select {
+      background: #0f172a; border: 1px solid #334155; border-radius: 0.375rem;
+      color: #e2e8f0; padding: 0.35rem 0.5rem; font-size: 0.82rem;
+    }
+    .add-mount-form input::placeholder { color: #475569; }
 
     footer { text-align: center; color: #475569; font-size: 0.8rem; padding: 2rem; }
   </style>
@@ -53,52 +82,187 @@
   </header>
 
   <main>
+    <!-- ==================== Settings panel ==================== -->
     <details class="settings-panel" id="settings-panel">
       <summary>⚙ Configuration settings</summary>
+
+      <div class="tab-bar">
+        <button class="tab-btn active" onclick="switchTab('global', this)">Global</button>
+        <button class="tab-btn" onclick="switchTab('network', this)">Network</button>
+        <button class="tab-btn" onclick="switchTab('traefik', this)">Traefik</button>
+        <button class="tab-btn" onclick="switchTab('security', this)">Security</button>
+        <button class="tab-btn" onclick="switchTab('backup', this)">Backup</button>
+        <button class="tab-btn" onclick="switchTab('alerts', this)">Alerts</button>
+        <button class="tab-btn" onclick="switchTab('mounts', this)">Mounts</button>
+      </div>
+
       <form id="settings-form"
             hx-post="/api/settings"
             hx-target="#settings-status"
             hx-swap="innerHTML">
-        <div class="settings-form">
-          <label>Data directory
-            <input name="data_dir" value="{{ settings.data_dir }}" />
-          </label>
-          <label>Timezone
-            <input name="timezone" value="{{ settings.timezone }}" />
-          </label>
-          <label>PUID
-            <input name="puid" type="number" value="{{ settings.puid }}" />
-          </label>
-          <label>PGID
-            <input name="pgid" type="number" value="{{ settings.pgid }}" />
-          </label>
-          <label>Public domain
-            <input name="domain" value="{{ settings.domain }}" />
-          </label>
-          <label>Local domain
-            <input name="local_domain" value="{{ settings.local_domain }}" />
-          </label>
-          <label>Network mode
-            <select name="network_mode">
-              <option value="external" {% if settings.network_mode == 'external' %}selected{% endif %}>external</option>
-              <option value="internal" {% if settings.network_mode == 'internal' %}selected{% endif %}>internal</option>
-              <option value="hybrid" {% if settings.network_mode == 'hybrid' %}selected{% endif %}>hybrid</option>
-            </select>
-          </label>
-          <label>ACME email
-            <input name="acme_email" type="email" value="{{ settings.acme_email }}" />
-          </label>
-          <label>DNS provider
-            <input name="dns_provider" value="{{ settings.dns_provider }}" placeholder="cloudflare" />
-          </label>
+
+        <!-- Global tab -->
+        <div class="tab-pane active" id="tab-global">
+          <div class="field-grid">
+            <label class="form-label">Data directory
+              <input name="data_dir" value="{{ settings.data_dir }}" />
+            </label>
+            <label class="form-label">Timezone
+              <input name="timezone" value="{{ settings.timezone }}" />
+            </label>
+            <label class="form-label">PUID
+              <input name="puid" type="number" value="{{ settings.puid }}" />
+            </label>
+            <label class="form-label">PGID
+              <input name="pgid" type="number" value="{{ settings.pgid }}" />
+            </label>
+          </div>
         </div>
+
+        <!-- Network tab -->
+        <div class="tab-pane" id="tab-network">
+          <div class="field-grid">
+            <label class="form-label">Public domain
+              <input name="domain" value="{{ settings.domain }}" />
+            </label>
+            <label class="form-label">Local domain
+              <input name="local_domain" value="{{ settings.local_domain }}" />
+            </label>
+            <label class="form-label">Network mode
+              <select name="network_mode">
+                <option value="external" {% if settings.network_mode == 'external' %}selected{% endif %}>external</option>
+                <option value="internal" {% if settings.network_mode == 'internal' %}selected{% endif %}>internal</option>
+                <option value="hybrid" {% if settings.network_mode == 'hybrid' %}selected{% endif %}>hybrid</option>
+              </select>
+            </label>
+          </div>
+        </div>
+
+        <!-- Traefik tab -->
+        <div class="tab-pane" id="tab-traefik">
+          <div style="padding:0.5rem 0 0.75rem;">
+            <label class="checkbox-label">
+              <input type="checkbox" name="traefik_enabled" value="true" {% if settings.traefik_enabled %}checked{% endif %}
+                     onchange="document.getElementById('traefik-fields').style.opacity=this.checked?'1':'0.4'" />
+              Enable Traefik reverse proxy
+            </label>
+          </div>
+          <div id="traefik-fields" style="opacity:{% if settings.traefik_enabled %}1{% else %}0.4{% endif %};">
+            <div class="field-grid">
+              <label class="form-label">ACME email
+                <input name="acme_email" type="email" value="{{ settings.acme_email }}" />
+              </label>
+              <label class="form-label">DNS provider
+                <input name="dns_provider" value="{{ settings.dns_provider }}" placeholder="cloudflare" />
+              </label>
+            </div>
+            <div style="margin-top:0.75rem;">
+              <label class="form-label">DNS provider env vars (KEY=VALUE, one per line)
+                <textarea name="dns_provider_env" rows="4" placeholder="CF_DNS_API_TOKEN=your-token">{{ settings.dns_provider_env }}</textarea>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Security tab -->
+        <div class="tab-pane" id="tab-security">
+          <div style="display:flex;flex-direction:column;gap:0.75rem;padding:0.25rem 0;">
+            <label class="checkbox-label">
+              <input type="checkbox" name="socket_proxy" value="true" {% if settings.socket_proxy %}checked{% endif %} />
+              Enable Docker socket proxy (recommended with Traefik)
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" name="crowdsec" value="true" {% if settings.crowdsec %}checked{% endif %} />
+              Enable CrowdSec intrusion detection
+            </label>
+            <label class="form-label" style="max-width:320px;">Auth provider
+              <input name="auth_provider" value="{{ settings.auth_provider }}" placeholder="none" />
+              <span style="color:#475569;font-size:0.75rem;">none | google_oauth | authentik | authelia | &lt;app-name&gt;</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Backup tab -->
+        <div class="tab-pane" id="tab-backup">
+          <div style="padding:0.25rem 0 0.75rem;">
+            <label class="checkbox-label">
+              <input type="checkbox" name="backup_enabled" value="true" {% if settings.backup_enabled %}checked{% endif %} />
+              Enable Restic backups
+            </label>
+          </div>
+          <div class="field-grid">
+            <label class="form-label">Backup destination
+              <input name="backup_destination" value="{{ settings.backup_destination }}" placeholder="/mnt/backup" />
+            </label>
+            <label class="form-label">Schedule (cron)
+              <input name="backup_schedule" value="{{ settings.backup_schedule }}" placeholder="0 2 * * *" />
+            </label>
+          </div>
+        </div>
+
+        <!-- Alerts tab -->
+        <div class="tab-pane" id="tab-alerts">
+          <div style="padding:0.25rem 0 0.75rem;">
+            <label class="checkbox-label">
+              <input type="checkbox" name="alerts_enabled" value="true" {% if settings.alerts_enabled %}checked{% endif %} />
+              Enable failure alerts
+            </label>
+          </div>
+          <div class="field-grid">
+            <label class="form-label">Provider
+              <select name="alerts_provider">
+                <option value="ntfy" {% if settings.alerts_provider == 'ntfy' %}selected{% endif %}>ntfy</option>
+                <option value="gotify" {% if settings.alerts_provider == 'gotify' %}selected{% endif %}>Gotify</option>
+                <option value="webhook" {% if settings.alerts_provider == 'webhook' %}selected{% endif %}>Webhook</option>
+              </select>
+            </label>
+            <label class="form-label">URL
+              <input name="alerts_url" value="{{ settings.alerts_url }}" placeholder="https://ntfy.sh/my-topic" />
+            </label>
+            <label class="form-label">Token (optional)
+              <input name="alerts_token" value="{{ settings.alerts_token }}" placeholder="Bearer token" />
+            </label>
+          </div>
+        </div>
+
         <div class="settings-actions">
           <button class="btn" type="submit">Save settings</button>
           <span id="settings-status"></span>
         </div>
       </form>
+
+      <!-- Mounts tab (outside the main settings form — has its own HTMX forms) -->
+      <div class="tab-pane" id="tab-mounts">
+        <div class="mounts-section" style="border-top:none;padding-top:0;">
+          <h3>Configured mounts</h3>
+          <div id="mounts-table">
+            {% include "partials/mounts_table.html" %}
+          </div>
+
+          <h3 style="margin-top:1.25rem;">Add mount</h3>
+          <form hx-post="/api/mounts"
+                hx-target="#mounts-table"
+                hx-swap="innerHTML"
+                hx-on::after-request="this.reset()"
+                class="add-mount-form">
+            <input name="mount_name" placeholder="Name (e.g. media-share)" required />
+            <select name="mount_type">
+              <option value="smb">SMB / CIFS</option>
+              <option value="nfs">NFS</option>
+              <option value="rclone">Rclone</option>
+            </select>
+            <input name="mount_remote" placeholder="Remote (//server/share)" required />
+            <input name="mount_mountpoint" placeholder="Mountpoint (/mnt/media)" required />
+            <input name="mount_options" placeholder="Options (optional)" />
+            <input name="mount_username" placeholder="Username (optional)" />
+            <button type="submit" class="btn" style="padding:0.35rem 0.9rem;font-size:0.82rem;">Add</button>
+          </form>
+        </div>
+      </div>
+
     </details>
 
+    <!-- ==================== Deploy toolbar ==================== -->
     <div class="toolbar">
       <input type="text" placeholder="Filter apps…" oninput="filterApps(this.value)" />
       <button class="btn"
@@ -114,6 +278,7 @@
 
     <div id="deploy-result"></div>
 
+    <!-- ==================== App grid ==================== -->
     <div class="app-grid" id="app-grid">
       {% for app in apps %}
         {% include "partials/app_card.html" %}
@@ -124,6 +289,16 @@
   <footer>Stackr — declarative homelab deployment</footer>
 
   <script>
+    // --------------- Tab switching ---------------
+    function switchTab(name, btn) {
+      document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      const pane = document.getElementById('tab-' + name);
+      if (pane) pane.classList.add('active');
+      if (btn) btn.classList.add('active');
+    }
+
+    // --------------- App filter ---------------
     function filterApps(query) {
       const q = query.toLowerCase();
       document.querySelectorAll('.app-card').forEach(card => {
@@ -132,10 +307,10 @@
       });
     }
 
+    // --------------- Deploy result styling ---------------
     function showDeployResult(event) {
       const el = document.getElementById('deploy-result');
       el.style.display = 'block';
-      // HTMX will fill innerHTML; style it once the response arrives
       document.body.addEventListener('htmx:afterSwap', function handler(e) {
         if (e.detail.target.id === 'deploy-result') {
           const ok = el.textContent.includes('"ok": true');
@@ -143,6 +318,13 @@
           document.body.removeEventListener('htmx:afterSwap', handler);
         }
       });
+    }
+
+    // --------------- App vars panel ---------------
+    function toggleVars(appName) {
+      const panel = document.getElementById('vars-panel-' + appName);
+      if (!panel) return;
+      panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
     }
   </script>
 </body>

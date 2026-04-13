@@ -34,5 +34,22 @@
        style="padding:0.4rem 0.6rem;background:#1e3a5f;color:#38bdf8;border-radius:0.4rem;font-size:0.85rem;text-decoration:none;">
       Logs
     </a>
+    {% if app.has_vars %}
+    <button onclick="toggleVars('{{ app.name }}')"
+            style="padding:0.4rem 0.6rem;background:#312e81;color:#a5b4fc;border:none;border-radius:0.4rem;font-size:0.85rem;cursor:pointer;"
+            title="Configure vars">
+      ⚙
+    </button>
+    {% endif %}
   </div>
+
+  {% if app.has_vars %}
+  <div id="vars-panel-{{ app.name }}" style="display:none;margin-top:0.5rem;padding-top:0.5rem;border-top:1px solid #334155;">
+    <div hx-get="/api/app/{{ app.name }}/vars-form"
+         hx-trigger="revealed"
+         hx-swap="innerHTML">
+      <p style="color:#64748b;font-size:0.82rem;">Loading…</p>
+    </div>
+  </div>
+  {% endif %}
 </div>

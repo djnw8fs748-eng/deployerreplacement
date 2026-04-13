@@ -1,0 +1,34 @@
+{% if mounts %}
+<table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
+  <thead>
+    <tr style="color:#94a3b8;text-align:left;border-bottom:1px solid #334155;">
+      <th style="padding:0.4rem 0.5rem;">Name</th>
+      <th style="padding:0.4rem 0.5rem;">Type</th>
+      <th style="padding:0.4rem 0.5rem;">Remote</th>
+      <th style="padding:0.4rem 0.5rem;">Mountpoint</th>
+      <th style="padding:0.4rem 0.5rem;"></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for m in mounts %}
+    <tr style="border-bottom:1px solid #1e293b;">
+      <td style="padding:0.4rem 0.5rem;color:#f1f5f9;">{{ m.name }}</td>
+      <td style="padding:0.4rem 0.5rem;color:#94a3b8;">{{ m.type }}</td>
+      <td style="padding:0.4rem 0.5rem;color:#94a3b8;">{{ m.remote }}</td>
+      <td style="padding:0.4rem 0.5rem;color:#94a3b8;">{{ m.mountpoint }}</td>
+      <td style="padding:0.4rem 0.5rem;">
+        <button hx-delete="/api/mounts/{{ m.name }}"
+                hx-target="#mounts-table"
+                hx-swap="innerHTML"
+                hx-confirm="Delete mount '{{ m.name }}'?"
+                style="background:#ef4444;color:#fff;border:none;border-radius:0.3rem;padding:0.2rem 0.6rem;cursor:pointer;font-size:0.8rem;">
+          Delete
+        </button>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p style="color:#475569;font-size:0.85rem;margin:0;">No mounts configured.</p>
+{% endif %}
