@@ -48,6 +48,20 @@ def load_enabled(config_path: Path) -> set[str]:
         return set()
 
 
+def load_settings(config_path: Path) -> dict[str, Any]:
+    """Return a dict with 'global', 'network', 'traefik' sections from config_path."""
+    if not config_path.exists():
+        return {}
+    try:
+        with open(config_path) as f:
+            raw: dict[str, Any] = yaml.safe_load(f) or {}
+        return {
+            k: dict(raw[k]) for k in ("global", "network", "traefik") if k in raw
+        }
+    except Exception:  # noqa: BLE001
+        return {}
+
+
 def load_mounts(config_path: Path) -> list[dict[str, Any]]:
     """Return the list of mount dicts from an existing stackr.yml, or empty list."""
     if not config_path.exists():
@@ -93,6 +107,119 @@ def build_stub_config(config_path: Path) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 if HAS_TEXTUAL:
+
+    class SettingsEditorScreen(ModalScreen):  # type: ignore[misc]
+        """Modal dialog for editing global/network/traefik settings."""
+
+        CSS = """
+        SettingsEditorScreen {
+            align: center middle;
+        }
+        #settings-dialog {
+            width: 64;
+            background: $surface;
+            border: solid $primary;
+            padding: 1 2;
+        }
+        #settings-buttons {
+            margin-top: 1;
+            align: right middle;
+        }
+        #settings-buttons Button {
+            margin-left: 1;
+        }
+        """
+
+        def __init__(self, settings: dict[str, Any]) -> None:
+            super().__init__()
+            self._settings = settings
+
+        def compose(self) -> ComposeResult:
+            g = self._settings.get("global") or {}
+            n = self._settings.get("network") or {}
+            t = self._settings.get("traefik") or {}
+            with Vertical(id="settings-dialog"):
+                yield Label("[bold]Global[/bold]")
+                yield Input(
+                    placeholder="Data directory",
+                    value=str(g.get("data_dir", "/opt/appdata")),
+                    id="inp-data-dir",
+                )
+                yield Input(
+                    placeholder="Timezone (e.g. UTC)",
+                    value=str(g.get("timezone", "UTC")),
+                    id="inp-timezone",
+                )
+                yield Input(
+                    placeholder="PUID",
+                    value=str(g.get("puid", 1000)),
+                    id="inp-puid",
+                )
+                yield Input(
+                    placeholder="PGID",
+                    value=str(g.get("pgid", 1000)),
+                    id="inp-pgid",
+                )
+                yield Label("[bold]Network[/bold]")
+                yield Input(
+                    placeholder="Public domain",
+                    value=str(n.get("domain", "")),
+                    id="inp-domain",
+                )
+                yield Input(
+                    placeholder="Local domain",
+                    value=str(n.get("local_domain", "")),
+                    id="inp-local-domain",
+                )
+                yield Input(
+                    placeholder="Mode: external | internal | hybrid",
+                    value=str(n.get("mode", "external")),
+                    id="inp-mode",
+                )
+                yield Label("[bold]Traefik[/bold]")
+                yield Input(
+                    placeholder="ACME email",
+                    value=str(t.get("acme_email", "")),
+                    id="inp-acme-email",
+                )
+                yield Input(
+                    placeholder="DNS provider (e.g. cloudflare)",
+                    value=str(t.get("dns_provider", "")),
+                    id="inp-dns-provider",
+                )
+                with Horizontal(id="settings-buttons"):
+                    yield Button("Save", variant="primary", id="btn-save")
+                    yield Button("Cancel", variant="default", id="btn-cancel")
+
+        def on_button_pressed(self, event: Button.Pressed) -> None:
+            if event.button.id == "btn-cancel":
+                self.dismiss(None)
+                return
+            # Save — collect all field values
+            g = dict(self._settings.get("global") or {})
+            n = dict(self._settings.get("network") or {})
+            t = dict(self._settings.get("traefik") or {})
+
+            g["data_dir"] = self.query_one("#inp-data-dir", Input).value
+            g["timezone"] = self.query_one("#inp-timezone", Input).value
+            try:
+                g["puid"] = int(self.query_one("#inp-puid", Input).value)
+            except ValueError:
+                g["puid"] = 1000
+            try:
+                g["pgid"] = int(self.query_one("#inp-pgid", Input).value)
+            except ValueError:
+                g["pgid"] = 1000
+
+            n["domain"] = self.query_one("#inp-domain", Input).value
+            n["local_domain"] = self.query_one("#inp-local-domain", Input).value
+            n["mode"] = self.query_one("#inp-mode", Input).value
+
+            # Preserve existing traefik fields not in the form
+            t["acme_email"] = self.query_one("#inp-acme-email", Input).value
+            t["dns_provider"] = self.query_one("#inp-dns-provider", Input).value
+
+            self.dismiss({"global": g, "network": n, "traefik": t})
 
     class MountEditorScreen(ModalScreen):  # type: ignore[misc]
         """Modal dialog for adding or editing a mount entry."""
@@ -210,7 +337,7 @@ if HAS_TEXTUAL:
             Binding("space", "toggle_app", "Toggle on/off", show=True, priority=True),
             Binding("enter", "toggle_app", "Toggle on/off", show=False, priority=True),
             Binding("a", "add_mount", "Add mount", show=True),
-            Binding("e", "edit_mount", "Edit mount", show=True),
+            Binding("e", "edit", "Edit", show=True),
             Binding("d", "delete_mount", "Del mount", show=True),
             Binding("s", "save_config", "Save config", show=True),
             Binding("q", "quit", "Quit", show=True),
@@ -230,6 +357,8 @@ if HAS_TEXTUAL:
             else:
                 self._catalog = catalog
             self._enabled: set[str] = load_enabled(config_path)
+            self._settings: dict[str, Any] = load_settings(config_path)
+            self._settings_node: Any = None
             self._mounts: list[dict[str, Any]] = load_mounts(config_path)
             self._mounts_node: Any = None  # set in on_mount
 
@@ -244,9 +373,9 @@ if HAS_TEXTUAL:
                     yield Tree("Catalog", id="catalog-tree")
                 with ScrollableContainer(id="detail-pane"):
                     yield Static(
-                        "Highlight an app or mount to see details.\n\n"
-                        "[dim]Space[/dim] toggle app  •  [dim]A[/dim] add mount  •  "
-                        "[dim]E[/dim] edit mount  •  [dim]D[/dim] delete mount\n"
+                        "Highlight an app, mount, or [bold]Settings[/bold] to see details.\n\n"
+                        "[dim]Space[/dim] toggle  •  [dim]A[/dim] add mount  •  "
+                        "[dim]E[/dim] edit  •  [dim]D[/dim] del mount\n"
                         "[dim]S[/dim] save  •  [dim]Q[/dim] quit",
                         id="detail-content",
                     )
@@ -256,7 +385,12 @@ if HAS_TEXTUAL:
             tree: Tree[Any] = self.query_one("#catalog-tree", Tree)
             tree.root.expand()
 
-            # Mounts section (top of tree)
+            # Settings node (top of tree)
+            self._settings_node = tree.root.add_leaf(
+                "⚙  Settings", data={"_type": "settings"}
+            )
+
+            # Mounts section
             self._mounts_node = tree.root.add("[bold]mounts[/bold]", expand=True)
             self._refresh_mount_nodes()
 
@@ -282,7 +416,11 @@ if HAS_TEXTUAL:
             if node.data is None:
                 return  # section header node
             if isinstance(node.data, dict):
-                if node.data.get("_type") == "mount":
+                if node.data.get("_type") == "settings":
+                    self.query_one("#detail-content", Static).update(
+                        self._settings_detail_markup()
+                    )
+                elif node.data.get("_type") == "mount":
                     self.query_one("#detail-content", Static).update(
                         self._mount_detail_markup(node.data)
                     )
@@ -317,6 +455,56 @@ if HAS_TEXTUAL:
                 self.query_one("#detail-content", Static).update(self._detail_markup(ca))
 
         # ------------------------------------------------------------------
+        # Actions — edit (context-sensitive: settings or mount)
+        # ------------------------------------------------------------------
+
+        def action_edit(self) -> None:
+            """Edit the currently highlighted settings node or mount node."""
+            tree: Tree[Any] = self.query_one("#catalog-tree", Tree)
+            node = tree.cursor_node
+            if node is None or not isinstance(node.data, dict):
+                self.notify(
+                    "Select the Settings entry or a mount to edit", severity="warning"
+                )
+                return
+            if node.data.get("_type") == "settings":
+                self._do_edit_settings()
+            elif node.data.get("_type") == "mount":
+                self._do_edit_mount(node.data)
+            else:
+                self.notify(
+                    "Select the Settings entry or a mount to edit", severity="warning"
+                )
+
+        def _do_edit_settings(self) -> None:
+            def _on_result(result: dict[str, Any] | None) -> None:
+                if result is None:
+                    return
+                self._settings = result
+                self.query_one("#detail-content", Static).update(
+                    self._settings_detail_markup()
+                )
+                self.notify("Settings updated — press S to save", title="Settings updated")
+
+            self.push_screen(SettingsEditorScreen(self._settings), _on_result)
+
+        def _do_edit_mount(self, data: dict[str, Any]) -> None:
+            idx: int = data["_idx"]
+            existing = {k: v for k, v in data.items() if not k.startswith("_")}
+
+            def _on_result(result: dict[str, Any] | None) -> None:
+                if result is None:
+                    return
+                self._mounts[idx] = result
+                self._refresh_mount_nodes()
+                self.notify(
+                    f"Mount '{result['name']}' updated — press S to save",
+                    title="Mount updated",
+                )
+
+            self.push_screen(MountEditorScreen(mount=existing), _on_result)
+
+        # ------------------------------------------------------------------
         # Actions — mounts
         # ------------------------------------------------------------------
 
@@ -332,31 +520,6 @@ if HAS_TEXTUAL:
                 )
 
             self.push_screen(MountEditorScreen(), _on_result)
-
-        def action_edit_mount(self) -> None:
-            tree: Tree[Any] = self.query_one("#catalog-tree", Tree)
-            node = tree.cursor_node
-            if (
-                node is None
-                or not isinstance(node.data, dict)
-                or node.data.get("_type") != "mount"
-            ):
-                self.notify("Select a mount entry to edit", severity="warning")
-                return
-            idx: int = node.data["_idx"]
-            existing = {k: v for k, v in node.data.items() if not k.startswith("_")}
-
-            def _on_result(result: dict[str, Any] | None) -> None:
-                if result is None:
-                    return
-                self._mounts[idx] = result
-                self._refresh_mount_nodes()
-                self.notify(
-                    f"Mount '{result['name']}' updated — press S to save",
-                    title="Mount updated",
-                )
-
-            self.push_screen(MountEditorScreen(mount=existing), _on_result)
 
         def action_delete_mount(self) -> None:
             tree: Tree[Any] = self.query_one("#catalog-tree", Tree)
@@ -378,7 +541,7 @@ if HAS_TEXTUAL:
             self.notify(f"Mount '{name}' deleted — press S to save", title="Mount deleted")
 
         def action_save_config(self) -> None:
-            """Write current toggle state and mounts back to stackr.yml."""
+            """Write current toggle state, settings, and mounts back to stackr.yml."""
             raw = build_stub_config(self._config_path)
             existing: dict[str, dict[str, Any]] = {
                 a["name"]: a
@@ -398,6 +561,9 @@ if HAS_TEXTUAL:
                 if name not in catalog_names:
                     apps_out.append(dict(entry))
             raw["apps"] = apps_out
+            for section in ("global", "network", "traefik"):
+                if section in self._settings:
+                    raw[section] = self._settings[section]
             raw["mounts"] = self._mounts
             with open(self._config_path, "w") as f:
                 yaml.dump(raw, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
@@ -423,6 +589,32 @@ if HAS_TEXTUAL:
                     "[dim]No mounts — press A to add one[/dim]",
                     data={"_type": "mount-empty"},
                 )
+
+        def _settings_detail_markup(self) -> str:
+            g = self._settings.get("global") or {}
+            n = self._settings.get("network") or {}
+            t = self._settings.get("traefik") or {}
+            lines = [
+                "[bold]Settings[/bold]",
+                "",
+                "[dim]── Global ──[/dim]",
+                f"  data_dir   {g.get('data_dir', '/opt/appdata')}",
+                f"  timezone   {g.get('timezone', 'UTC')}",
+                f"  puid/pgid  {g.get('puid', 1000)} / {g.get('pgid', 1000)}",
+                "",
+                "[dim]── Network ──[/dim]",
+                f"  domain       {n.get('domain', '')}",
+                f"  local_domain {n.get('local_domain', '')}",
+                f"  mode         {n.get('mode', 'external')}",
+                "",
+                "[dim]── Traefik ──[/dim]",
+                f"  acme_email   {t.get('acme_email', '')}",
+                f"  dns_provider {t.get('dns_provider', '')}",
+                "",
+                "[dim]──────────────────────────[/dim]",
+                "[dim]E[/dim] edit  •  [dim]S[/dim] save  •  [dim]Q[/dim] quit",
+            ]
+            return "\n".join(lines)
 
         def _mount_detail_markup(self, data: dict[str, Any]) -> str:
             name = data.get("name", "?")

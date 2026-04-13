@@ -9,6 +9,8 @@ POST /api/toggle/{name}   Toggle app enabled state; returns HTMX partial
 POST /api/deploy          Trigger full deploy; returns JSON result
 POST /api/deploy/{name}   Deploy a single app; returns JSON result
 GET  /api/logs/{name}     Server-Sent Events stream of live container logs
+GET  /api/settings        JSON of current global/network/traefik settings
+POST /api/settings        Update global/network/traefik settings
 """
 
 from __future__ import annotations
@@ -105,7 +107,20 @@ def make_router(config_path: Path) -> fastapi.APIRouter:
                         ),
                     }
                 )
-        return _render("index.html", apps=app_rows, config_path=str(config_path))
+        with open(config_path) as _f:
+            _raw = yaml.safe_load(_f) or {}
+        settings = {
+            "data_dir": str((_raw.get("global") or {}).get("data_dir", "/opt/appdata")),
+            "timezone": str((_raw.get("global") or {}).get("timezone", "UTC")),
+            "puid": int((_raw.get("global") or {}).get("puid", 1000)),
+            "pgid": int((_raw.get("global") or {}).get("pgid", 1000)),
+            "domain": str((_raw.get("network") or {}).get("domain", "")),
+            "local_domain": str((_raw.get("network") or {}).get("local_domain", "")),
+            "network_mode": str((_raw.get("network") or {}).get("mode", "external")),
+            "acme_email": str((_raw.get("traefik") or {}).get("acme_email", "")),
+            "dns_provider": str((_raw.get("traefik") or {}).get("dns_provider", "")),
+        }
+        return _render("index.html", apps=app_rows, config_path=str(config_path), settings=settings)
 
     # ------------------------------------------------------------------
     # JSON API
@@ -215,12 +230,98 @@ def make_router(config_path: Path) -> fastapi.APIRouter:
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
 
+    # ------------------------------------------------------------------
+    # Settings
+    # ------------------------------------------------------------------
+
+    @router.get("/api/settings")
+    def get_settings() -> JSONResponse:
+        with open(config_path) as f:
+            raw: dict[str, Any] = yaml.safe_load(f) or {}
+        g = raw.get("global") or {}
+        n = raw.get("network") or {}
+        t = raw.get("traefik") or {}
+        return JSONResponse({
+            "data_dir": str(g.get("data_dir", "/opt/appdata")),
+            "timezone": str(g.get("timezone", "UTC")),
+            "puid": int(g.get("puid", 1000)),
+            "pgid": int(g.get("pgid", 1000)),
+            "domain": str(n.get("domain", "")),
+            "local_domain": str(n.get("local_domain", "")),
+            "network_mode": str(n.get("mode", "external")),
+            "acme_email": str(t.get("acme_email", "")),
+            "dns_provider": str(t.get("dns_provider", "")),
+        })
+
+    @router.post("/api/settings", response_class=HTMLResponse)
+    def save_settings(
+        data_dir: str = fastapi.Form("/opt/appdata"),
+        timezone: str = fastapi.Form("UTC"),
+        puid: int = fastapi.Form(1000),
+        pgid: int = fastapi.Form(1000),
+        domain: str = fastapi.Form(""),
+        local_domain: str = fastapi.Form(""),
+        network_mode: str = fastapi.Form("external"),
+        acme_email: str = fastapi.Form(""),
+        dns_provider: str = fastapi.Form(""),
+    ) -> str:
+        _save_settings_to_config(
+            config_path,
+            data_dir=data_dir,
+            timezone=timezone,
+            puid=puid,
+            pgid=pgid,
+            domain=domain,
+            local_domain=local_domain,
+            network_mode=network_mode,
+            acme_email=acme_email,
+            dns_provider=dns_provider,
+        )
+        return '<p style="color:#4ade80;margin:0">✓ Settings saved</p>'
+
     return router
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+def _save_settings_to_config(
+    config_path: Path,
+    *,
+    data_dir: str,
+    timezone: str,
+    puid: int,
+    pgid: int,
+    domain: str,
+    local_domain: str,
+    network_mode: str,
+    acme_email: str,
+    dns_provider: str,
+) -> None:
+    """Atomically write global/network/traefik settings to the config file."""
+    with _config_lock:
+        with open(config_path) as fh:
+            raw: dict[str, Any] = yaml.safe_load(fh) or {}
+        g = dict(raw.get("global") or {})
+        g.update({"data_dir": data_dir, "timezone": timezone, "puid": puid, "pgid": pgid})
+        raw["global"] = g
+        n = dict(raw.get("network") or {})
+        n.update({"domain": domain, "local_domain": local_domain, "mode": network_mode})
+        raw["network"] = n
+        t = dict(raw.get("traefik") or {})
+        t.update({"acme_email": acme_email, "dns_provider": dns_provider})
+        raw["traefik"] = t
+        tmp_fd, tmp_path = tempfile.mkstemp(dir=config_path.parent, prefix=".stackr-tmp-")
+        try:
+            with os.fdopen(tmp_fd, "w") as fh:
+                yaml.dump(raw, fh, default_flow_style=False, sort_keys=False)
+            os.replace(tmp_path, config_path)
+        except Exception:
+            with contextlib.suppress(OSError):
+                os.unlink(tmp_path)
+            raise
 
 
 def _toggle_app_in_config(config_path: Path, app_name: str) -> None:

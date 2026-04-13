@@ -193,3 +193,113 @@ def test_api_catalog_json(tmp_path: pytest.FixtureLookupError) -> None:  # type:
     assert isinstance(data, list)
     assert len(data) > 0
     assert all("name" in a for a in data)
+
+
+@_SKIP_HTTPX
+def test_api_settings_get(tmp_path: pytest.FixtureLookupError) -> None:  # type: ignore[override]
+    """GET /api/settings returns 200 with expected keys."""
+    from pathlib import Path
+
+    import yaml
+    from fastapi.testclient import TestClient
+
+    from stackr.web.app import create_app
+
+    config_path = tmp_path / "stackr.yml"  # type: ignore[operator]
+    config_path.write_text(
+        yaml.dump(
+            {
+                "global": {
+                    "data_dir": "/srv/appdata",
+                    "timezone": "Europe/Berlin",
+                    "puid": 1001,
+                    "pgid": 1001,
+                },
+                "network": {
+                    "domain": "lab.example.com",
+                    "local_domain": "home.lab.example.com",
+                    "mode": "hybrid",
+                },
+                "traefik": {
+                    "enabled": True,
+                    "acme_email": "ops@lab.example.com",
+                    "dns_provider": "cloudflare",
+                },
+                "security": {"socket_proxy": False},
+                "apps": [],
+            }
+        )
+    )
+
+    application = create_app(Path(str(config_path)))
+    client = TestClient(application)
+    resp = client.get("/api/settings")
+    assert resp.status_code == 200
+    data = resp.json()
+    expected_keys = {
+        "data_dir", "timezone", "puid", "pgid",
+        "domain", "local_domain", "network_mode",
+        "acme_email", "dns_provider",
+    }
+    assert expected_keys <= set(data.keys())
+    assert data["data_dir"] == "/srv/appdata"
+    assert data["timezone"] == "Europe/Berlin"
+    assert data["puid"] == 1001
+    assert data["network_mode"] == "hybrid"
+    assert data["dns_provider"] == "cloudflare"
+
+
+@_SKIP_HTTPX
+def test_api_settings_post(tmp_path: pytest.FixtureLookupError) -> None:  # type: ignore[override]
+    """POST /api/settings with form data updates the config file."""
+    from pathlib import Path
+
+    import yaml
+    from fastapi.testclient import TestClient
+
+    from stackr.web.app import create_app
+
+    config_path = tmp_path / "stackr.yml"  # type: ignore[operator]
+    config_path.write_text(
+        yaml.dump(
+            {
+                "global": {"data_dir": "/old", "timezone": "UTC", "puid": 1000, "pgid": 1000},
+                "network": {
+                    "domain": "old.com",
+                    "local_domain": "home.old.com",
+                    "mode": "external",
+                },
+                "traefik": {"enabled": True, "acme_email": "old@old.com", "dns_provider": "old"},
+                "security": {"socket_proxy": False},
+                "apps": [],
+            }
+        )
+    )
+
+    application = create_app(Path(str(config_path)))
+    client = TestClient(application)
+    resp = client.post(
+        "/api/settings",
+        data={
+            "data_dir": "/new/appdata",
+            "timezone": "America/New_York",
+            "puid": "2000",
+            "pgid": "2000",
+            "domain": "new.example.com",
+            "local_domain": "home.new.example.com",
+            "network_mode": "internal",
+            "acme_email": "new@new.example.com",
+            "dns_provider": "route53",
+        },
+    )
+    assert resp.status_code == 200
+    assert "saved" in resp.text.lower() or "✓" in resp.text
+
+    written = yaml.safe_load(Path(str(config_path)).read_text())
+    assert written["global"]["data_dir"] == "/new/appdata"
+    assert written["global"]["timezone"] == "America/New_York"
+    assert written["global"]["puid"] == 2000
+    assert written["network"]["domain"] == "new.example.com"
+    assert written["network"]["mode"] == "internal"
+    assert written["traefik"]["acme_email"] == "new@new.example.com"
+    assert written["traefik"]["dns_provider"] == "route53"
