@@ -11,7 +11,7 @@ on:
 jobs:
   deploy-test:
     name: "Deploy: ${{ matrix.app }}"
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     strategy:
       fail-fast: false  # run all apps even if one fails
       matrix:
@@ -74,8 +74,9 @@ jobs:
           sudo chmod -R 777 /opt/appdata /tv /movies /downloads /media
 
       # Render the compose file using stackr's Python API — this is what a real
-      # deploy would do.  We use NPM mode (traefik.enabled=false) so no Traefik
-      # labels are emitted and no actual Traefik instance is needed.
+      # deploy would do.  Traefik is enabled so labels render with real content
+      # (Docker Compose rejects empty/null labels blocks).  No Traefik instance
+      # runs in CI so the labels are harmless container metadata.
       - name: Render compose via stackr
         run: |
           python - << 'PYEOF'
@@ -99,7 +100,11 @@ jobs:
                   "domain": "test.com",
                   "local_domain": "home.test.com",
               },
-              "traefik": {"enabled": False},
+              "traefik": {
+                  "enabled": True,
+                  "acme_email": "ci@test.com",
+                  "dns_provider": "cloudflare",
+              },
               "security": {"socket_proxy": False},
           })
 
