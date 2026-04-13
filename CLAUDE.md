@@ -37,7 +37,8 @@ stackr.yml.example  Reference config
 | `mounts.py` | SMB/NFS/Rclone pre-deploy mounts; `mount_all(config.mounts)` / `umount_all(config.mounts)` |
 | `web/__init__.py` | `HAS_FASTAPI` bool guard (mirrors `HAS_TEXTUAL` in tui.py) |
 | `web/app.py` | `create_app(config_path)` — FastAPI application factory |
-| `web/routes.py` | Route handlers: dashboard, `/api/apps`, `/api/toggle/{name}`, `/api/deploy`, `/api/logs/{name}` (SSE) |
+| `web/routes.py` | Route handlers: dashboard, `/api/apps`, `/api/toggle/{name}`, `/api/deploy`, `/api/logs/{name}` (SSE), `/api/settings` (GET+POST all sections), `/api/mounts` CRUD, `/api/app/{name}/vars-form` + `/api/app/{name}/vars` |
+| `service.py` | Persistent service management: `install/uninstall/start/stop/restart/status`; systemd user unit (Linux) or launchd plist (macOS); wired to `stackr service` CLI subcommands |
 
 ## Language and tooling
 
@@ -250,6 +251,20 @@ networks:
 - The `toggle` route (`POST /api/toggle/{name}`) validates `app_name` against the catalog before writing, uses `threading.Lock` + `tempfile`/`os.replace` for atomic concurrent-safe config writes, and returns HTMX partial HTML.
 - The logs route (`GET /api/logs/{name}`) returns a `StreamingResponse` with `text/event-stream` (Server-Sent Events).
 - The deploy route uses `sys.executable -m stackr` (not bare `stackr`) to ensure the correct virtualenv is used.
+- `POST /api/settings` accepts all config sections (global, network, traefik, security, backup, alerts) in a single form submission; `dns_provider_env` is parsed from KEY=VALUE textarea; booleans arrive as `"true"`/`"false"` strings (HTML checkbox behaviour).
+- `_save_all_settings()` and `_atomic_write()` are the canonical helpers — all write paths in `routes.py` go through `_atomic_write` to prevent partial writes.
+- Mounts CRUD: `POST /api/mounts` adds/replaces by name; `DELETE /api/mounts/{name}` removes; both return the updated `partials/mounts_table.html` partial.
+- App vars: `GET /api/app/{name}/vars-form` returns `partials/vars_form.html` rendered with `VarDef` metadata from the catalog; `POST /api/app/{name}/vars` writes `vars:` under the matching app entry in `stackr.yml`.
+- The index template uses JavaScript tab switching (no extra JS libraries); the Mounts tab is outside the main settings `<form>` to keep HTMX targets independent.
+
+### Persistent service (`stackr service`)
+
+- `service.py` detects platform via `platform.system()` — `"Linux"` writes a systemd user unit; `"Darwin"` writes a launchd plist.
+- Linux: unit file at `~/.config/systemd/user/stackr-web.service`; uses `systemctl --user daemon-reload && enable --now`.
+- macOS: plist at `~/Library/LaunchAgents/dev.stackr.web.plist` with `RunAtLoad=true`, `KeepAlive=true`; stdout/stderr go to `~/.stackr/web-stdout.log` / `web-stderr.log`.
+- Both unit/plist hardcode `sys.executable -m stackr web` so the correct virtualenv is always used.
+- `is_installed()` checks whether the unit/plist file exists (does not query the daemon).
+- CLI subcommands are a `typer.Typer` sub-app added to the root `app` as `service_app = typer.Typer(); app.add_typer(service_app, name="service")`.
 
 ### Backup (`stackr backup` / `restore` / `snapshots`)
 

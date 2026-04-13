@@ -357,6 +357,7 @@
     <li class="section-head">Tools</li>
     <li><a href="#doctor">Doctor</a></li>
     <li><a href="#web-ui">Web UI</a></li>
+    <li><a href="#service">Persistent Service</a></li>
     <li><a href="#backup">Backup &amp; Restore</a></li>
     <li><a href="#migrate">Migrate from Deployrr</a></li>
 
@@ -386,7 +387,7 @@
     <div class="hero-meta">
       <span class="badge badge-blue">Python 3.11+</span>
       <span class="badge badge-green">Docker Compose</span>
-      <span class="badge badge-yellow">Traefik-first</span>
+      <span class="badge badge-yellow">nginx-proxy-manager default</span>
       <span class="badge badge-gray">50+ catalog apps</span>
     </div>
   </div>
@@ -418,7 +419,7 @@
       <tr><td><strong>stackr.yml</strong></td><td>Your personal config — global settings, network mode, enabled apps, vars, and secrets references.</td></tr>
       <tr><td><strong>.stackr.env</strong></td><td>Secrets file (gitignored). Auto-generated; holds API tokens, passwords, and auto-generated secrets.</td></tr>
       <tr><td><strong>State file</strong></td><td><code>~/.stackr/state.json</code> — tracks deployed compose hashes and image digests for drift detection.</td></tr>
-      <tr><td><strong>Traefik</strong></td><td>The built-in reverse proxy. Most catalog apps route through Traefik automatically.</td></tr>
+      <tr><td><strong>Reverse proxy</strong></td><td><strong>nginx-proxy-manager</strong> is the default. Switch to <strong>Traefik</strong> by setting <code>traefik.enabled: true</code> — most catalog apps support both.</td></tr>
     </tbody>
   </table>
   </div>
@@ -451,7 +452,7 @@
 
   <h3>Verify the installation</h3>
   <pre><code><span class="cmd">stackr</span> --version
-<span class="comment"># stackr 0.4.1</span></code></pre>
+<span class="comment"># stackr 0.4.2</span></code></pre>
 
   <div class="callout">
     <div class="callout-title">Tip</div>
@@ -469,13 +470,15 @@
     <li>
       <strong>Run the setup wizard</strong>
       <pre><code><span class="cmd">stackr</span> init</code></pre>
-      Answer a few prompts (data directory, domain, DNS provider). Stackr writes
-      <code>stackr.yml</code> and <code>.stackr.env</code> in the current directory, with
-      <strong>traefik</strong> and <strong>portainer</strong> enabled by default.
+      Answer a few prompts (data directory, domain, reverse proxy choice). Stackr writes
+      <code>stackr.yml</code> and <code>.stackr.env</code> in the current directory. The
+      default proxy is <strong>nginx-proxy-manager</strong> + <strong>portainer</strong>.
+      Choose <strong>traefik</strong> at the proxy prompt to use Traefik instead (you will
+      also be asked for your ACME email and DNS provider).
     </li>
     <li>
-      <strong>Add your DNS API token to <code>.stackr.env</code></strong>
-      <pre><code><span class="comment"># Example for Cloudflare</span>
+      <strong>Add any secrets to <code>.stackr.env</code></strong>
+      <pre><code><span class="comment"># Example for Cloudflare (Traefik users only)</span>
 CF_DNS_API_TOKEN=your-cloudflare-api-token-here</code></pre>
     </li>
     <li>
@@ -522,9 +525,11 @@ CF_DNS_API_TOKEN=your-cloudflare-api-token-here</code></pre>
   <span class="key">local_domain</span>: <span class="str">home.example.com</span>  <span class="comment"># Internal-only domain</span></code></pre>
 
   <h3>traefik</h3>
+  <p>Traefik is disabled by default — <strong>nginx-proxy-manager</strong> is auto-deployed instead.
+  Set <code>traefik.enabled: true</code> to switch to Traefik.</p>
   <pre><code><span class="key">traefik</span>:
-  <span class="key">enabled</span>: <span class="kw">true</span>
-  <span class="key">acme_email</span>: <span class="str">you@example.com</span>  <span class="comment"># Let's Encrypt registration email</span>
+  <span class="key">enabled</span>: <span class="kw">false</span>              <span class="comment"># true to use Traefik instead of nginx-proxy-manager</span>
+  <span class="key">acme_email</span>: <span class="str">you@example.com</span>  <span class="comment"># Let's Encrypt registration email (Traefik only)</span>
   <span class="key">dns_provider</span>: <span class="str">cloudflare</span>       <span class="comment"># Your DNS provider (see dns_providers.py)</span>
   <span class="key">dns_provider_env</span>:
     <span class="key">CF_DNS_API_TOKEN</span>: <span class="str">${CF_DNS_API_TOKEN}</span>  <span class="comment"># Reference a secret from .stackr.env</span></code></pre>
@@ -532,7 +537,7 @@ CF_DNS_API_TOKEN=your-cloudflare-api-token-here</code></pre>
   <div class="callout">
     <div class="callout-title">Supported DNS providers</div>
     cloudflare, route53, namecheap, porkbun, duckdns, hetzner, digitalocean, and more.
-    Run <code>stackr init</code> to auto-populate the correct env var name for your provider.
+    Run <code>stackr init</code> and choose Traefik to auto-populate the correct env var name for your provider.
   </div>
 
   <h3>security</h3>
@@ -771,7 +776,7 @@ NTFY_TOKEN=bearer-token-here</code></pre>
       <tr><td><strong>media</strong></td><td>jellyfin, plex, sonarr, radarr, lidarr, readarr, bazarr, prowlarr, qbittorrent, transmission, sabnzbd, overseerr, jellyseerr, tdarr</td></tr>
       <tr><td><strong>monitoring</strong></td><td>grafana, prometheus, loki, netdata, uptime-kuma</td></tr>
       <tr><td><strong>network</strong></td><td>traefik, pihole, adguardhome, wireguard, gluetun, headscale, nginx-proxy-manager</td></tr>
-      <tr><td><strong>productivity</strong></td><td>nextcloud... wait — nextcloud is storage. freshrss, gitea, miniflux, paperless-ngx</td></tr>
+      <tr><td><strong>productivity</strong></td><td>freshrss, gitea, miniflux, paperless-ngx</td></tr>
       <tr><td><strong>security</strong></td><td>authelia, authentik, vaultwarden, crowdsec, socket-proxy</td></tr>
       <tr><td><strong>storage</strong></td><td>nextcloud, filebrowser, duplicati</td></tr>
     </tbody>
@@ -818,11 +823,13 @@ NTFY_TOKEN=bearer-token-here</code></pre>
   <table>
     <thead><tr><th>Key</th><th>Action</th></tr></thead>
     <tbody>
-      <tr><td><kbd>↑</kbd> / <kbd>↓</kbd></td><td>Navigate apps</td></tr>
+      <tr><td><kbd>↑</kbd> / <kbd>↓</kbd></td><td>Navigate the tree</td></tr>
       <tr><td><kbd>Space</kbd></td><td>Toggle selected app on/off</td></tr>
-      <tr><td><kbd>Enter</kbd></td><td>Save changes and exit</td></tr>
-      <tr><td><kbd>q</kbd></td><td>Quit (saves changes)</td></tr>
-      <tr><td><kbd>/</kbd></td><td>Filter/search apps</td></tr>
+      <tr><td><kbd>E</kbd></td><td>Edit — opens the settings editor when ⚙ Settings is selected, or the mount editor when a mount is selected</td></tr>
+      <tr><td><kbd>A</kbd></td><td>Add a new mount entry</td></tr>
+      <tr><td><kbd>D</kbd></td><td>Delete the selected mount</td></tr>
+      <tr><td><kbd>S</kbd></td><td>Save all changes to <code>stackr.yml</code></td></tr>
+      <tr><td><kbd>Q</kbd></td><td>Quit</td></tr>
     </tbody>
   </table>
   </div>
@@ -1010,7 +1017,7 @@ NTFY_TOKEN=bearer-token-here</code></pre>
   <p>
     Stackr includes a browser-based dashboard powered by FastAPI and HTMX.
   </p>
-  <pre><code><span class="comment"># Start on localhost:8000 (default)</span>
+  <pre><code><span class="comment"># Start on localhost:8000 (foreground)</span>
 <span class="cmd">stackr</span> web
 
 <span class="comment"># Listen on all interfaces, custom port</span>
@@ -1018,10 +1025,81 @@ NTFY_TOKEN=bearer-token-here</code></pre>
   <p>The web UI provides:</p>
   <ul>
     <li>Dashboard view of all apps with current status</li>
-    <li>Toggle apps on/off with a click</li>
-    <li>Trigger a deploy from the browser</li>
+    <li>Toggle apps on/off with a click (updates <code>stackr.yml</code> atomically)</li>
+    <li>Per-app and full-stack deploy buttons</li>
     <li>Live log streaming (Server-Sent Events)</li>
+    <li><strong>Full settings editor</strong> — tabbed panel covering every config section (see below)</li>
+    <li><strong>Per-app var overrides</strong> — inline form with type-aware inputs</li>
   </ul>
+
+  <h3>Settings panel tabs</h3>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Tab</th><th>Fields</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Global</strong></td><td><code>data_dir</code>, <code>timezone</code>, <code>puid</code>, <code>pgid</code></td></tr>
+      <tr><td><strong>Network</strong></td><td><code>domain</code>, <code>local_domain</code>, <code>network_mode</code></td></tr>
+      <tr><td><strong>Traefik</strong></td><td>enabled toggle, <code>acme_email</code>, <code>dns_provider</code>, <code>dns_provider_env</code> (KEY=VALUE textarea)</td></tr>
+      <tr><td><strong>Security</strong></td><td><code>socket_proxy</code>, <code>crowdsec</code>, <code>auth_provider</code></td></tr>
+      <tr><td><strong>Backup</strong></td><td>enabled toggle, <code>destination</code>, <code>schedule</code></td></tr>
+      <tr><td><strong>Alerts</strong></td><td>enabled toggle, <code>provider</code>, <code>url</code>, <code>token</code></td></tr>
+      <tr><td><strong>Mounts</strong></td><td>Table of configured mounts with delete buttons; add-new form (name, type, remote, mountpoint)</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>Click <strong>Save settings</strong> to write all sections to <code>stackr.yml</code> atomically.</p>
+
+  <h3>Per-app var overrides</h3>
+  <p>
+    App cards for catalog apps with configurable <code>vars</code> show a <strong>⚙ Configure</strong> button.
+    Click it to expand an inline form with type-aware inputs (select, boolean, integer, or text) derived
+    from the catalog's <code>VarDef</code> definitions. Vars are saved per-app to <code>stackr.yml</code>.
+  </p>
+
+  <!-- ─────────────────────────────── PERSISTENT SERVICE ─────────────────────────────── -->
+  <h2 id="service">Persistent Service</h2>
+  <p>
+    By default <code>stackr web</code> runs in the foreground and stops when the terminal closes.
+    Use <code>stackr service install</code> to register it as a background service that starts
+    automatically on login and survives reboots.
+  </p>
+
+  <pre><code><span class="comment"># Install and start the service</span>
+<span class="cmd">stackr</span> service install
+
+<span class="comment"># Custom host, port, and config file</span>
+<span class="cmd">stackr</span> service install <span class="flag">--host</span> 0.0.0.0 <span class="flag">--port</span> 9000 <span class="flag">--config</span> /opt/stackr/stackr.yml</code></pre>
+
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Command</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td><code>stackr service install</code></td><td>Write unit/plist, enable, and start the service.</td></tr>
+      <tr><td><code>stackr service uninstall</code></td><td>Stop, disable, and delete the unit/plist.</td></tr>
+      <tr><td><code>stackr service start</code></td><td>Start a stopped service.</td></tr>
+      <tr><td><code>stackr service stop</code></td><td>Stop the running service.</td></tr>
+      <tr><td><code>stackr service restart</code></td><td>Restart the service (picks up config changes).</td></tr>
+      <tr><td><code>stackr service status</code></td><td>Show current status from the init system.</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Platform</th><th>Service type</th><th>File location</th></tr></thead>
+    <tbody>
+      <tr><td>Linux</td><td>systemd user service</td><td><code>~/.config/systemd/user/stackr-web.service</code></td></tr>
+      <tr><td>macOS</td><td>launchd LaunchAgent</td><td><code>~/Library/LaunchAgents/dev.stackr.web.plist</code></td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="callout">
+    <div class="callout-title">Tip — Linux lingering</div>
+    For systemd user services to start at boot (before you log in), enable lingering once:
+    <pre style="margin:8px 0 0;"><code><span class="cmd">loginctl</span> enable-linger $USER</code></pre>
+  </div>
 
 
   <!-- ─────────────────────────────── BACKUP ─────────────────────────────── -->
@@ -1248,7 +1326,19 @@ networks:
     </div>
     <div class="cmd-card">
       <div class="cmd-name">stackr web</div>
-      <div class="cmd-desc">Launch the browser-based web UI.</div>
+      <div class="cmd-desc">Launch the browser-based web UI (foreground).</div>
+    </div>
+    <div class="cmd-card">
+      <div class="cmd-name">stackr service install</div>
+      <div class="cmd-desc">Install and start the web UI as a persistent background service.</div>
+    </div>
+    <div class="cmd-card">
+      <div class="cmd-name">stackr service uninstall</div>
+      <div class="cmd-desc">Stop, disable, and remove the persistent service.</div>
+    </div>
+    <div class="cmd-card">
+      <div class="cmd-name">stackr service start/stop/restart/status</div>
+      <div class="cmd-desc">Manage the running service.</div>
     </div>
     <div class="cmd-card">
       <div class="cmd-name">stackr backup</div>
@@ -1308,7 +1398,7 @@ networks:
       <tr><td><code>network.local_domain</code></td><td><code>home.example.com</code></td><td>Local domain (internal/hybrid mode).</td></tr>
 
       <tr><td colspan="3" style="background:var(--surface2);color:var(--muted);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;padding:8px 14px;">traefik</td></tr>
-      <tr><td><code>traefik.enabled</code></td><td><code>true</code></td><td>Deploy the Traefik reverse proxy.</td></tr>
+      <tr><td><code>traefik.enabled</code></td><td><code>false</code></td><td>Use Traefik as the reverse proxy. When <code>false</code>, nginx-proxy-manager is auto-deployed instead.</td></tr>
       <tr><td><code>traefik.acme_email</code></td><td><code>""</code></td><td>Email for Let's Encrypt registration.</td></tr>
       <tr><td><code>traefik.dns_provider</code></td><td><code>""</code></td><td>DNS provider name for DNS-01 challenge.</td></tr>
       <tr><td><code>traefik.dns_provider_env</code></td><td><code>{}</code></td><td>Env var map for the DNS provider.</td></tr>

@@ -24,8 +24,9 @@ Stackr replaces Deployrr (a closed-source PHP/Bash binary) with a fully open, au
 - **Alerts**: ntfy, Gotify, or webhook notifications on deploy failures and `stackr doctor` errors
 - **Remote shares**: `stackr mount` / `umount` for SMB, NFS, and Rclone mounts; declared under `mounts:` in `stackr.yml`
 - **Catalog updates**: `stackr catalog update` downloads the latest catalog from GitHub
-- **Interactive TUI**: `stackr ui` opens a terminal app browser — toggle apps on/off, see details, save config
-- **Web UI**: `stackr web` launches a FastAPI + HTMX browser dashboard for point-and-click management
+- **Interactive TUI**: `stackr ui` opens a terminal app browser — toggle apps on/off, edit settings and mounts, save config
+- **Web UI**: `stackr web` launches a FastAPI + HTMX browser dashboard; all settings editable via tabbed panel (Global, Network, Traefik, Security, Backup, Alerts, Mounts), per-app var overrides, live log streaming
+- **Persistent web service**: `stackr service install` registers the web UI as a systemd user service (Linux) or launchd LaunchAgent (macOS) so it survives reboots and terminal sessions
 - **Self-upgrade**: `stackr upgrade` pulls and installs the latest version from GitHub in one command
 - **Full catalog init**: `stackr init` generates a `stackr.yml` with all 51 apps pre-listed (disabled by default) — toggle on what you want
 
@@ -134,7 +135,7 @@ network:
   local_domain: home.example.com  # LAN domain (internal/hybrid)
 
 traefik:
-  enabled: true
+  enabled: false               # set true to use Traefik instead of nginx-proxy-manager
   acme_email: you@example.com  # Let's Encrypt registration email
   dns_provider: cloudflare     # DNS challenge provider name
   dns_provider_env:
@@ -203,7 +204,13 @@ stackr shell <app>            Open a shell inside the app's primary container
 stackr list [--category C]    List all catalog apps
 stackr search <query>         Search catalog by name or description
 stackr ui                     Launch the interactive TUI app browser
-stackr web [--port 8000]      Launch the web UI
+stackr web [--port 8000]      Launch the web UI (foreground)
+stackr service install        Install web UI as a persistent background service
+stackr service uninstall      Remove the persistent service
+stackr service start          Start the service
+stackr service stop           Stop the service
+stackr service restart        Restart the service
+stackr service status         Show service status
 stackr upgrade                Upgrade stackr to the latest version from GitHub
 stackr backup                 Run a restic backup to the configured destination
 stackr restore <snapshot>     Restore from a backup snapshot
@@ -486,7 +493,7 @@ add them manually.
 A browser-based dashboard is included in the base install:
 
 ```bash
-# Launch on localhost:8000
+# Launch on localhost:8000 (foreground)
 stackr web
 
 # Custom host / port
@@ -498,6 +505,33 @@ The web UI provides:
 - One-click enable/disable toggle (updates `stackr.yml`)
 - Per-app and full-stack deploy buttons
 - Live log streaming via Server-Sent Events
+- **Full settings editor** — tabbed panel covering every config section:
+  Global, Network, Traefik (with DNS env vars), Security, Backup, Alerts, and Mounts CRUD
+- **Per-app var overrides** — type-aware form (string/select/boolean/integer) loaded inline from the catalog
+
+### Persistent service
+
+To keep the web UI running without a terminal session:
+
+```bash
+# Install and start as a background service
+stackr service install
+
+# Linux: systemd user service at ~/.config/systemd/user/stackr-web.service
+# macOS: launchd LaunchAgent at ~/Library/LaunchAgents/dev.stackr.web.plist
+
+# Manage the service
+stackr service status
+stackr service restart
+stackr service stop
+stackr service uninstall
+```
+
+The service starts automatically on login/reboot. Custom host, port, and config path can be set at install time:
+
+```bash
+stackr service install --host 0.0.0.0 --port 9000 --config /opt/stackr/stackr.yml
+```
 
 ## Interactive TUI
 
@@ -534,6 +568,9 @@ stackr ui --config /path/to/stackr.yml
 | Key | Action |
 |-----|--------|
 | `Space` | Toggle the highlighted app on/off |
+| `E` | Edit — open settings editor (when ⚙ Settings is selected) or edit mount (when a mount is selected) |
+| `A` | Add a new mount entry |
+| `D` | Delete the selected mount |
 | `S` | Save current state to `stackr.yml` |
 | `Q` | Quit |
 
@@ -585,13 +622,14 @@ stackr/
   middleware.py     Traefik forward-auth and CrowdSec middleware label generators
   network.py        Docker network helpers
   status.py         Rich terminal status table
-  tui.py            Textual TUI app browser (stackr ui; requires textual extra)
+  tui.py            Textual TUI app browser (stackr ui)
   backup.py         Restic-based backup/restore (backup, restore, snapshots commands)
   migrate.py        Deployrr → stackr.yml migration (stackr migrate)
   alerts.py         Push notifications via ntfy, Gotify, or webhook
   doctor.py         Environment health checks (stackr doctor)
   mounts.py         Remote share mounting: SMB, NFS, Rclone (stackr mount/umount)
-  web/              Optional FastAPI + HTMX web UI (stackr web; requires web extra)
+  service.py        Persistent service management: systemd (Linux) / launchd (macOS)
+  web/              FastAPI + HTMX web UI (stackr web)
     app.py          FastAPI application factory
     routes.py       API route handlers
     templates/      Jinja2 + HTMX HTML templates
