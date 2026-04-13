@@ -43,7 +43,7 @@ class NetworkConfig(BaseModel):
 
 
 class TraefikConfig(BaseModel):
-    enabled: bool = True
+    enabled: bool = False
     acme_email: str = ""
     dns_provider: str = ""
     dns_provider_env: dict[str, str] = Field(default_factory=dict)
@@ -123,18 +123,27 @@ class StackrConfig(BaseModel):
 
     @model_validator(mode="after")
     def inject_core_apps(self) -> StackrConfig:
-        """Ensure socket-proxy and traefik are prepended in the correct deploy order.
+        """Ensure the reverse proxy and its dependencies are prepended in the correct deploy order.
 
-        socket-proxy must come before traefik so the socket_proxy network exists
-        when traefik starts and tries to connect to socket-proxy:2375.
+        When traefik is enabled:
+          socket-proxy must come before traefik so the socket_proxy network exists
+          when traefik starts and tries to connect to socket-proxy:2375.
+
+        When traefik is disabled:
+          nginx-proxy-manager is auto-injected as the default reverse proxy.
         """
         names = {a.name for a in self.apps}
-        # Insert in reverse deploy order (each insert goes to front):
-        # traefik first so socket-proxy ends up before it after both inserts.
-        if self.traefik.enabled and "traefik" not in names:
-            self.apps.insert(0, AppConfig(name="traefik"))
-        if self.traefik.enabled and self.security.socket_proxy and "socket-proxy" not in names:
-            self.apps.insert(0, AppConfig(name="socket-proxy"))
+        if self.traefik.enabled:
+            # Insert in reverse deploy order (each insert goes to front):
+            # traefik first so socket-proxy ends up before it after both inserts.
+            if "traefik" not in names:
+                self.apps.insert(0, AppConfig(name="traefik"))
+            if self.security.socket_proxy and "socket-proxy" not in names:
+                self.apps.insert(0, AppConfig(name="socket-proxy"))
+        else:
+            # nginx-proxy-manager is the default proxy when traefik is disabled.
+            if "nginx-proxy-manager" not in names:
+                self.apps.insert(0, AppConfig(name="nginx-proxy-manager"))
         return self
 
     @property

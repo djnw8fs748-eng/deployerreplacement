@@ -44,28 +44,27 @@ def test_init_includes_all_catalog_apps(tmp_path: Path) -> None:
     assert not missing, f"init did not write these catalog apps: {sorted(missing)}"
 
 
-def test_init_only_traefik_and_portainer_enabled(tmp_path: Path) -> None:
-    """Only traefik and portainer should be enabled: true by default."""
+def test_init_only_npm_and_portainer_enabled(tmp_path: Path) -> None:
+    """Only nginx-proxy-manager and portainer should be enabled: true by default."""
     output = _run_init(tmp_path)
 
     with open(output) as f:
         raw = yaml.safe_load(f)
 
     enabled = {entry["name"] for entry in (raw.get("apps") or []) if entry.get("enabled")}
-    # socket-proxy may be auto-injected by the config validator — allow it
-    allowed_enabled = {"traefik", "portainer", "socket-proxy"}
+    allowed_enabled = {"nginx-proxy-manager", "portainer"}
     unexpected = enabled - allowed_enabled
     assert not unexpected, f"Unexpected apps enabled by default: {sorted(unexpected)}"
 
 
 def test_init_all_other_apps_disabled(tmp_path: Path) -> None:
-    """Every app except traefik and portainer must be explicitly disabled."""
+    """Every app except nginx-proxy-manager and portainer must be explicitly disabled."""
     output = _run_init(tmp_path)
 
     with open(output) as f:
         raw = yaml.safe_load(f)
 
-    default_on = {"traefik", "portainer"}
+    default_on = {"nginx-proxy-manager", "portainer"}
     for entry in raw.get("apps") or []:
         if entry["name"] not in default_on:
             assert entry.get("enabled") is False, (

@@ -2,6 +2,9 @@
 # Copy to stackr.yml and edit to your needs.
 # Run: stackr init  (for an interactive wizard that generates this automatically)
 #
+# Default reverse proxy: nginx-proxy-manager (traefik.enabled: false)
+# To switch to Traefik, set traefik.enabled: true and fill in the traefik section.
+#
 # Toggle apps on/off with:
 #   stackr ui          — interactive TUI
 #   stackr web         — browser dashboard
@@ -24,7 +27,7 @@ network:
   local_domain: home.example.com  # Local-only domain (used in internal/hybrid mode)
 
 traefik:
-  enabled: true
+  enabled: false               # Set to true to use Traefik instead of nginx-proxy-manager
   acme_email: you@example.com
   dns_provider: cloudflare     # cloudflare | route53 | namecheap | porkbun | duckdns | hetzner | ...
   dns_provider_env:
@@ -35,7 +38,7 @@ traefik:
     # Run: stackr init   to auto-populate this for your chosen provider
 
 security:
-  socket_proxy: true           # Recommended: proxy Docker socket access
+  socket_proxy: false          # Only needed with Traefik — set to true if traefik.enabled: true
   crowdsec: false              # Enable CrowdSec bouncer (requires crowdsec in apps)
   auth_provider: none          # authentik | authelia | google_oauth | none
 
@@ -67,7 +70,8 @@ backup:
 
 # ---------------------------------------------------------------------------
 # Apps — all catalog apps listed below, grouped by category.
-# Only traefik and portainer are enabled by default.
+# nginx-proxy-manager and portainer are enabled by default.
+# To use Traefik instead, set traefik.enabled: true above and enable traefik below.
 # Flip enabled: false → true to add an app, then run: stackr deploy
 # ---------------------------------------------------------------------------
 
@@ -161,11 +165,11 @@ apps:
   - name: headscale
     enabled: false
   - name: nginx-proxy-manager
-    enabled: false
+    enabled: true
   - name: pihole
     enabled: false
   - name: traefik
-    enabled: true
+    enabled: false
   - name: wireguard
     enabled: false
 

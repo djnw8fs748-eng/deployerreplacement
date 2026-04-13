@@ -74,6 +74,10 @@ def render_app(
     resolved_vars.update(app_config.vars)
 
     def traefik_labels_helper(port: int, exposure: str | None = None) -> dict[str, str]:
+        if not stackr_config.traefik.enabled:
+            # When Traefik is not the active proxy, return an empty dict so that
+            # catalog templates that call traefik_labels() produce no labels.
+            return {}
         return _traefik_labels(
             catalog_app.name,
             port,
