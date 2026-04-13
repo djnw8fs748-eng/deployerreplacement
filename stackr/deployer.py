@@ -199,7 +199,12 @@ def _ensure_data_dirs(compose_content: str, data_dir: str) -> None:
 
     Parses the rendered compose YAML and mkdir -p's any host volume paths
     that begin with data_dir so Docker doesn't error on missing directories.
+    Skips paths that cannot be created (permission denied, missing ancestor)
+    and prints a warning so the user can resolve it manually.
     """
+    from rich.console import Console as _Console
+    _console = _Console()
+
     try:
         parsed = yaml.safe_load(compose_content)
     except yaml.YAMLError:
@@ -220,7 +225,14 @@ def _ensure_data_dirs(compose_content: str, data_dir: str) -> None:
                 host_path.relative_to(data_root)
             except ValueError:
                 continue
-            host_path.mkdir(parents=True, exist_ok=True)
+            try:
+                host_path.mkdir(parents=True, exist_ok=True)
+            except OSError as exc:
+                _console.print(
+                    f"  [yellow]WARN[/yellow]  Could not create data directory "
+                    f"[bold]{host_path}[/bold]: {exc.strerror}. "
+                    "Create it manually or re-run with sudo."
+                )
 
 
 def _run_compose(
