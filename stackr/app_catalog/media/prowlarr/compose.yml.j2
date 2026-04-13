@@ -3,19 +3,26 @@ services:
     image: lscr.io/linuxserver/prowlarr:{{ vars.version | default('latest') }}
     container_name: prowlarr
     restart: unless-stopped
+{% if vars.use_vpn | default(false) %}
+    network_mode: "service:gluetun"
+{% endif %}
     environment:
       - PUID={{ global.puid }}
       - PGID={{ global.pgid }}
       - TZ={{ global.timezone }}
     volumes:
       - {{ global.data_dir }}/prowlarr/config:/config
+{% if not vars.use_vpn | default(false) %}
     networks:
       - proxy
     labels:
 {% for k, v in traefik_labels(9696).items() %}
       - "{{ k }}={{ v }}"
 {% endfor %}
+{% endif %}
 
+{% if not vars.use_vpn | default(false) %}
 networks:
   proxy:
     external: true
+{% endif %}

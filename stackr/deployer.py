@@ -222,6 +222,7 @@ def _ensure_data_dirs(compose_content: str, data_dir: str) -> None:
             )
             return
 
+
     try:
         parsed = yaml.safe_load(compose_content)
     except yaml.YAMLError:

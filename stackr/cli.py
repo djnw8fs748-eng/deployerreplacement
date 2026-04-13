@@ -889,5 +889,105 @@ def ui(
     tui.run()
 
 
+# ---------------------------------------------------------------------------
+# stackr service subcommands
+# ---------------------------------------------------------------------------
+
+service_app = typer.Typer(help="Manage the Stackr web UI as a persistent background service.")
+app.add_typer(service_app, name="service")
+
+
+@service_app.command(name="install")
+def service_install(
+    config_path: Annotated[Path, typer.Option("--config", "-c")] = _DEFAULT_CONFIG,
+    host: Annotated[str, typer.Option("--host", "-H")] = "127.0.0.1",
+    port: Annotated[int, typer.Option("--port", "-p")] = 8000,
+) -> None:
+    """Install and start the web UI as a persistent service (systemd on Linux, launchd on macOS)."""
+    from stackr.service import install, is_installed
+
+    if is_installed():
+        console.print(
+            "[yellow]Service is already installed. "
+            "Run [bold]stackr service restart[/bold] to apply changes, or uninstall first.[/yellow]"
+        )
+        raise typer.Exit(1)
+    try:
+        install(config_path, host=host, port=port)
+        console.print(f"[green]Service installed and started. Web UI at http://{host}:{port}[/green]")
+    except Exception as exc:
+        console.print(f"[red]Failed to install service: {exc}[/red]")
+        raise typer.Exit(1) from exc
+
+
+@service_app.command(name="uninstall")
+def service_uninstall() -> None:
+    """Stop, disable and remove the persistent service unit."""
+    from stackr.service import uninstall
+
+    try:
+        uninstall()
+        console.print("[green]Service uninstalled.[/green]")
+    except FileNotFoundError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(1) from exc
+    except Exception as exc:
+        console.print(f"[red]Failed to uninstall service: {exc}[/red]")
+        raise typer.Exit(1) from exc
+
+
+@service_app.command(name="start")
+def service_start() -> None:
+    """Start the web UI service."""
+    from stackr.service import start
+
+    try:
+        start()
+        console.print("[green]Service started.[/green]")
+    except Exception as exc:
+        console.print(f"[red]Failed to start service: {exc}[/red]")
+        raise typer.Exit(1) from exc
+
+
+@service_app.command(name="stop")
+def service_stop() -> None:
+    """Stop the web UI service."""
+    from stackr.service import stop
+
+    try:
+        stop()
+        console.print("[yellow]Service stopped.[/yellow]")
+    except Exception as exc:
+        console.print(f"[red]Failed to stop service: {exc}[/red]")
+        raise typer.Exit(1) from exc
+
+
+@service_app.command(name="restart")
+def service_restart() -> None:
+    """Restart the web UI service."""
+    from stackr.service import restart
+
+    try:
+        restart()
+        console.print("[green]Service restarted.[/green]")
+    except Exception as exc:
+        console.print(f"[red]Failed to restart service: {exc}[/red]")
+        raise typer.Exit(1) from exc
+
+
+@service_app.command(name="status")
+def service_status() -> None:
+    """Show the current status of the web UI service."""
+    from stackr.service import is_installed, status
+
+    if not is_installed():
+        console.print(
+            "[yellow]Service is not installed. "
+            "Run [bold]stackr service install[/bold] first.[/yellow]"
+        )
+        raise typer.Exit(1)
+    console.print(status())
+
+
 if __name__ == "__main__":
     app()

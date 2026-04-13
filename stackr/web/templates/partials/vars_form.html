@@ -1,0 +1,36 @@
+<form hx-post="/api/app/{{ app_name }}/vars"
+      hx-target="#vars-status-{{ app_name }}"
+      hx-swap="innerHTML"
+      style="display:flex;flex-direction:column;gap:0.6rem;">
+  {% for var_name, vdef in var_defs.items() %}
+  <label style="display:flex;flex-direction:column;gap:0.2rem;font-size:0.8rem;color:#94a3b8;">
+    {{ var_name }}{% if vdef.description %} — <span style="color:#64748b;">{{ vdef.description }}</span>{% endif %}
+    {% if vdef.type == 'select' %}
+    <select name="var_{{ var_name }}"
+            style="background:#0f172a;border:1px solid #334155;border-radius:0.375rem;color:#e2e8f0;padding:0.35rem 0.5rem;font-size:0.85rem;">
+      {% for opt in vdef.options %}
+      <option value="{{ opt }}" {% if (current_vars.get(var_name) or vdef.default) == opt %}selected{% endif %}>{{ opt }}</option>
+      {% endfor %}
+    </select>
+    {% elif vdef.type == 'boolean' %}
+    <select name="var_{{ var_name }}"
+            style="background:#0f172a;border:1px solid #334155;border-radius:0.375rem;color:#e2e8f0;padding:0.35rem 0.5rem;font-size:0.85rem;">
+      <option value="true" {% if (current_vars.get(var_name) or vdef.default)|string|lower == 'true' %}selected{% endif %}>true</option>
+      <option value="false" {% if (current_vars.get(var_name) or vdef.default)|string|lower != 'true' %}selected{% endif %}>false</option>
+    </select>
+    {% elif vdef.type == 'integer' %}
+    <input type="number" name="var_{{ var_name }}"
+           value="{{ current_vars.get(var_name, vdef.default) or '' }}"
+           style="background:#0f172a;border:1px solid #334155;border-radius:0.375rem;color:#e2e8f0;padding:0.35rem 0.5rem;font-size:0.85rem;" />
+    {% else %}
+    <input type="text" name="var_{{ var_name }}"
+           value="{{ current_vars.get(var_name, vdef.default) or '' }}"
+           style="background:#0f172a;border:1px solid #334155;border-radius:0.375rem;color:#e2e8f0;padding:0.35rem 0.5rem;font-size:0.85rem;" />
+    {% endif %}
+  </label>
+  {% endfor %}
+  <div style="display:flex;align-items:center;gap:0.75rem;margin-top:0.25rem;">
+    <button type="submit" style="background:#0ea5e9;color:#fff;border:none;border-radius:0.4rem;padding:0.35rem 0.9rem;cursor:pointer;font-size:0.85rem;font-weight:600;">Save</button>
+    <span id="vars-status-{{ app_name }}" style="font-size:0.82rem;"></span>
+  </div>
+</form>

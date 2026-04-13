@@ -8,12 +8,23 @@ exposure: external
 requires: []
 suggests:
   - traefik
+  - gluetun
   - sonarr
   - radarr
   - lidarr
   - readarr
+vars:
+  version:
+    type: string
+    default: latest
+    description: Docker image tag
+  use_vpn:
+    type: boolean
+    default: false
+    description: Route all outbound traffic through Gluetun VPN (requires gluetun app enabled)
 ports:
   - 9696
+host_ports: []
 volumes:
   - name: config
     path: /config
