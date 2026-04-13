@@ -199,7 +199,29 @@ def _ensure_data_dirs(compose_content: str, data_dir: str) -> None:
 
     Parses the rendered compose YAML and mkdir -p's any host volume paths
     that begin with data_dir so Docker doesn't error on missing directories.
+    Skips paths that cannot be created (permission denied, missing ancestor)
+    and prints a warning so the user can resolve it manually.
     """
+    from rich.console import Console as _Console
+    _console = _Console()
+
+    data_root = Path(data_dir)
+
+    # Attempt to create the root data directory itself first. If it doesn't
+    # exist and can't be created (e.g. /opt requires root), warn and stop —
+    # there's no point attempting subdirectories.
+    if not data_root.exists():
+        try:
+            data_root.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            _console.print(
+                f"  [yellow]WARN[/yellow]  Cannot create data directory "
+                f"[bold]{data_root}[/bold]: {exc.strerror}. "
+                f"Run: [bold]sudo mkdir -p {data_root} && "
+                f"sudo chown $USER:$USER {data_root}[/bold]"
+            )
+            return
+
     try:
         parsed = yaml.safe_load(compose_content)
     except yaml.YAMLError:
@@ -207,7 +229,6 @@ def _ensure_data_dirs(compose_content: str, data_dir: str) -> None:
     if not isinstance(parsed, dict):
         return
     services = parsed.get("services") or {}
-    data_root = Path(data_dir)
     for service in services.values():
         if not isinstance(service, dict):
             continue
@@ -220,7 +241,14 @@ def _ensure_data_dirs(compose_content: str, data_dir: str) -> None:
                 host_path.relative_to(data_root)
             except ValueError:
                 continue
-            host_path.mkdir(parents=True, exist_ok=True)
+            try:
+                host_path.mkdir(parents=True, exist_ok=True)
+            except OSError as exc:
+                _console.print(
+                    f"  [yellow]WARN[/yellow]  Could not create data directory "
+                    f"[bold]{host_path}[/bold]: {exc.strerror}. "
+                    "Create it manually or re-run with sudo."
+                )
 
 
 def _run_compose(
