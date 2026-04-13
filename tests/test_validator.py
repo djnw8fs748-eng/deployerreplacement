@@ -39,8 +39,23 @@ def test_unknown_app_fails():
 
 
 def test_missing_hard_dependency_fails():
-    # socket-proxy has no hard requires; use a hypothetical app with requires
-    # Instead verify that a missing *suggests* produces a warning, not an error
+    # Verify that a missing *suggests* dep produces a warning, not an error.
+    # prowlarr suggests sonarr/radarr; enable prowlarr alone to trigger it.
+    config = _make_config(
+        [{"name": "prowlarr", "enabled": True}],
+        traefik={"enabled": True, "acme_email": "a@b.com", "dns_provider": "cloudflare"},
+        security={"socket_proxy": False},
+    )
+    catalog = Catalog()
+    result = validate(config, catalog, {"CF_DNS_API_TOKEN": "x"})
+    # sonarr is a *suggests* dep of prowlarr — missing it is a warning, not an error
+    assert result.ok
+    assert any("sonarr" in w.message for w in result.warnings)
+
+
+def test_traefik_suggests_suppressed_when_npm():
+    # When traefik is disabled (NPM mode), suggests warnings for traefik and
+    # socket-proxy should be silently dropped — they're irrelevant noise.
     config = _make_config(
         [{"name": "uptime-kuma", "enabled": True}],
         traefik={"enabled": False},
@@ -48,9 +63,9 @@ def test_missing_hard_dependency_fails():
     )
     catalog = Catalog()
     result = validate(config, catalog, {})
-    # traefik is now a *suggests* dep — missing it is a warning, not an error
     assert result.ok
-    assert any("traefik" in w.message for w in result.warnings)
+    assert not any("traefik" in w.message for w in result.warnings)
+    assert not any("socket-proxy" in w.message for w in result.warnings)
 
 
 def test_port_conflict_detected():

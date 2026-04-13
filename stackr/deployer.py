@@ -205,6 +205,24 @@ def _ensure_data_dirs(compose_content: str, data_dir: str) -> None:
     from rich.console import Console as _Console
     _console = _Console()
 
+    data_root = Path(data_dir)
+
+    # Attempt to create the root data directory itself first. If it doesn't
+    # exist and can't be created (e.g. /opt requires root), warn and stop —
+    # there's no point attempting subdirectories.
+    if not data_root.exists():
+        try:
+            data_root.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            _console.print(
+                f"  [yellow]WARN[/yellow]  Cannot create data directory "
+                f"[bold]{data_root}[/bold]: {exc.strerror}. "
+                f"Run: [bold]sudo mkdir -p {data_root} && "
+                f"sudo chown $USER:$USER {data_root}[/bold]"
+            )
+            return
+
+
     try:
         parsed = yaml.safe_load(compose_content)
     except yaml.YAMLError:
@@ -212,7 +230,6 @@ def _ensure_data_dirs(compose_content: str, data_dir: str) -> None:
     if not isinstance(parsed, dict):
         return
     services = parsed.get("services") or {}
-    data_root = Path(data_dir)
     for service in services.values():
         if not isinstance(service, dict):
             continue

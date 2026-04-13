@@ -75,7 +75,7 @@ def validate(
             continue
 
         _check_secrets(app_config, env, result)
-        _check_dependencies(app_config, catalog_app, enabled_names, result)
+        _check_dependencies(app_config, catalog_app, enabled_names, config, result)
         _check_ports(app_config, catalog_app, seen_ports, result)
         _check_container_name(app_config, seen_names, result)
         _check_external_volumes(app_config, catalog_app, data_dir, result)
@@ -211,8 +211,14 @@ def _check_dependencies(
     app_config: AppConfig,
     catalog_app: CatalogApp,
     enabled_names: set[str],
+    config: StackrConfig,
     result: ValidationResult,
 ) -> None:
+    # When Traefik is disabled, nginx-proxy-manager is the active proxy.
+    # Suppress suggests warnings for traefik and socket-proxy so users
+    # aren't flooded with irrelevant noise on every validate/deploy.
+    traefik_suggests = {"traefik", "socket-proxy"} if not config.traefik.enabled else set()
+
     for dep in catalog_app.requires:
         if dep not in enabled_names:
             result.error(
@@ -221,6 +227,8 @@ def _check_dependencies(
                 " (add it to apps: in stackr.yml).",
             )
     for dep in catalog_app.suggests:
+        if dep in traefik_suggests:
+            continue
         if dep not in enabled_names:
             result.warn(
                 app_config.name,
