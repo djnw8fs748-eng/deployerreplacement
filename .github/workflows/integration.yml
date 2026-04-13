@@ -1,0 +1,205 @@
+name: Integration Tests
+
+# Runs weekly (Sunday 03:00 UTC) and on manual trigger.
+# Each app is tested in its own matrix job: stackr renders the compose,
+# Docker starts the container, and we assert the service responds.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 3 * * 0"
+
+jobs:
+  deploy-test:
+    name: "Deploy: ${{ matrix.app }}"
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false  # run all apps even if one fails
+      matrix:
+        include:
+          # nginx-proxy-manager binds port 81 (admin UI) directly on the host
+          - app: nginx-proxy-manager
+            host_port: 81
+            health_url: "http://localhost:81/"
+
+          # ollama has no host-bound port — check via container IP on proxy network
+          - app: ollama
+            container_port: 11434
+            health_path: "/"
+
+          # plex binds port 32400 directly on the host
+          - app: plex
+            host_port: 32400
+            health_url: "http://localhost:32400/"
+
+          # sonarr has no host-bound port — /ping returns {"status":"OK"}
+          - app: sonarr
+            container_port: 8989
+            health_path: "/ping"
+
+          # radarr has no host-bound port — /ping returns {"status":"OK"}
+          - app: radarr
+            container_port: 7878
+            health_path: "/ping"
+
+          # homepage has no host-bound port — returns HTML on /
+          - app: homepage
+            container_port: 3000
+            health_path: "/"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install stackr
+        run: uv pip install --system -e ".[dev]"
+
+      # Create the proxy network that Traefik-proxied apps join as external.
+      # nginx-proxy-manager uses its own npm-net so it doesn't need this, but
+      # creating it unconditionally is harmless and keeps the step uniform.
+      - name: Create Docker networks
+        run: docker network create proxy || true
+
+      # Some compose templates bind-mount paths that must exist on the host.
+      - name: Create required host directories
+        run: |
+          sudo mkdir -p /opt/appdata/${{ matrix.app }}
+          sudo mkdir -p /tv /movies /downloads /media
+          sudo chmod -R 777 /opt/appdata /tv /movies /downloads /media
+
+      # Render the compose file using stackr's Python API — this is what a real
+      # deploy would do.  We use NPM mode (traefik.enabled=false) so no Traefik
+      # labels are emitted and no actual Traefik instance is needed.
+      - name: Render compose via stackr
+        run: |
+          python - << 'PYEOF'
+          import sys
+          from pathlib import Path
+          from stackr.catalog import Catalog
+          from stackr.config import AppConfig, StackrConfig
+          from stackr.renderer import render_app
+
+          app_name = "${{ matrix.app }}"
+
+          config = StackrConfig.model_validate({
+              "global": {
+                  "data_dir": "/opt/appdata",
+                  "timezone": "UTC",
+                  "puid": 1000,
+                  "pgid": 1000,
+              },
+              "network": {
+                  "mode": "external",
+                  "domain": "test.com",
+                  "local_domain": "home.test.com",
+              },
+              "traefik": {"enabled": False},
+              "security": {"socket_proxy": False},
+          })
+
+          catalog = Catalog()
+          catalog_app = catalog.get(app_name)
+          if catalog_app is None:
+              print(f"ERROR: '{app_name}' not found in catalog", file=sys.stderr)
+              sys.exit(1)
+
+          rendered = render_app(AppConfig(name=app_name), catalog_app, config)
+
+          out = Path(f"/tmp/stackr-ci/{app_name}/docker-compose.yml")
+          out.parent.mkdir(parents=True, exist_ok=True)
+          out.write_text(rendered)
+
+          print(f"Rendered compose for {app_name}:")
+          print(rendered)
+          PYEOF
+
+      - name: Start container
+        run: |
+          docker compose \
+            -f /tmp/stackr-ci/${{ matrix.app }}/docker-compose.yml \
+            up -d
+
+      # Wait for the service to respond, then assert a final check.
+      # Host-port apps (npm, plex): curl localhost:PORT
+      # Container-IP apps: resolve the container IP on its Docker network
+      # and curl from the runner host.
+      - name: Wait for service and assert health
+        timeout-minutes: 5
+        run: |
+          APP="${{ matrix.app }}"
+          HOST_PORT="${{ matrix.host_port }}"
+          CONTAINER_PORT="${{ matrix.container_port }}"
+          HEALTH_PATH="${{ matrix.health_path }}"
+
+          if [ -n "$HOST_PORT" ]; then
+            HEALTH_URL="http://localhost:${HOST_PORT}$HEALTH_PATH"
+          else
+            # Resolve the container's IP on whatever network it joined.
+            # Try the proxy network first; fall back to the first network assigned.
+            CONTAINER_IP=$(
+              docker inspect \
+                -f '{{index .NetworkSettings.Networks "proxy" "IPAddress"}}' \
+                "$APP" 2>/dev/null || true
+            )
+            if [ -z "$CONTAINER_IP" ]; then
+              CONTAINER_IP=$(
+                docker inspect \
+                  -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' \
+                  "$APP" 2>/dev/null | head -1
+              )
+            fi
+            if [ -z "$CONTAINER_IP" ]; then
+              echo "ERROR: could not determine container IP for $APP"
+              exit 1
+            fi
+            echo "Container IP for $APP: $CONTAINER_IP"
+            HEALTH_URL="http://${CONTAINER_IP}:${CONTAINER_PORT}${HEALTH_PATH}"
+          fi
+
+          echo "Polling $HEALTH_URL ..."
+          ELAPSED=0
+          MAX=270  # 4.5 minutes — plex is slow on first start
+
+          until curl -sf -o /dev/null -w "%{http_code}" "$HEALTH_URL" 2>/dev/null | \
+                grep -qE '^[23]'; do
+            if [ "$ELAPSED" -ge "$MAX" ]; then
+              echo "TIMEOUT: $APP did not become healthy within ${MAX}s"
+              exit 1
+            fi
+            echo "  waiting... (${ELAPSED}s elapsed)"
+            sleep 10
+            ELAPSED=$((ELAPSED + 10))
+          done
+
+          echo "Service is up. Final assertion:"
+          HTTP_CODE=$(curl -sf -o /dev/null -w "%{http_code}" "$HEALTH_URL")
+          echo "  $APP → $HEALTH_URL → HTTP $HTTP_CODE"
+
+          # Accept any 2xx or 3xx (redirect to /web/index.html etc. is expected)
+          if ! echo "$HTTP_CODE" | grep -qE '^[23]'; then
+            echo "FAIL: expected 2xx/3xx, got $HTTP_CODE"
+            exit 1
+          fi
+          echo "PASS: $APP responded with HTTP $HTTP_CODE"
+
+      # Always print container logs — useful for debugging failures
+      - name: Print container logs
+        if: always()
+        run: |
+          docker compose \
+            -f /tmp/stackr-ci/${{ matrix.app }}/docker-compose.yml \
+            logs --no-color || true
+
+      # Always tear down — remove containers and named volumes
+      - name: Tear down
+        if: always()
+        run: |
+          docker compose \
+            -f /tmp/stackr-ci/${{ matrix.app }}/docker-compose.yml \
+            down -v --remove-orphans || true
