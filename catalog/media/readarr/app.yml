@@ -3,7 +3,7 @@ display_name: Readarr
 description: Book manager for Usenet and BitTorrent users
 category: media
 homepage: https://readarr.com
-version: latest
+version: nightly
 exposure: external
 requires:
   - traefik
@@ -12,7 +12,7 @@ suggests:
 vars:
   version:
     type: string
-    default: latest
+    default: nightly
     description: Docker image tag
 ports:
   - 8787

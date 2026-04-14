@@ -346,8 +346,12 @@ The integration workflow deploys every catalog app into real Docker containers o
 **Skipped apps** (document the reason here when skipping):
 - `traefik` — conflicts with nginx-proxy-manager on host ports 80/443
 - `pihole` — conflicts with adguardhome on host port 53
+- `adguardhome` — conflicts with systemd-resolved on host port 53 (GitHub Actions runner)
 - `authelia` — requires a `configuration.yml` file pre-mounted at `/config`
+- `headscale` — requires a `config.yaml` file pre-mounted at `/etc/headscale`
 - `gluetun` — requires live VPN credentials
+- `dasherr` — `ghcr.io/erohtar/dasherr` image is not publicly accessible
+- `authentik` — requires complex multi-container setup with pre-configured volumes
 
 **Adding a secret:** if a new app reads a `${MY_SECRET}` env var, add a dummy value to the `env:` block at the top of `integration.yml` so Docker Compose can expand it.
 

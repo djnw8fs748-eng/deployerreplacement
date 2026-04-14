@@ -77,7 +77,7 @@ services:
       - paperless-backend
 
   paperless-tika:
-    image: ghcr.io/paperless-ngx/tika:latest
+    image: apache/tika:latest
     container_name: paperless-tika
     restart: unless-stopped
     networks:

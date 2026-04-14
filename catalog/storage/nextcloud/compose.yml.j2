@@ -4,8 +4,10 @@ services:
     container_name: nextcloud
     restart: unless-stopped
     depends_on:
-      - nextcloud-db
-      - nextcloud-redis
+      nextcloud-db:
+        condition: service_healthy
+      nextcloud-redis:
+        condition: service_healthy
     environment:
       - TZ={{ global.timezone }}
       - MYSQL_HOST=nextcloud-db
