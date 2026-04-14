@@ -4,15 +4,24 @@ name: Integration Tests
 # Each app is tested in its own matrix job: stackr renders the compose,
 # Docker starts the container, and we assert the service responds.
 #
-# Skipped apps (require special infrastructure not available in CI):
-#   traefik          — conflicts with nginx-proxy-manager on ports 80/443
+# Skipped / removed apps:
+#   traefik          — removed from catalog; NPM is the sole reverse proxy
 #   pihole           — conflicts with adguardhome on host port 53
 #   adguardhome      — conflicts with systemd-resolved on host port 53 (GitHub Actions runner)
-#   authelia         — requires a configuration.yml file pre-mounted at /config
+#   authelia         — removed from catalog
+#   authentik        — removed from catalog
 #   headscale        — requires a config.yaml file pre-mounted at /etc/headscale
 #   gluetun          — requires live VPN credentials
-#   dasherr          — ghcr.io/erohtar/dasherr image is not publicly accessible
-#   authentik        — requires complex multi-container setup with pre-configured volumes
+#   dasherr          — removed from catalog
+#   nextcloud        — removed from catalog
+#   sabnzbd          — removed from catalog
+#   transmission     — removed from catalog
+#   jellyseerr       — removed from catalog; replaced by seerr
+#   overseerr        — removed from catalog; replaced by seerr
+#   freshrss         — removed from catalog (productivity category removed)
+#   gitea            — removed from catalog (productivity category removed)
+#   miniflux         — removed from catalog (productivity category removed)
+#   paperless-ngx    — removed from catalog (productivity category removed)
 on:
   workflow_dispatch:
   schedule:
@@ -22,26 +31,18 @@ on:
 # Docker Compose expands ${VAR} from the environment — these values are
 # intentionally fake and only sufficient to allow containers to start.
 env:
-  AUTHENTIK_POSTGRES_PASSWORD: ci-integration-test
-  AUTHENTIK_SECRET_KEY: ci-integration-test-secret-key-at-least-fifty-chars-x
   FLAME_PASSWORD: ci-integration-test
   GRAFANA_ADMIN_PASSWORD: ci-integration-test
   MARIADB_PASSWORD: ci-integration-test
   MARIADB_ROOT_PASSWORD: ci-integration-test
-  MINIFLUX_DB_PASSWORD: ci-integration-test
-  MINIFLUX_ADMIN_PASSWORD: ci-integration-test-12345
   MONGO_ROOT_PASSWORD: ci-integration-test
   MONGO_ROOT_USERNAME: ci-root
-  NEXTCLOUD_DB_PASSWORD: ci-integration-test
-  NEXTCLOUD_DB_ROOT_PASSWORD: ci-integration-test
-  NEXTCLOUD_ADMIN_PASSWORD: ci-integration-test
   OPENWEBUI_SECRET_KEY: ci-integration-test
-  PAPERLESS_DB_PASSWORD: ci-integration-test
-  PAPERLESS_SECRET_KEY: ci-integration-test-paperless-secret-key-32chars-min
-  PAPERLESS_ADMIN_PASSWORD: ci-integration-test
+  POCKET_ID_ENCRYPTION_KEY: ci-integration-test-encryption-key-32ch
   POSTGRES_PASSWORD: ci-integration-test
+  TINYAUTH_OAUTH_CLIENT_ID: ci-integration-test
+  TINYAUTH_OAUTH_CLIENT_SECRET: ci-integration-test
   DUPLICATI_SETTINGS_ENCRYPTION_KEY: ci-integration-test
-  TRANSMISSION_PASS: ci-integration-test
   VAULTWARDEN_ADMIN_TOKEN: ci-integration-test
 
 jobs:
@@ -110,24 +111,12 @@ jobs:
             container_port: 6767
             health_path: "/"
 
-          - app: overseerr
+          - app: seerr
             container_port: 5055
-            health_path: "/"
-
-          - app: jellyseerr
-            container_port: 5055
-            health_path: "/"
-
-          - app: sabnzbd
-            container_port: 8080
             health_path: "/"
 
           - app: qbittorrent
             container_port: 8080
-            health_path: "/"
-
-          - app: transmission
-            container_port: 9091
             health_path: "/"
 
           - app: tdarr
@@ -203,6 +192,14 @@ jobs:
           - app: crowdsec
             health_type: running
 
+          - app: pocket-id
+            container_port: 1411
+            health_path: "/"
+
+          - app: tinyauth
+            container_port: 3000
+            health_path: "/"
+
           # ----------------------------------------------------------------
           # Databases  (TCP port reachability check — no HTTP interface)
           # ----------------------------------------------------------------
@@ -225,33 +222,8 @@ jobs:
             tcp_port: 25565
 
           # ----------------------------------------------------------------
-          # Productivity
-          # ----------------------------------------------------------------
-          - app: freshrss
-            container_port: 80
-            health_path: "/"
-
-          # gitea binds SSH on port 22 by default — use 2222 to avoid host conflict
-          - app: gitea
-            container_port: 3000
-            health_path: "/"
-            extra_vars: '{"ssh_port":"2222"}'
-
-          - app: miniflux
-            container_port: 8080
-            health_path: "/"
-
-          - app: paperless-ngx
-            container_port: 8000
-            health_path: "/"
-
-          # ----------------------------------------------------------------
           # Storage
           # ----------------------------------------------------------------
-          - app: nextcloud
-            container_port: 80
-            health_path: "/"
-
           - app: filebrowser
             container_port: 80
             health_path: "/"
@@ -380,7 +352,7 @@ jobs:
           HEALTH_PROTO="${{ matrix.health_proto || 'http' }}"
           HEALTH_TYPE="${{ matrix.health_type }}"
           NETWORK="${{ matrix.network_name || 'proxy' }}"
-          MAX=420  # 7 minutes — generous for slow-starting apps (nextcloud, authentik)
+          MAX=420  # generous timeout for slow-starting apps
           ELAPSED=0
 
           # --- running check: daemon with no port ---
