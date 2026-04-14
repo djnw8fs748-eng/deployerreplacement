@@ -114,12 +114,17 @@ def _load_app(app_yml: Path) -> CatalogApp:
     # Normalise var definitions
     raw_vars = data.pop("vars", {})
     var_defs = {}
-    for k, v in raw_vars.items():
+    for k, v in (raw_vars or {}).items():
         if isinstance(v, dict):
             var_defs[k] = VarDef(**v)
         else:
             var_defs[k] = VarDef(default=v)
     data["vars"] = var_defs
+
+    # Normalise list fields that may be null in YAML (bare key with no value)
+    for list_field in ("requires", "suggests", "ports", "host_ports"):
+        if data.get(list_field) is None:
+            data[list_field] = []
 
     app = CatalogApp(**data, catalog_dir=app_yml.parent)
     return app

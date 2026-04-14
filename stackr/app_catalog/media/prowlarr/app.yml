@@ -4,10 +4,8 @@ description: Indexer manager and proxy for Sonarr, Radarr, and other *arr apps
 category: media
 homepage: https://github.com/Prowlarr/Prowlarr
 version: latest
-exposure: external
 requires: []
 suggests:
-  - traefik
   - gluetun
   - sonarr
   - radarr

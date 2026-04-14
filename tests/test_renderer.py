@@ -10,8 +10,7 @@ from stackr.renderer import _deep_merge, render_app
 def _make_config(**kwargs) -> StackrConfig:
     base = {
         "global": {"data_dir": "/opt/appdata", "timezone": "UTC", "puid": 1000, "pgid": 1000},
-        "network": {"mode": "external", "domain": "test.com", "local_domain": "home.test.com"},
-        "traefik": {"enabled": True, "acme_email": "test@test.com", "dns_provider": "cloudflare"},
+        "network": {"domain": "test.com", "local_domain": "home.test.com"},
         "security": {"socket_proxy": True},
     }
     base.update(kwargs)
@@ -50,25 +49,14 @@ def test_render_jellyfin_no_gpu_by_default():
     assert "/dev/dri" not in rendered
 
 
-def test_render_traefik_labels_present():
+def test_render_traefik_labels_absent():
+    """Traefik removed — traefik labels must never appear in rendered output."""
     catalog = Catalog()
     config = _make_config()
     app_config = AppConfig(name="jellyfin")
     catalog_app = catalog.get("jellyfin")
     rendered = render_app(app_config, catalog_app, config)
-    assert "traefik.enable" in rendered
-    assert "jellyfin.test.com" in rendered
-
-
-def test_render_traefik_external_mode():
-    catalog = Catalog()
-    config = _make_config(
-        network={"mode": "external", "domain": "mylab.io", "local_domain": "home.mylab.io"},
-    )
-    app_config = AppConfig(name="jellyfin")
-    catalog_app = catalog.get("jellyfin")
-    rendered = render_app(app_config, catalog_app, config)
-    assert "jellyfin.mylab.io" in rendered
+    assert "traefik.enable" not in rendered
 
 
 def test_render_vaultwarden():
@@ -99,29 +87,25 @@ def test_render_all_seed_apps():
     catalog = Catalog()
     config = _make_config()
     seed_apps = [
-        # Phase 1 original apps
-        "traefik", "portainer", "jellyfin", "radarr", "sonarr",
-        "prowlarr", "homepage", "uptime-kuma", "adguardhome", "vaultwarden",
-        "socket-proxy",
-        # Phase 3 — database
-        "postgres", "mariadb", "redis", "mongo",
-        # Phase 3 — AI
+        # network
+        "nginx-proxy-manager", "adguardhome", "pihole", "wireguard", "headscale",
+        # ai
         "ollama", "open-webui",
-        # Phase 3 — monitoring
-        "grafana", "prometheus", "loki", "netdata",
-        # Phase 3 — media
-        "plex", "bazarr", "lidarr", "readarr", "overseerr", "jellyseerr",
-        "tdarr", "sabnzbd", "qbittorrent", "transmission",
-        # Phase 3 — management
-        "dozzle", "watchtower", "heimdall", "dasherr", "flame",
-        # Phase 3 — storage
-        "nextcloud", "filebrowser", "duplicati",
-        # Phase 3 — network
-        "pihole", "wireguard", "headscale", "nginx-proxy-manager",
-        # Phase 3 — productivity
-        "gitea", "paperless-ngx", "freshrss", "miniflux",
-        # Phase 3 — gaming
+        # media
+        "plex", "jellyfin", "sonarr", "radarr", "lidarr", "readarr", "prowlarr",
+        "bazarr", "qbittorrent", "tdarr", "seerr",
+        # management
+        "homepage", "flame", "heimdall", "dozzle", "portainer", "watchtower",
+        # monitoring
+        "uptime-kuma", "grafana", "prometheus", "loki", "netdata",
+        # security
+        "vaultwarden", "socket-proxy", "crowdsec", "pocket-id", "tinyauth",
+        # database
+        "postgres", "mariadb", "redis", "mongo",
+        # gaming
         "minecraft",
+        # storage
+        "filebrowser", "duplicati",
     ]
     for name in seed_apps:
         catalog_app = catalog.get(name)
@@ -170,30 +154,6 @@ def test_render_ollama_nvidia():
     assert "capabilities" in rendered
 
 
-def test_render_nextcloud_has_db_sidecar():
-    """Nextcloud compose must include its MariaDB and Redis sidecars."""
-    catalog = Catalog()
-    config = _make_config()
-    app_config = AppConfig(name="nextcloud")
-    catalog_app = catalog.get("nextcloud")
-    rendered = render_app(app_config, catalog_app, config)
-    parsed = yaml.safe_load(rendered)
-    assert "nextcloud" in parsed["services"]
-    assert "nextcloud-db" in parsed["services"]
-    assert "nextcloud-redis" in parsed["services"]
-
-
-def test_render_miniflux_has_db_sidecar():
-    """Miniflux compose must include its Postgres sidecar."""
-    catalog = Catalog()
-    config = _make_config()
-    app_config = AppConfig(name="miniflux")
-    catalog_app = catalog.get("miniflux")
-    rendered = render_app(app_config, catalog_app, config)
-    parsed = yaml.safe_load(rendered)
-    assert "miniflux" in parsed["services"]
-    assert "miniflux-db" in parsed["services"]
-
 
 def test_render_wireguard_no_proxy_network():
     """Wireguard is a VPN tunnel — it has no proxy network or Traefik labels."""
@@ -205,6 +165,56 @@ def test_render_wireguard_no_proxy_network():
     assert "traefik.enable" not in rendered
     parsed = yaml.safe_load(rendered)
     assert "networks" not in parsed.get("services", {}).get("wireguard", {})
+
+
+def test_render_seerr():
+    config = _make_config()
+    app = Catalog().get("seerr")
+    assert app is not None
+    rendered = render_app(AppConfig(name="seerr"), app, config)
+    parsed = yaml.safe_load(rendered)
+    assert "seerr" in parsed["services"]
+    assert "seerr/seerr" in parsed["services"]["seerr"]["image"]
+    assert parsed["networks"]["proxy"]["external"] is True
+
+
+def test_render_pocket_id():
+    config = _make_config()
+    app = Catalog().get("pocket-id")
+    assert app is not None
+    rendered = render_app(AppConfig(name="pocket-id"), app, config)
+    parsed = yaml.safe_load(rendered)
+    assert "pocket-id" in parsed["services"]
+    assert "pocket-id/pocket-id" in parsed["services"]["pocket-id"]["image"]
+    env = parsed["services"]["pocket-id"]["environment"]
+    assert any("APP_URL" in e for e in env)
+    assert any("ENCRYPTION_KEY" in e for e in env)
+
+
+def test_render_tinyauth():
+    config = _make_config()
+    app = Catalog().get("tinyauth")
+    assert app is not None
+    rendered = render_app(AppConfig(name="tinyauth"), app, config)
+    parsed = yaml.safe_load(rendered)
+    assert "tinyauth" in parsed["services"]
+    assert "steveiliop56/tinyauth" in parsed["services"]["tinyauth"]["image"]
+    env = parsed["services"]["tinyauth"]["environment"]
+    assert any("TINYAUTH_APPURL" in e for e in env)
+    assert any("pocketid_CLIENTID" in e for e in env)
+
+
+def test_no_traefik_in_render_context():
+    """traefik and traefik_labels must not be injected into template context."""
+    config = StackrConfig.model_validate({
+        "global": {"data_dir": "/data", "timezone": "UTC", "puid": 1000, "pgid": 1000},
+        "network": {"domain": "test.com", "local_domain": "home.test.com"},
+        "security": {"socket_proxy": False},
+    })
+    app = Catalog().get("seerr")
+    rendered = render_app(AppConfig(name="seerr"), app, config)
+    assert "traefik.enable" not in rendered
+    assert "traefik.http" not in rendered
 
 
 def test_deep_merge():

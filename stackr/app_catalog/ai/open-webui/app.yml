@@ -4,10 +4,8 @@ description: User-friendly web interface for interacting with local LLMs via Oll
 category: ai
 homepage: https://openwebui.com
 version: main
-exposure: external
 requires: []
 suggests:
-  - traefik
   - ollama
 vars:
   version:

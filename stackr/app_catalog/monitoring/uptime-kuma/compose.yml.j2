@@ -9,10 +9,6 @@ services:
       - {{ global.data_dir }}/uptime-kuma/data:/app/data
     networks:
       - proxy
-    labels:
-{% for k, v in traefik_labels(3001).items() %}
-      - "{{ k }}={{ v }}"
-{% endfor %}
 
 networks:
   proxy:

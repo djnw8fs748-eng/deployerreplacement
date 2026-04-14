@@ -29,10 +29,6 @@ services:
 {% endif %}
     networks:
       - proxy
-    labels:
-{% for k, v in traefik_labels(8096).items() %}
-      - "{{ k }}={{ v }}"
-{% endfor %}
 
 networks:
   proxy:

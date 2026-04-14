@@ -72,7 +72,6 @@ def test_dashboard_returns_html(tmp_path: pytest.FixtureLookupError) -> None:  #
             {
                 "global": {"data_dir": "/tmp/data"},
                 "network": {"domain": "test.com"},
-                "traefik": {"enabled": False},
                 "security": {"socket_proxy": False},
                 "apps": [{"name": "jellyfin", "enabled": True}],
             }
@@ -103,7 +102,6 @@ def test_api_apps_json(tmp_path: pytest.FixtureLookupError) -> None:  # type: ig
             {
                 "global": {"data_dir": "/tmp/data"},
                 "network": {"domain": "test.com"},
-                "traefik": {"enabled": False},
                 "security": {"socket_proxy": False},
                 "apps": [{"name": "grafana", "enabled": True}],
             }
@@ -138,7 +136,6 @@ def test_api_apps_returns_all_catalog_apps(tmp_path: pytest.FixtureLookupError) 
             {
                 "global": {"data_dir": "/tmp/data"},
                 "network": {"domain": "test.com"},
-                "traefik": {"enabled": False},
                 "security": {"socket_proxy": False},
                 "apps": [{"name": "jellyfin", "enabled": True}],
             }
@@ -178,7 +175,6 @@ def test_api_catalog_json(tmp_path: pytest.FixtureLookupError) -> None:  # type:
             {
                 "global": {"data_dir": "/tmp/data"},
                 "network": {"domain": "test.com"},
-                "traefik": {"enabled": False},
                 "security": {"socket_proxy": False},
                 "apps": [],
             }
@@ -218,12 +214,6 @@ def test_api_settings_get(tmp_path: pytest.FixtureLookupError) -> None:  # type:
                 "network": {
                     "domain": "lab.example.com",
                     "local_domain": "home.lab.example.com",
-                    "mode": "hybrid",
-                },
-                "traefik": {
-                    "enabled": True,
-                    "acme_email": "ops@lab.example.com",
-                    "dns_provider": "cloudflare",
                 },
                 "security": {"socket_proxy": False},
                 "apps": [],
@@ -238,15 +228,15 @@ def test_api_settings_get(tmp_path: pytest.FixtureLookupError) -> None:  # type:
     data = resp.json()
     expected_keys = {
         "data_dir", "timezone", "puid", "pgid",
-        "domain", "local_domain", "network_mode",
-        "acme_email", "dns_provider",
+        "domain", "local_domain",
     }
     assert expected_keys <= set(data.keys())
     assert data["data_dir"] == "/srv/appdata"
     assert data["timezone"] == "Europe/Berlin"
     assert data["puid"] == 1001
-    assert data["network_mode"] == "hybrid"
-    assert data["dns_provider"] == "cloudflare"
+    assert "traefik_enabled" not in data
+    assert "dns_provider" not in data
+    assert "network_mode" not in data
 
 
 @_SKIP_HTTPX
@@ -267,9 +257,7 @@ def test_api_settings_post(tmp_path: pytest.FixtureLookupError) -> None:  # type
                 "network": {
                     "domain": "old.com",
                     "local_domain": "home.old.com",
-                    "mode": "external",
                 },
-                "traefik": {"enabled": True, "acme_email": "old@old.com", "dns_provider": "old"},
                 "security": {"socket_proxy": False},
                 "apps": [],
             }
@@ -287,9 +275,6 @@ def test_api_settings_post(tmp_path: pytest.FixtureLookupError) -> None:  # type
             "pgid": "2000",
             "domain": "new.example.com",
             "local_domain": "home.new.example.com",
-            "network_mode": "internal",
-            "acme_email": "new@new.example.com",
-            "dns_provider": "route53",
         },
     )
     assert resp.status_code == 200
@@ -300,6 +285,4 @@ def test_api_settings_post(tmp_path: pytest.FixtureLookupError) -> None:  # type
     assert written["global"]["timezone"] == "America/New_York"
     assert written["global"]["puid"] == 2000
     assert written["network"]["domain"] == "new.example.com"
-    assert written["network"]["mode"] == "internal"
-    assert written["traefik"]["acme_email"] == "new@new.example.com"
-    assert written["traefik"]["dns_provider"] == "route53"
+    assert "traefik" not in written

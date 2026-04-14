@@ -2,14 +2,12 @@
 
 Checks run before any containers are touched:
 - Unresolved ${VAR} secrets
-- DNS provider env vars present for the configured provider
 - Port conflicts between enabled apps
 - Container name conflicts
 - Missing hard dependencies (requires:)
 - Missing external volumes
-- Auth provider dependency (authentik/authelia must be enabled if configured)
-- CrowdSec dependency (crowdsec must be enabled if security.crowdsec: true)
-- Mutually exclusive apps (traefik+nginx-proxy-manager, pihole+adguardhome)
+- CrowdSec dependency check (_check_crowdsec)
+- Mutually exclusive apps (pihole+adguardhome)
 """
 
 from __future__ import annotations
@@ -20,7 +18,6 @@ from pathlib import Path
 
 from stackr.catalog import Catalog, CatalogApp
 from stackr.config import AppConfig, StackrConfig
-from stackr.dns_providers import get_provider
 from stackr.secrets import find_unresolved
 
 _VAR_RE = re.compile(r"\$\{([^}]+)\}")
@@ -64,9 +61,7 @@ def validate(
     seen_names: dict[str, str] = {}
 
     # Global checks (independent of individual apps)
-    _check_dns_provider(config, env, result)
-    _check_dns_provider_env_refs(config, env, result)
-    _check_security_stack(config, enabled_names, result)
+    _check_crowdsec(config, enabled_names, result)
     _check_mutually_exclusive(enabled_names, result)
 
     for app_config in config.enabled_apps:
@@ -83,58 +78,23 @@ def validate(
     return result
 
 
-def _check_dns_provider(
-    config: StackrConfig,
-    env: dict[str, str],
-    result: ValidationResult,
-) -> None:
-    """Validate that all required env vars for the configured DNS provider are present."""
-    if not config.traefik.enabled:
-        return
-    provider = get_provider(config.traefik.dns_provider)
-    if provider is None:
-        result.warn(
-            "traefik",
-            f"DNS provider '{config.traefik.dns_provider}' is not in the provider registry. "
-            "Ensure required env vars are set manually.",
-        )
-        return
-    for var in provider.required_env:
-        if var not in env:
-            result.error(
-                "traefik",
-                f"DNS provider '{provider.display_name}' requires env var '{var}' "
-                f"(set it in .stackr.env or export it in your shell).",
-            )
-
-
-def _check_security_stack(
+def _check_crowdsec(
     config: StackrConfig,
     enabled_names: set[str],
     result: ValidationResult,
 ) -> None:
-    """Validate that security stack components are consistent."""
-    # Auth provider must be enabled as an app when configured
-    provider = config.security.auth_provider
-    if provider not in ("none", "google_oauth") and provider not in enabled_names:
-        result.error(
-            "security",
-            f"auth_provider is set to '{provider}' but '{provider}' is not in apps. "
-            f"Add it or set auth_provider: none.",
-        )
-
-    # CrowdSec must be enabled as an app when crowdsec: true
+    """crowdsec: true requires the crowdsec app to be enabled."""
     if config.security.crowdsec and "crowdsec" not in enabled_names:
-        result.error(
-            "security",
-            "security.crowdsec is true but 'crowdsec' is not in apps. "
-            "Add it or set crowdsec: false.",
+        result.errors.append(
+            ValidationError(
+                app="crowdsec",
+                message="security.crowdsec is true but 'crowdsec' is not in apps",
+            )
         )
 
 
 # Pairs of apps that bind the same host ports and cannot both be enabled.
 _MUTUALLY_EXCLUSIVE: list[tuple[str, str, str]] = [
-    ("traefik", "nginx-proxy-manager", "both bind host ports 80 and 443"),
     ("pihole", "adguardhome", "both bind host port 53 (DNS)"),
 ]
 
@@ -172,26 +132,6 @@ def _resolve_catalog(
     return catalog_app
 
 
-def _check_dns_provider_env_refs(
-    config: StackrConfig,
-    env: dict[str, str],
-    result: ValidationResult,
-) -> None:
-    """Check for unresolved ${VAR} references in traefik.dns_provider_env values.
-
-    This is a global check run once — not per-app — so duplicate errors are not
-    emitted for every enabled app when a Traefik secret is missing.
-    """
-    if not config.traefik.enabled:
-        return
-    for key, val in config.traefik.dns_provider_env.items():
-        for u in find_unresolved(val, env):
-            result.error(
-                "traefik",
-                f"Unresolved secret: ${{{u}}} (in traefik.dns_provider_env.{key})",
-            )
-
-
 def _check_secrets(
     app_config: AppConfig,
     env: dict[str, str],
@@ -214,11 +154,6 @@ def _check_dependencies(
     config: StackrConfig,
     result: ValidationResult,
 ) -> None:
-    # When Traefik is disabled, nginx-proxy-manager is the active proxy.
-    # Suppress suggests warnings for traefik and socket-proxy so users
-    # aren't flooded with irrelevant noise on every validate/deploy.
-    traefik_suggests = {"traefik", "socket-proxy"} if not config.traefik.enabled else set()
-
     for dep in catalog_app.requires:
         if dep not in enabled_names:
             result.error(
@@ -227,8 +162,6 @@ def _check_dependencies(
                 " (add it to apps: in stackr.yml).",
             )
     for dep in catalog_app.suggests:
-        if dep in traefik_suggests:
-            continue
         if dep not in enabled_names:
             result.warn(
                 app_config.name,

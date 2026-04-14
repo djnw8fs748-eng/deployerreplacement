@@ -20,10 +20,6 @@ services:
       - {{ vars.dns1 | default('8.8.8.8') }}
     networks:
       - proxy
-    labels:
-{% for k, v in traefik_labels(80, 'internal').items() %}
-      - "{{ k }}={{ v }}"
-{% endfor %}
 
 networks:
   proxy:

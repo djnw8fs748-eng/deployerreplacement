@@ -4,7 +4,6 @@ description: Secure proxy for the Docker socket — prevents apps from accessing
 category: security
 homepage: https://github.com/Tecnativa/docker-socket-proxy
 version: latest
-exposure: internal
 requires: []
 ports: []
 volumes: []

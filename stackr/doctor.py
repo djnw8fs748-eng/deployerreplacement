@@ -6,7 +6,6 @@ Checks run by `stackr doctor`:
 - proxy Docker network exists
 - socket_proxy network exists (when security.socket_proxy: true)
 - State file exists and is valid JSON
-- DNS provider env vars present
 - .stackr.env file exists
 - All enabled apps present in catalog
 - Backup destination is writable (when backup.enabled: true)
@@ -25,7 +24,6 @@ from rich.console import Console
 from rich.table import Table
 
 from stackr.config import StackrConfig
-from stackr.dns_providers import get_provider
 from stackr.state import DEFAULT_STATE_DIR, STATE_FILE
 
 console = Console()
@@ -54,7 +52,6 @@ def run_doctor(
     if config.security.socket_proxy:
         checks.append(_check_socket_proxy_network())
     checks.append(_check_state_file())
-    checks.extend(_check_dns_env(config, env))
     checks.append(_check_stackr_env(config_dir or Path(".")))
     checks.append(_check_catalog_apps(config))
     if config.backup.enabled:
@@ -140,30 +137,6 @@ def _check_state_file() -> DoctorCheck:
         return DoctorCheck("State file", "ok", str(state_path))
     except (json.JSONDecodeError, OSError) as exc:
         return DoctorCheck("State file", "fail", f"Corrupt or unreadable: {exc}")
-
-
-def _check_dns_env(config: StackrConfig, env: dict[str, str]) -> list[DoctorCheck]:
-    if not config.traefik.enabled:
-        return []
-    provider = get_provider(config.traefik.dns_provider)
-    if provider is None:
-        return [
-            DoctorCheck(
-                "DNS env vars",
-                "warn",
-                f"Provider '{config.traefik.dns_provider}' not in registry"
-                " — verify env vars manually",
-            )
-        ]
-    checks = []
-    for var in provider.required_env:
-        if var in env:
-            checks.append(DoctorCheck(f"DNS env: {var}", "ok", "Set"))
-        else:
-            checks.append(
-                DoctorCheck(f"DNS env: {var}", "fail", "Missing — add to .stackr.env or export")
-            )
-    return checks
 
 
 def _check_stackr_env(config_dir: Path) -> DoctorCheck:

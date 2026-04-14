@@ -4,10 +4,8 @@ description: Free and open source BitTorrent client with a web UI
 category: media
 homepage: https://www.qbittorrent.org
 version: latest
-exposure: external
 requires: []
 suggests:
-  - traefik
   - gluetun
 vars:
   version:

@@ -4,7 +4,6 @@ description: In-memory data structure store used as cache, database, and message
 category: database
 homepage: https://redis.io
 version: "7"
-exposure: internal
 requires: []
 vars:
   version:

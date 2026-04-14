@@ -1,0 +1,19 @@
+name: tinyauth
+display_name: TinyAuth
+description: Lightweight forward-auth proxy for Nginx Proxy Manager with OIDC support
+category: security
+homepage: https://github.com/steveiliop56/tinyauth
+version: latest
+requires:
+  - pocket-id
+suggests: []
+vars:
+  version:
+    type: string
+    default: latest
+    description: Docker image tag
+ports: []
+host_ports: []
+volumes:
+  - name: data
+    path: /data

@@ -1,0 +1,25 @@
+services:
+  tinyauth:
+    image: ghcr.io/steveiliop56/tinyauth:{{ vars.version | default('latest') }}
+    container_name: tinyauth
+    restart: unless-stopped
+    environment:
+      - TZ={{ global.timezone }}
+      - TINYAUTH_APPURL=https://tinyauth.{{ network.domain }}
+      - TINYAUTH_DATABASE_PATH=/data/tinyauth.db
+      - TINYAUTH_OAUTH_PROVIDERS_pocketid_NAME=Pocket ID
+      - TINYAUTH_OAUTH_PROVIDERS_pocketid_CLIENTID=${TINYAUTH_OAUTH_CLIENT_ID}
+      - TINYAUTH_OAUTH_PROVIDERS_pocketid_CLIENTSECRET=${TINYAUTH_OAUTH_CLIENT_SECRET}
+      - TINYAUTH_OAUTH_PROVIDERS_pocketid_SCOPES=openid email profile
+      - TINYAUTH_OAUTH_PROVIDERS_pocketid_AUTHURL=https://pocket-id.{{ network.domain }}/authorize
+      - TINYAUTH_OAUTH_PROVIDERS_pocketid_TOKENURL=https://pocket-id.{{ network.domain }}/api/oidc/token
+      - TINYAUTH_OAUTH_PROVIDERS_pocketid_USERINFOURL=https://pocket-id.{{ network.domain }}/api/oidc/userinfo
+      - TINYAUTH_OAUTH_PROVIDERS_pocketid_REDIRECTURL=https://tinyauth.{{ network.domain }}/oauth/callback
+    volumes:
+      - {{ global.data_dir }}/tinyauth/data:/data
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true

@@ -3,8 +3,6 @@
 import textwrap
 from pathlib import Path
 
-import pytest
-
 from stackr.config import StackrConfig, load_config
 
 
@@ -15,52 +13,7 @@ def _config_from_dict(d: dict) -> StackrConfig:
 def test_minimal_config():
     cfg = _config_from_dict({"global": {"data_dir": "/data"}})
     assert str(cfg.global_.data_dir) == "/data"
-    assert cfg.network.mode == "external"
-
-
-def test_invalid_network_mode():
-    with pytest.raises(Exception, match="network.mode"):
-        _config_from_dict({"network": {"mode": "invalid"}})
-
-
-def test_unknown_auth_provider_accepted_by_config():
-    # auth_provider is validated by stackr.validator, not at config parse time,
-    # so users can configure custom app-based auth providers.
-    cfg = _config_from_dict({"security": {"auth_provider": "my-custom-sso"}})
-    assert cfg.security.auth_provider == "my-custom-sso"
-
-
-def test_socket_proxy_auto_injected():
-    cfg = _config_from_dict({
-        "traefik": {"enabled": True},
-        "security": {"socket_proxy": True},
-        "apps": [{"name": "traefik", "enabled": True}],
-    })
-    names = [a.name for a in cfg.apps]
-    assert "socket-proxy" in names
-
-
-def test_socket_proxy_deployed_before_traefik():
-    """socket-proxy must appear before traefik in the deploy list."""
-    cfg = _config_from_dict({
-        "traefik": {"enabled": True},
-        "security": {"socket_proxy": True},
-        "apps": [],
-    })
-    names = [a.name for a in cfg.enabled_apps]
-    assert names.index("socket-proxy") < names.index("traefik")
-
-
-def test_socket_proxy_not_duplicated():
-    cfg = _config_from_dict({
-        "traefik": {"enabled": True},
-        "security": {"socket_proxy": True},
-        "apps": [
-            {"name": "socket-proxy", "enabled": True},
-            {"name": "traefik", "enabled": True},
-        ],
-    })
-    assert [a.name for a in cfg.apps].count("socket-proxy") == 1
+    assert cfg.network.domain == "example.com"
 
 
 def test_enabled_apps_filter():
@@ -92,15 +45,27 @@ def test_app_overrides():
 def test_apps_none_coerced_to_empty_list():
     """apps: with no YAML value parses as None — must not raise a validation error."""
     cfg = _config_from_dict({"apps": None})
-    # Auto-injection may prepend nginx-proxy-manager (default) or traefik+socket-proxy
-    auto_injected = {"traefik", "socket-proxy", "nginx-proxy-manager"}
-    assert cfg.apps == [] or all(a.name in auto_injected for a in cfg.apps)
+    # Auto-injection prepends nginx-proxy-manager as the default reverse proxy
+    assert all(a.name == "nginx-proxy-manager" for a in cfg.apps)
 
 
 def test_apps_missing_key_defaults_to_empty():
     """apps key entirely absent from config must not raise a validation error."""
     cfg = _config_from_dict({})
     assert isinstance(cfg.apps, list)
+
+
+def test_no_traefik_config():
+    """TraefikConfig and traefik field must not exist after removal."""
+    import stackr.config as cfg
+    assert not hasattr(cfg, "TraefikConfig")
+    config = StackrConfig.model_validate({
+        "global": {"data_dir": "/data", "timezone": "UTC", "puid": 1000, "pgid": 1000},
+        "network": {"domain": "test.com", "local_domain": "home.test.com"},
+        "security": {"socket_proxy": False},
+    })
+    assert not hasattr(config, "traefik")
+    assert not hasattr(config.network, "mode")
 
 
 def test_load_config_from_file(tmp_path: Path):

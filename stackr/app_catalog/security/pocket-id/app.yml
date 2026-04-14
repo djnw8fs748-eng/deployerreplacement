@@ -1,0 +1,19 @@
+name: pocket-id
+display_name: Pocket ID
+description: Simple OIDC provider with passkey-only authentication for self-hosted services
+category: security
+homepage: https://pocket-id.org
+version: v2
+requires: []
+suggests:
+  - tinyauth
+vars:
+  version:
+    type: string
+    default: v2
+    description: Docker image tag
+ports: []
+host_ports: []
+volumes:
+  - name: data
+    path: /app/data

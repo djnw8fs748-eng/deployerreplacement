@@ -144,9 +144,7 @@ def test_load_settings_reads_sections(tmp_path: Path) -> None:
         "network": {
             "domain": "example.net",
             "local_domain": "home.example.net",
-            "mode": "hybrid",
         },
-        "traefik": {"acme_email": "me@example.net", "dns_provider": "cloudflare"},
         "apps": [],
     }
     cfg = tmp_path / "stackr.yml"
@@ -155,7 +153,7 @@ def test_load_settings_reads_sections(tmp_path: Path) -> None:
     result = load_settings(cfg)
     assert result["global"]["data_dir"] == "/srv/data"
     assert result["network"]["domain"] == "example.net"
-    assert result["traefik"]["dns_provider"] == "cloudflare"
+    assert "traefik" not in result
 
 
 @pytest.mark.skipif(not HAS_TEXTUAL, reason="textual not installed")
