@@ -1,14 +1,18 @@
 name: Integration Tests
 
-# Runs weekly (Sunday 03:00 UTC) and on manual trigger.
+# Runs daily (03:00 UTC) and on manual trigger.
 # Each app is tested in its own matrix job: stackr renders the compose,
 # Docker starts the container, and we assert the service responds.
 #
 # Skipped apps (require special infrastructure not available in CI):
 #   traefik          — conflicts with nginx-proxy-manager on ports 80/443
 #   pihole           — conflicts with adguardhome on host port 53
+#   adguardhome      — conflicts with systemd-resolved on host port 53 (GitHub Actions runner)
 #   authelia         — requires a configuration.yml file pre-mounted at /config
+#   headscale        — requires a config.yaml file pre-mounted at /etc/headscale
 #   gluetun          — requires live VPN credentials
+#   dasherr          — ghcr.io/erohtar/dasherr image is not publicly accessible
+#   authentik        — requires complex multi-container setup with pre-configured volumes
 on:
   workflow_dispatch:
   schedule:
@@ -36,6 +40,7 @@ env:
   PAPERLESS_SECRET_KEY: ci-integration-test-paperless-secret-key-32chars-min
   PAPERLESS_ADMIN_PASSWORD: ci-integration-test
   POSTGRES_PASSWORD: ci-integration-test
+  DUPLICATI_SETTINGS_ENCRYPTION_KEY: ci-integration-test
   TRANSMISSION_PASS: ci-integration-test
   VAULTWARDEN_ADMIN_TOKEN: ci-integration-test
 
@@ -54,15 +59,6 @@ jobs:
           - app: nginx-proxy-manager
             host_port: 81
             health_url: "http://localhost:81/"
-
-          # adguardhome binds host port 53 (DNS) — web UI is on container port 3000
-          - app: adguardhome
-            container_port: 3000
-            health_path: "/"
-
-          - app: headscale
-            container_port: 8080
-            health_path: "/"
 
           # wireguard is a UDP VPN tunnel — verify it reaches running state
           - app: wireguard
@@ -145,10 +141,6 @@ jobs:
             container_port: 3000
             health_path: "/"
 
-          - app: dasherr
-            container_port: 3000
-            health_path: "/"
-
           - app: heimdall
             container_port: 80
             health_path: "/"
@@ -210,12 +202,6 @@ jobs:
           # crowdsec is a log-analysis daemon — verify running state
           - app: crowdsec
             health_type: running
-
-          # authentik: primary web container is authentik-server, not authentik
-          - app: authentik
-            container_name: authentik-server
-            container_port: 9000
-            health_path: "/"
 
           # ----------------------------------------------------------------
           # Databases  (TCP port reachability check — no HTTP interface)
@@ -296,12 +282,22 @@ jobs:
 
       # Create host directories that compose templates bind-mount.
       # crowdsec reads traefik access logs; create that path so the mount succeeds.
+      # Pre-create config/data subdirs so Docker doesn't create them as root (which
+      # would cause permission denied errors for containers that run as non-root).
       - name: Create required host directories
         run: |
-          sudo mkdir -p /opt/appdata/${{ matrix.app }}
+          sudo mkdir -p /opt/appdata/${{ matrix.app }}/config
+          sudo mkdir -p /opt/appdata/${{ matrix.app }}/data
           sudo mkdir -p /opt/appdata/traefik/logs
           sudo mkdir -p /tv /movies /downloads /media /books /music
-          sudo chmod -R 777 /opt/appdata /tv /movies /downloads /media /books /music
+          sudo mkdir -p /downloads/complete /downloads/incomplete
+          sudo mkdir -p /backups /source
+          sudo chmod -R 777 /opt/appdata /tv /movies /downloads /media /books /music /backups /source
+          # prometheus requires a config file to start — create a minimal one
+          if [ "${{ matrix.app }}" = "prometheus" ]; then
+            sudo mkdir -p /opt/appdata/prometheus/config
+            printf 'global:\n  scrape_interval: 15s\n' | sudo tee /opt/appdata/prometheus/config/prometheus.yml
+          fi
 
       # Render the compose file using stackr's Python API.
       # Traefik is enabled so labels render with real content (Docker Compose

@@ -1,6 +1,6 @@
 services:
   readarr:
-    image: lscr.io/linuxserver/readarr:{{ vars.version | default('latest') }}
+    image: lscr.io/linuxserver/readarr:{{ vars.version | default('nightly') }}
     container_name: readarr
     restart: unless-stopped
     environment:

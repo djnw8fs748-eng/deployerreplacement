@@ -7,6 +7,7 @@ services:
       - PUID={{ global.puid }}
       - PGID={{ global.pgid }}
       - TZ={{ global.timezone }}
+      - SETTINGS_ENCRYPTION_KEY=${DUPLICATI_SETTINGS_ENCRYPTION_KEY}
     volumes:
       - {{ global.data_dir }}/duplicati/config:/config
       - /backups:/backups
