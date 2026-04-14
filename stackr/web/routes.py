@@ -9,7 +9,7 @@ POST /api/toggle/{name}       Toggle app enabled state; returns HTMX partial
 POST /api/deploy              Trigger full deploy; returns JSON result
 POST /api/deploy/{name}       Deploy a single app; returns JSON result
 GET  /api/logs/{name}         Server-Sent Events stream of live container logs
-GET  /api/settings            JSON of current global/network/traefik/security/backup/alerts settings
+GET  /api/settings            JSON of current global/network/security/backup/alerts settings
 POST /api/settings            Update all settings sections
 GET  /api/mounts              JSON list of configured mounts
 POST /api/mounts              Add a new mount; returns updated mounts table partial
@@ -255,16 +255,9 @@ def make_router(config_path: Path) -> fastapi.APIRouter:
         # Network
         domain: str = fastapi.Form(""),
         local_domain: str = fastapi.Form(""),
-        network_mode: str = fastapi.Form("external"),
-        # Traefik
-        traefik_enabled: str = fastapi.Form("false"),
-        acme_email: str = fastapi.Form(""),
-        dns_provider: str = fastapi.Form(""),
-        dns_provider_env: str = fastapi.Form(""),
         # Security
         socket_proxy: str = fastapi.Form("false"),
         crowdsec: str = fastapi.Form("false"),
-        auth_provider: str = fastapi.Form("none"),
         # Backup
         backup_enabled: str = fastapi.Form("false"),
         backup_destination: str = fastapi.Form("/mnt/backup"),
@@ -275,14 +268,6 @@ def make_router(config_path: Path) -> fastapi.APIRouter:
         alerts_url: str = fastapi.Form(""),
         alerts_token: str = fastapi.Form(""),
     ) -> str:
-        # Parse dns_provider_env from KEY=VALUE lines
-        dns_env: dict[str, str] = {}
-        for line in dns_provider_env.splitlines():
-            line = line.strip()
-            if "=" in line and not line.startswith("#"):
-                k, _, v = line.partition("=")
-                dns_env[k.strip()] = v.strip()
-
         _save_all_settings(
             config_path,
             data_dir=data_dir,
@@ -291,14 +276,8 @@ def make_router(config_path: Path) -> fastapi.APIRouter:
             pgid=pgid,
             domain=domain,
             local_domain=local_domain,
-            network_mode=network_mode,
-            traefik_enabled=traefik_enabled.lower() in ("true", "1", "on"),
-            acme_email=acme_email,
-            dns_provider=dns_provider,
-            dns_provider_env=dns_env,
             socket_proxy=socket_proxy.lower() in ("true", "1", "on"),
             crowdsec=crowdsec.lower() in ("true", "1", "on"),
-            auth_provider=auth_provider,
             backup_enabled=backup_enabled.lower() in ("true", "1", "on"),
             backup_destination=backup_destination,
             backup_schedule=backup_schedule,
@@ -430,13 +409,9 @@ def make_router(config_path: Path) -> fastapi.APIRouter:
 def _build_settings_dict(raw: dict[str, Any]) -> dict[str, Any]:
     g = raw.get("global") or {}
     n = raw.get("network") or {}
-    t = raw.get("traefik") or {}
     s = raw.get("security") or {}
     b = raw.get("backup") or {}
     a = raw.get("alerts") or {}
-    # Render dns_provider_env as KEY=VALUE lines
-    dns_env_dict = t.get("dns_provider_env") or {}
-    dns_env_text = "\n".join(f"{k}={v}" for k, v in dns_env_dict.items())
     return {
         "data_dir": str(g.get("data_dir", "/opt/appdata")),
         "timezone": str(g.get("timezone", "UTC")),
@@ -444,14 +419,8 @@ def _build_settings_dict(raw: dict[str, Any]) -> dict[str, Any]:
         "pgid": int(g.get("pgid", 1000)),
         "domain": str(n.get("domain", "")),
         "local_domain": str(n.get("local_domain", "")),
-        "network_mode": str(n.get("mode", "external")),
-        "traefik_enabled": bool(t.get("enabled", False)),
-        "acme_email": str(t.get("acme_email", "")),
-        "dns_provider": str(t.get("dns_provider", "")),
-        "dns_provider_env": dns_env_text,
         "socket_proxy": bool(s.get("socket_proxy", True)),
         "crowdsec": bool(s.get("crowdsec", False)),
-        "auth_provider": str(s.get("auth_provider", "none")),
         "backup_enabled": bool(b.get("enabled", False)),
         "backup_destination": str(b.get("destination", "/mnt/backup")),
         "backup_schedule": str(b.get("schedule", "0 2 * * *")),
@@ -489,14 +458,8 @@ def _save_all_settings(
     pgid: int,
     domain: str,
     local_domain: str,
-    network_mode: str,
-    traefik_enabled: bool,
-    acme_email: str,
-    dns_provider: str,
-    dns_provider_env: dict[str, str],
     socket_proxy: bool,
     crowdsec: bool,
-    auth_provider: str,
     backup_enabled: bool,
     backup_destination: str,
     backup_schedule: str,
@@ -515,23 +478,13 @@ def _save_all_settings(
         raw["global"] = g
 
         n = dict(raw.get("network") or {})
-        n.update({"domain": domain, "local_domain": local_domain, "mode": network_mode})
+        n.update({"domain": domain, "local_domain": local_domain})
         raw["network"] = n
-
-        t = dict(raw.get("traefik") or {})
-        t.update({
-            "enabled": traefik_enabled,
-            "acme_email": acme_email,
-            "dns_provider": dns_provider,
-            "dns_provider_env": dns_provider_env,
-        })
-        raw["traefik"] = t
 
         s = dict(raw.get("security") or {})
         s.update({
             "socket_proxy": socket_proxy,
             "crowdsec": crowdsec,
-            "auth_provider": auth_provider,
         })
         raw["security"] = s
 

@@ -1,6 +1,0 @@
-{%- macro labels(service, port, exposure=None) -%}
-{%- set _labels = traefik_labels(port, exposure) -%}
-{%- for k, v in _labels.items() %}
-      - "{{ k }}={{ v }}"
-{%- endfor %}
-{%- endmacro -%}

@@ -49,14 +49,14 @@ def load_enabled(config_path: Path) -> set[str]:
 
 
 def load_settings(config_path: Path) -> dict[str, Any]:
-    """Return a dict with 'global', 'network', 'traefik' sections from config_path."""
+    """Return a dict with 'global', 'network' sections from config_path."""
     if not config_path.exists():
         return {}
     try:
         with open(config_path) as f:
             raw: dict[str, Any] = yaml.safe_load(f) or {}
         return {
-            k: dict(raw[k]) for k in ("global", "network", "traefik") if k in raw
+            k: dict(raw[k]) for k in ("global", "network") if k in raw
         }
     except Exception:  # noqa: BLE001
         return {}
@@ -86,17 +86,10 @@ def build_stub_config(config_path: Path) -> dict[str, Any]:
     return {
         "global": {"data_dir": "/opt/appdata", "timezone": "UTC", "puid": 1000, "pgid": 1000},
         "network": {
-            "mode": "external",
             "domain": "example.com",
             "local_domain": "home.example.com",
         },
-        "traefik": {
-            "enabled": True,
-            "acme_email": "",
-            "dns_provider": "",
-            "dns_provider_env": {},
-        },
-        "security": {"socket_proxy": True, "crowdsec": False, "auth_provider": "none"},
+        "security": {"socket_proxy": True, "crowdsec": False},
         "backup": {"enabled": False, "destination": "/mnt/backup", "schedule": "0 2 * * *"},
         "apps": [],
     }
@@ -109,7 +102,7 @@ def build_stub_config(config_path: Path) -> dict[str, Any]:
 if HAS_TEXTUAL:
 
     class SettingsEditorScreen(ModalScreen):  # type: ignore[misc]
-        """Modal dialog for editing global/network/traefik settings."""
+        """Modal dialog for editing global/network settings."""
 
         CSS = """
         SettingsEditorScreen {
@@ -137,7 +130,6 @@ if HAS_TEXTUAL:
         def compose(self) -> ComposeResult:
             g = self._settings.get("global") or {}
             n = self._settings.get("network") or {}
-            t = self._settings.get("traefik") or {}
             with Vertical(id="settings-dialog"):
                 yield Label("[bold]Global[/bold]")
                 yield Input(
@@ -171,22 +163,6 @@ if HAS_TEXTUAL:
                     value=str(n.get("local_domain", "")),
                     id="inp-local-domain",
                 )
-                yield Input(
-                    placeholder="Mode: external | internal | hybrid",
-                    value=str(n.get("mode", "external")),
-                    id="inp-mode",
-                )
-                yield Label("[bold]Traefik[/bold]")
-                yield Input(
-                    placeholder="ACME email",
-                    value=str(t.get("acme_email", "")),
-                    id="inp-acme-email",
-                )
-                yield Input(
-                    placeholder="DNS provider (e.g. cloudflare)",
-                    value=str(t.get("dns_provider", "")),
-                    id="inp-dns-provider",
-                )
                 with Horizontal(id="settings-buttons"):
                     yield Button("Save", variant="primary", id="btn-save")
                     yield Button("Cancel", variant="default", id="btn-cancel")
@@ -198,7 +174,6 @@ if HAS_TEXTUAL:
             # Save — collect all field values
             g = dict(self._settings.get("global") or {})
             n = dict(self._settings.get("network") or {})
-            t = dict(self._settings.get("traefik") or {})
 
             g["data_dir"] = self.query_one("#inp-data-dir", Input).value
             g["timezone"] = self.query_one("#inp-timezone", Input).value
@@ -213,13 +188,8 @@ if HAS_TEXTUAL:
 
             n["domain"] = self.query_one("#inp-domain", Input).value
             n["local_domain"] = self.query_one("#inp-local-domain", Input).value
-            n["mode"] = self.query_one("#inp-mode", Input).value
 
-            # Preserve existing traefik fields not in the form
-            t["acme_email"] = self.query_one("#inp-acme-email", Input).value
-            t["dns_provider"] = self.query_one("#inp-dns-provider", Input).value
-
-            self.dismiss({"global": g, "network": n, "traefik": t})
+            self.dismiss({"global": g, "network": n})
 
     class MountEditorScreen(ModalScreen):  # type: ignore[misc]
         """Modal dialog for adding or editing a mount entry."""
@@ -561,7 +531,7 @@ if HAS_TEXTUAL:
                 if name not in catalog_names:
                     apps_out.append(dict(entry))
             raw["apps"] = apps_out
-            for section in ("global", "network", "traefik"):
+            for section in ("global", "network"):
                 if section in self._settings:
                     raw[section] = self._settings[section]
             raw["mounts"] = self._mounts
@@ -593,7 +563,6 @@ if HAS_TEXTUAL:
         def _settings_detail_markup(self) -> str:
             g = self._settings.get("global") or {}
             n = self._settings.get("network") or {}
-            t = self._settings.get("traefik") or {}
             lines = [
                 "[bold]Settings[/bold]",
                 "",
@@ -605,11 +574,6 @@ if HAS_TEXTUAL:
                 "[dim]── Network ──[/dim]",
                 f"  domain       {n.get('domain', '')}",
                 f"  local_domain {n.get('local_domain', '')}",
-                f"  mode         {n.get('mode', 'external')}",
-                "",
-                "[dim]── Traefik ──[/dim]",
-                f"  acme_email   {t.get('acme_email', '')}",
-                f"  dns_provider {t.get('dns_provider', '')}",
                 "",
                 "[dim]──────────────────────────[/dim]",
                 "[dim]E[/dim] edit  •  [dim]S[/dim] save  •  [dim]Q[/dim] quit",

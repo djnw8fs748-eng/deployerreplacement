@@ -272,10 +272,7 @@ jobs:
           fi
 
       # Render the compose file using stackr's Python API.
-      # Traefik is enabled so labels render with real content (Docker Compose
-      # rejects null/empty labels blocks). No Traefik runs in CI so the labels
-      # are harmless container metadata.
-      # extra_vars allows per-app overrides (e.g. gitea SSH port).
+      # extra_vars allows per-app overrides.
       - name: Render compose via stackr
         env:
           EXTRA_VARS: ${{ matrix.extra_vars || '{}' }}
@@ -298,14 +295,8 @@ jobs:
                   "pgid": 1000,
               },
               "network": {
-                  "mode": "external",
                   "domain": "test.com",
                   "local_domain": "home.test.com",
-              },
-              "traefik": {
-                  "enabled": True,
-                  "acme_email": "ci@test.com",
-                  "dns_provider": "cloudflare",
               },
               "security": {"socket_proxy": False},
           })

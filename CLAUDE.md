@@ -20,13 +20,11 @@ stackr.yml.example  Reference config
 | `secrets.py` | Secret resolution: shell env → `.stackr.env` → auto-generated |
 | `state.py` | JSON lock file at `~/.stackr/state.json`; drift detection + image digest tracking |
 | `catalog.py` | Loads `catalog/*/*/app.yml`; user catalog overlay (`~/.stackr/catalog/`) |
-| `renderer.py` | Jinja2 template rendering; `traefik_labels()` helper |
-| `validator.py` | Pre-deploy checks: secrets, ports, deps, volumes, DNS provider, security stack |
+| `renderer.py` | Jinja2 template rendering |
+| `validator.py` | Pre-deploy checks: secrets, ports, deps, volumes, security stack |
 | `deployer.py` | validate → render → pull → `docker compose up -d` → write state + digests |
 | `status.py` | Rich terminal table; compares state vs live Docker |
 | `cli.py` | Typer CLI — all user-facing commands |
-| `dns_providers.py` | Registry of DNS providers and their required env vars |
-| `middleware.py` | Traefik forward-auth and CrowdSec middleware label generators |
 | `doctor.py` | Pre-flight health checks (`stackr doctor`): Docker, networks, secrets, catalog |
 | `images.py` | Image digest inspection via `docker inspect`; change detection for `stackr update` |
 | `catalog_sync.py` | GitHub release download → `~/.stackr/catalog/` user overlay |
@@ -100,8 +98,7 @@ description: What it does
 category: media
 homepage: https://...
 version: latest
-exposure: external       # external | internal | hybrid
-requires: [traefik]      # hard deps — error if missing
+requires: []             # hard deps — error if missing
 suggests: []             # soft deps — warning if missing
 vars:
   my_var:
@@ -110,7 +107,7 @@ vars:
     default: a
     description: What this var does
 ports:
-  - 8096                 # Traefik routing port — MUST match traefik_labels() in compose.yml.j2
+  - 8096                 # Container port (informational; used by validator)
 host_ports:
   - 9090                 # Actual host-bound ports — checked for conflicts by the validator
 volumes:
@@ -122,9 +119,9 @@ volumes:
 ```
 
 **Port semantics — critical distinction:**
-- `ports`: the container port passed to `traefik_labels()`. Traefik-proxied apps share container ports without conflict — multiple apps can all use port 8080 internally. This list is NOT used for conflict detection.
-- `host_ports`: actual ports bound on the host (e.g. `53` for DNS, `80`/`443` for Traefik, game ports). Only these are checked for conflicts by the validator.
-- Apps that have no host-bound ports (typical Traefik-proxied web apps) should have `host_ports: []`.
+- `ports`: the container port (informational). Apps behind a reverse proxy share container ports without conflict — multiple apps can all use port 8080 internally. This list is NOT used for conflict detection.
+- `host_ports`: actual ports bound on the host (e.g. `53` for DNS, `80`/`443` for NPM, game ports). Only these are checked for conflicts by the validator.
+- Apps that have no host-bound ports (typical reverse-proxied web apps) should have `host_ports: []`.
 
 **`compose.yml.j2`** — Jinja2 Docker Compose template:
 ```jinja2
@@ -141,10 +138,6 @@ services:
       - {{ global.data_dir }}/myapp/config:/config
     networks:
       - proxy
-    labels:
-{% for k, v in traefik_labels(8096).items() %}
-      - "{{ k }}={{ v }}"
-{% endfor %}
 
 networks:
   proxy:
@@ -152,16 +145,13 @@ networks:
 ```
 
 ### Critical catalog rules
-- The port passed to `traefik_labels()` **must exactly match** the port declared in `app.yml`'s `ports` list — mismatches silently break Traefik routing and go undetected
-- Apps that optionally use the Docker socket **must** condition it on `security.socket_proxy`, like Traefik does — never unconditionally mount `/var/run/docker.sock`
-- `socket-proxy` must be deployed before `traefik` — the deploy order in `config.enabled_apps` reflects this
+- Apps that optionally use the Docker socket **must** condition it on `security.socket_proxy` — never unconditionally mount `/var/run/docker.sock`
 
-### No-Traefik app pattern
+### No-proxy app pattern
 Database, daemon, VPN, and gaming apps have no web UI to proxy. These apps:
 - Omit the `proxy` network entirely from their compose template
-- Do not call `traefik_labels()` — no `labels:` block
 - Set `host_ports:` in `app.yml` for any ports they bind on the host (e.g. `5432` for Postgres, `51820` for Wireguard)
-- Leave `ports: []` since there is no Traefik routing port
+- Leave `ports: []` since there is no reverse-proxy routing port
 
 Examples: `database/postgres`, `database/mariadb`, `database/redis`, `database/mongo`, `management/watchtower`, `network/wireguard`, `gaming/minecraft`.
 
@@ -188,27 +178,7 @@ networks:
 ### Jinja2 templates
 - Renderer uses `trim_blocks=True` and `lstrip_blocks=True` — block tags eat the newline after them
 - Use `{% if %} / {% elif %} / {% endif %}` without `-` whitespace trimming in compose templates (the environment already handles it)
-- Template context variables: `global`, `network`, `traefik`, `security`, `vars`, `app`, `traefik_labels(port, exposure=None)`
-- `traefik_labels(port)` returns a `dict[str, str]` — always iterate it with `{% for k, v in traefik_labels(port).items() %}`
-
-### DNS provider registry
-- All supported DNS providers are declared in `dns_providers.py` — add new providers there first
-- `validator.py` automatically checks that every `required_env` var is present before deploy
-- If a provider is unknown (not in the registry), validation issues a **warning** (not an error) so that custom providers still work
-- The Traefik compose template must also handle the provider's env vars in its `environment:` block
-
-### Security stack (Phase 2)
-- `security.auth_provider` accepts any string at config parse time — validation is deferred to `_check_security_stack()` in `validator.py` so that custom app-based auth providers work without changing `config.py`
-- `security.auth_provider` must either be `none`/`google_oauth` or match an app name in `apps:`
-- `security.crowdsec: true` requires a `crowdsec` app in `apps:`
-- Both checks are enforced by `_check_security_stack()` in `validator.py`
-- CrowdSec shares Traefik access logs — the Traefik compose mounts a `logs/` volume when `security.crowdsec: true`
-- Forward-auth middleware labels are generated by `middleware.py` — use `combined_middleware_labels()` when you need both CrowdSec and auth on one router
-
-### Cert resolvers and networking modes
-- In `external` mode: cert resolver name = `traefik.dns_provider` (e.g. `cloudflare`)
-- In `internal` mode: requires a separately configured internal resolver — do not hardcode `"internal"` as a resolver name without defining it in the Traefik compose template
-- In `hybrid` mode: both resolvers must be defined and named consistently between `renderer.py` and the Traefik template
+- Template context variables: `global`, `network`, `security`, `vars`, `app`
 
 ### Validation
 - `validator.py` must stay in sync with its module docstring — every check listed in the docstring must have a corresponding `_check_*` function
@@ -251,7 +221,7 @@ networks:
 - The `toggle` route (`POST /api/toggle/{name}`) validates `app_name` against the catalog before writing, uses `threading.Lock` + `tempfile`/`os.replace` for atomic concurrent-safe config writes, and returns HTMX partial HTML.
 - The logs route (`GET /api/logs/{name}`) returns a `StreamingResponse` with `text/event-stream` (Server-Sent Events).
 - The deploy route uses `sys.executable -m stackr` (not bare `stackr`) to ensure the correct virtualenv is used.
-- `POST /api/settings` accepts all config sections (global, network, traefik, security, backup, alerts) in a single form submission; `dns_provider_env` is parsed from KEY=VALUE textarea; booleans arrive as `"true"`/`"false"` strings (HTML checkbox behaviour).
+- `POST /api/settings` accepts all config sections (global, network, security, backup, alerts) in a single form submission; `dns_provider_env` is parsed from KEY=VALUE textarea; booleans arrive as `"true"`/`"false"` strings (HTML checkbox behaviour).
 - `_save_all_settings()` and `_atomic_write()` are the canonical helpers — all write paths in `routes.py` go through `_atomic_write` to prevent partial writes.
 - Mounts CRUD: `POST /api/mounts` adds/replaces by name; `DELETE /api/mounts/{name}` removes; both return the updated `partials/mounts_table.html` partial.
 - App vars: `GET /api/app/{name}/vars-form` returns `partials/vars_form.html` rendered with `VarDef` metadata from the catalog; `POST /api/app/{name}/vars` writes `vars:` under the matching app entry in `stackr.yml`.
@@ -316,8 +286,7 @@ networks:
 - Every test must have at least one `assert` statement — no assertion-free test functions
 - Catalog smoke tests: all `app.yml` + `compose.yml.j2` pairs must render without error using the reference config in `tests/test_renderer.py::test_render_all_seed_apps`
 - When adding a new catalog app, add it to the `seed_apps` list in `test_catalog.py::test_seed_apps_present`
-- Port declarations in `app.yml` and `traefik_labels()` calls in `compose.yml.j2` are tested for consistency in `test_catalog.py` — keep these in sync
-- Security/validator tests that call `validate()` must supply DNS provider env vars (e.g. `{"CF_DNS_API_TOKEN": "x"}`) or the DNS provider check will produce unexpected failures
+- Port declarations in `app.yml` are tested for consistency in `test_catalog.py`
 
 ### Integration tests (`.github/workflows/integration.yml`)
 
@@ -344,25 +313,21 @@ The integration workflow deploys every catalog app into real Docker containers o
 | `extra_vars` | JSON string of per-app var overrides passed to `render_app()` (gitea SSH port) |
 
 **Skipped apps** (document the reason here when skipping):
-- `traefik` — conflicts with nginx-proxy-manager on host ports 80/443
 - `pihole` — conflicts with adguardhome on host port 53
 - `adguardhome` — conflicts with systemd-resolved on host port 53 (GitHub Actions runner)
-- `authelia` — requires a `configuration.yml` file pre-mounted at `/config`
 - `headscale` — requires a `config.yaml` file pre-mounted at `/etc/headscale`
 - `gluetun` — requires live VPN credentials
-- `dasherr` — `ghcr.io/erohtar/dasherr` image is not publicly accessible
-- `authentik` — requires complex multi-container setup with pre-configured volumes
 
 **Adding a secret:** if a new app reads a `${MY_SECRET}` env var, add a dummy value to the `env:` block at the top of `integration.yml` so Docker Compose can expand it.
 
 ## Adding a new catalog app — checklist
 
 1. Create `catalog/<category>/<name>/app.yml` with all required fields
-   - Use `ports` for the Traefik container routing port (matches `traefik_labels()` call)
+   - Use `ports` for the container routing port (informational, used by validator)
    - Use `host_ports` for any ports actually bound on the host (DNS, game ports, etc.)
    - If no host ports, set `host_ports: []`
-2. Create `catalog/<category>/<name>/compose.yml.j2` — port in `traefik_labels()` must match `app.yml`'s `ports`
-3. If the app has no web UI (database, daemon, VPN, game server): omit `proxy` network and `traefik_labels()` entirely — see No-Traefik app pattern above
+2. Create `catalog/<category>/<name>/compose.yml.j2` — no labels block needed for NPM-proxied apps
+3. If the app has no web UI (database, daemon, VPN, game server): omit `proxy` network entirely — see No-proxy app pattern above
 4. If the app has embedded sidecars: use an isolated `<app>-backend` network — see Sidecar pattern above
 5. If the app uses the Docker socket, condition it on `{% if security.socket_proxy %}`
 6. Add the app name to `seed_apps` in `tests/test_catalog.py`
@@ -374,8 +339,7 @@ The integration workflow deploys every catalog app into real Docker containers o
 ## Common pitfalls
 
 - **Duplicate YAML keys in templates**: when using `{% if %} / {% else %}` inside a service block, ensure both branches don't emit the same top-level key (e.g. `volumes:`). Use a single block with conditional content inside it instead.
-- **Port mismatch**: `app.yml` ports are used by the validator; `traefik_labels(port)` is used at runtime. They must agree or conflicts go undetected and Traefik routes to the wrong port.
-- **`ports` vs `host_ports` confusion**: putting a Traefik-proxied port (e.g. 8080) in `host_ports` will produce false port conflict errors because multiple apps share that container port. Only real host-bound ports belong in `host_ports`.
+- **`ports` vs `host_ports` confusion**: putting a reverse-proxied container port (e.g. 8080) in `host_ports` will produce false port conflict errors because multiple apps share that container port. Only real host-bound ports belong in `host_ports`.
 - **Secret priority**: `.stackr.env` must be loaded before shell env in `build_env()` so shell env wins — the order is `env.update(file)` then `env.update(os.environ)`.
 - **Rollback requires stored content**: `state.json` must store the full rendered compose YAML (not just a hash) for `stackr rollback` to work — a hash alone cannot be used to restore a previous version.
 - **Image digests only available after pull**: `collect_digests()` reads local Docker image metadata — it returns `{}` if images haven't been pulled yet. `images_changed()` returns `False` when stored digests are empty, so the first deploy always goes through.
