@@ -89,7 +89,6 @@
       <div class="tab-bar">
         <button class="tab-btn active" onclick="switchTab('global', this)">Global</button>
         <button class="tab-btn" onclick="switchTab('network', this)">Network</button>
-        <button class="tab-btn" onclick="switchTab('traefik', this)">Traefik</button>
         <button class="tab-btn" onclick="switchTab('security', this)">Security</button>
         <button class="tab-btn" onclick="switchTab('backup', this)">Backup</button>
         <button class="tab-btn" onclick="switchTab('alerts', this)">Alerts</button>
@@ -128,39 +127,6 @@
             <label class="form-label">Local domain
               <input name="local_domain" value="{{ settings.local_domain }}" />
             </label>
-            <label class="form-label">Network mode
-              <select name="network_mode">
-                <option value="external" {% if settings.network_mode == 'external' %}selected{% endif %}>external</option>
-                <option value="internal" {% if settings.network_mode == 'internal' %}selected{% endif %}>internal</option>
-                <option value="hybrid" {% if settings.network_mode == 'hybrid' %}selected{% endif %}>hybrid</option>
-              </select>
-            </label>
-          </div>
-        </div>
-
-        <!-- Traefik tab -->
-        <div class="tab-pane" id="tab-traefik">
-          <div style="padding:0.5rem 0 0.75rem;">
-            <label class="checkbox-label">
-              <input type="checkbox" name="traefik_enabled" value="true" {% if settings.traefik_enabled %}checked{% endif %}
-                     onchange="document.getElementById('traefik-fields').style.opacity=this.checked?'1':'0.4'" />
-              Enable Traefik reverse proxy
-            </label>
-          </div>
-          <div id="traefik-fields" style="opacity:{% if settings.traefik_enabled %}1{% else %}0.4{% endif %};">
-            <div class="field-grid">
-              <label class="form-label">ACME email
-                <input name="acme_email" type="email" value="{{ settings.acme_email }}" />
-              </label>
-              <label class="form-label">DNS provider
-                <input name="dns_provider" value="{{ settings.dns_provider }}" placeholder="cloudflare" />
-              </label>
-            </div>
-            <div style="margin-top:0.75rem;">
-              <label class="form-label">DNS provider env vars (KEY=VALUE, one per line)
-                <textarea name="dns_provider_env" rows="4" placeholder="CF_DNS_API_TOKEN=your-token">{{ settings.dns_provider_env }}</textarea>
-              </label>
-            </div>
           </div>
         </div>
 
@@ -169,15 +135,11 @@
           <div style="display:flex;flex-direction:column;gap:0.75rem;padding:0.25rem 0;">
             <label class="checkbox-label">
               <input type="checkbox" name="socket_proxy" value="true" {% if settings.socket_proxy %}checked{% endif %} />
-              Enable Docker socket proxy (recommended with Traefik)
+              Enable Docker socket proxy
             </label>
             <label class="checkbox-label">
               <input type="checkbox" name="crowdsec" value="true" {% if settings.crowdsec %}checked{% endif %} />
               Enable CrowdSec intrusion detection
-            </label>
-            <label class="form-label" style="max-width:320px;">Auth provider
-              <input name="auth_provider" value="{{ settings.auth_provider }}" placeholder="none" />
-              <span style="color:#475569;font-size:0.75rem;">none | google_oauth | authentik | authelia | &lt;app-name&gt;</span>
             </label>
           </div>
         </div>
