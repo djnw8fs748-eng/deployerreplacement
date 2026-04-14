@@ -4,9 +4,6 @@ description: Web-based file manager for browsing and managing your server files
 category: storage
 homepage: https://filebrowser.org
 version: latest
-exposure: internal
-requires:
-  - traefik
 vars:
   version:
     type: string

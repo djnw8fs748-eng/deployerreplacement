@@ -4,9 +4,6 @@ description: Docker management UI
 category: management
 homepage: https://www.portainer.io
 version: latest
-exposure: external
-requires:
-  - traefik
 ports:
   - 9443
 volumes:

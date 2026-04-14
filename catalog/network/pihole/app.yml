@@ -4,9 +4,6 @@ description: Network-wide ad blocking and local DNS resolver
 category: network
 homepage: https://pi-hole.net
 version: latest
-exposure: internal
-requires:
-  - traefik
 vars:
   version:
     type: string

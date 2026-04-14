@@ -22,10 +22,6 @@ services:
     networks:
       - proxy
       - tdarr-backend
-    labels:
-{% for k, v in traefik_labels(8265).items() %}
-      - "{{ k }}={{ v }}"
-{% endfor %}
 
   tdarr-node:
     image: ghcr.io/haveagitgat/tdarr_node:{{ vars.version | default('latest') }}

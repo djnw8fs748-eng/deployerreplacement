@@ -14,10 +14,6 @@ services:
       - /source:/source:ro
     networks:
       - proxy
-    labels:
-{% for k, v in traefik_labels(8200, 'internal').items() %}
-      - "{{ k }}={{ v }}"
-{% endfor %}
 
 networks:
   proxy:

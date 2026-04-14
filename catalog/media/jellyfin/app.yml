@@ -4,9 +4,6 @@ description: Free and open source media server
 category: media
 homepage: https://jellyfin.org
 version: latest
-exposure: external
-requires:
-  - traefik
 vars:
   hardware_accel:
     type: select

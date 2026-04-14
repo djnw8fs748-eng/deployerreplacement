@@ -4,9 +4,6 @@ description: Unofficial Bitwarden-compatible server written in Rust
 category: security
 homepage: https://github.com/dani-garcia/vaultwarden
 version: latest
-exposure: external
-requires:
-  - traefik
 vars:
   admin_token:
     type: string

@@ -4,9 +4,6 @@ description: Music collection manager for Usenet and BitTorrent users
 category: media
 homepage: https://lidarr.audio
 version: latest
-exposure: external
-requires:
-  - traefik
 suggests:
   - prowlarr
 vars:

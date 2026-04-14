@@ -4,9 +4,6 @@ description: Book manager for Usenet and BitTorrent users
 category: media
 homepage: https://readarr.com
 version: nightly
-exposure: external
-requires:
-  - traefik
 suggests:
   - prowlarr
 vars:

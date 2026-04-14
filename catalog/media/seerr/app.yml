@@ -1,23 +1,19 @@
-name: overseerr
-display_name: Overseerr
-description: Request management and media discovery tool for Plex ecosystems
+name: seerr
+display_name: Seerr
+description: Open-source media request and discovery manager for Jellyfin, Plex, and Emby
 category: media
-homepage: https://overseerr.dev
+homepage: https://seerr.dev
 version: latest
-exposure: external
-requires:
-  - traefik
+requires: []
 suggests:
   - sonarr
   - radarr
-  - plex
 vars:
   version:
     type: string
     default: latest
     description: Docker image tag
-ports:
-  - 5055
+ports: []
 host_ports: []
 volumes:
   - name: config

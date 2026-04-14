@@ -4,7 +4,6 @@ description: Fast, modern, and secure VPN tunnel
 category: network
 homepage: https://www.wireguard.com
 version: latest
-exposure: internal
 requires: []
 vars:
   version:

@@ -4,7 +4,6 @@ description: Horizontally scalable log aggregation system by Grafana Labs
 category: monitoring
 homepage: https://grafana.com/oss/loki
 version: latest
-exposure: internal
 requires: []
 suggests:
   - grafana

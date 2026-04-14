@@ -12,10 +12,6 @@ services:
       - {{ global.data_dir }}/vaultwarden/data:/data
     networks:
       - proxy
-    labels:
-{% for k, v in traefik_labels(80).items() %}
-      - "{{ k }}={{ v }}"
-{% endfor %}
 
 networks:
   proxy:

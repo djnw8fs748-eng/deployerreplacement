@@ -4,9 +4,6 @@ description: Self-hosted startpage and application dashboard for your homelab
 category: management
 homepage: https://github.com/pawelmalak/flame
 version: latest
-exposure: external
-requires:
-  - traefik
 vars:
   version:
     type: string

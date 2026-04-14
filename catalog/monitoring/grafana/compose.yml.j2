@@ -12,10 +12,6 @@ services:
       - {{ global.data_dir }}/grafana/data:/var/lib/grafana
     networks:
       - proxy
-    labels:
-{% for k, v in traefik_labels(3000).items() %}
-      - "{{ k }}={{ v }}"
-{% endfor %}
 
 networks:
   proxy:

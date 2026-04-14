@@ -1,0 +1,18 @@
+services:
+  pocket-id:
+    image: ghcr.io/pocket-id/pocket-id:{{ vars.version | default('v2') }}
+    container_name: pocket-id
+    restart: unless-stopped
+    environment:
+      - TZ={{ global.timezone }}
+      - APP_URL=https://pocket-id.{{ network.domain }}
+      - ENCRYPTION_KEY=${POCKET_ID_ENCRYPTION_KEY}
+      - TRUST_PROXY=true
+    volumes:
+      - {{ global.data_dir }}/pocket-id/data:/app/data
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true
