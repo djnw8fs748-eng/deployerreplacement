@@ -4,7 +4,6 @@ description: Powerful open source relational database
 category: database
 homepage: https://www.postgresql.org
 version: "16"
-exposure: internal
 requires: []
 vars:
   version:

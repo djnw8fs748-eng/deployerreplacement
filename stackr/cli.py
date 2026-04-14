@@ -82,36 +82,6 @@ def init(
     pgid = typer.prompt("PGID", default="1000")
     domain = typer.prompt("Public domain (e.g. example.com)", default="example.com")
     local_domain = typer.prompt("Local domain (e.g. home.example.com)", default=f"home.{domain}")
-    mode = typer.prompt("Network mode", default="external", show_choices=True,
-                        prompt_suffix=" [external/internal/hybrid]: ")
-
-    # Proxy choice: nginx-proxy-manager (default) or traefik
-    proxy = typer.prompt(
-        "Reverse proxy",
-        default="nginx-proxy-manager",
-        prompt_suffix=" [nginx-proxy-manager/traefik]: ",
-    ).strip().lower()
-    use_traefik = proxy == "traefik"
-
-    # Traefik-specific settings — only prompted when traefik is chosen
-    acme_email = ""
-    dns_provider = ""
-    dns_provider_env: dict[str, str] = {}
-    if use_traefik:
-        acme_email = typer.prompt("ACME email for Let's Encrypt certs", default="")
-        from stackr.dns_providers import list_providers, required_env_vars
-        provider_names = ", ".join(list_providers())
-        dns_provider = typer.prompt(f"DNS provider ({provider_names}, or custom)", default="")
-
-        # Build dns_provider_env from the registry; for unknown/custom providers
-        # generate a generic placeholder so the user knows to fill it in.
-        env_vars = required_env_vars(dns_provider)
-        if env_vars:
-            dns_provider_env = {v: f"${{{v}}}" for v in env_vars}
-        elif dns_provider:
-            key = f"{dns_provider.upper()}_API_TOKEN"
-            dns_provider_env = {key: f"${{{key}}}"}
-
     # Build the header config (everything except apps)
     header = {
         "global": {
@@ -121,20 +91,12 @@ def init(
             "pgid": int(pgid),
         },
         "network": {
-            "mode": mode,
             "domain": domain,
             "local_domain": local_domain,
         },
-        "traefik": {
-            "enabled": use_traefik,
-            "acme_email": acme_email,
-            "dns_provider": dns_provider,
-            "dns_provider_env": dns_provider_env,
-        },
         "security": {
-            "socket_proxy": use_traefik,  # socket-proxy is only needed with traefik
+            "socket_proxy": False,
             "crowdsec": False,
-            "auth_provider": "none",
         },
         "backup": {
             "enabled": False,
@@ -145,9 +107,7 @@ def init(
 
     # Collect all catalog apps grouped by category.
     # nginx-proxy-manager and portainer are enabled by default; everything else is off.
-    # When the user chose traefik, traefik replaces nginx-proxy-manager.
-    _DEFAULT_ENABLED = ({"traefik", "portainer"} if use_traefik
-                        else {"nginx-proxy-manager", "portainer"})
+    _DEFAULT_ENABLED = {"nginx-proxy-manager", "portainer"}
     catalog = Catalog()
     apps_by_category: dict[str, list[str]] = {}
     for cat_app in sorted(catalog.all(), key=lambda a: (a.category, a.name)):
@@ -177,19 +137,15 @@ def init(
     else:
         gitignore.write_text(ignore_entry)
 
-    proxy_name = "traefik" if use_traefik else "nginx-proxy-manager"
     total = sum(len(v) for v in apps_by_category.values())
     console.print(f"\n[green]Config written to[/green] {output}")
-    console.print(f"  {total} apps listed — {proxy_name} and portainer enabled by default.")
+    console.print(f"  {total} apps listed — nginx-proxy-manager and portainer enabled by default.")
     console.print(f"[green]Secrets file:[/green]    {env_file}  (gitignored)")
     console.print("\nNext steps:")
     console.print("  1. Run [bold]stackr ui[/bold] to toggle apps on/off interactively")
     console.print("     or edit [bold]stackr.yml[/bold] directly")
-    if use_traefik:
-        console.print("  2. Add your DNS API token to [bold].stackr.env[/bold]")
-    else:
-        console.print("  2. After deploying, open [bold]http://<host>:81[/bold] to configure")
-        console.print("     Nginx Proxy Manager (default login: admin@example.com / changeme)")
+    console.print("  2. After deploying, open [bold]http://<host>:81[/bold] to configure")
+    console.print("     Nginx Proxy Manager (default login: admin@example.com / changeme)")
     console.print("  3. Run [bold]stackr validate[/bold] to check your config")
     console.print("  4. Run [bold]stackr deploy[/bold] to start everything")
 

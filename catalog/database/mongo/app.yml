@@ -4,7 +4,6 @@ description: Document-oriented NoSQL database
 category: database
 homepage: https://www.mongodb.com
 version: "7"
-exposure: internal
 requires: []
 vars:
   version:

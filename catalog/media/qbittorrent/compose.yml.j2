@@ -20,10 +20,6 @@ services:
       - "6881:6881/udp"
     networks:
       - proxy
-    labels:
-{% for k, v in traefik_labels(vars.webui_port | default(8080)).items() %}
-      - "{{ k }}={{ v }}"
-{% endfor %}
 {% endif %}
 
 {% if not vars.use_vpn | default(false) %}

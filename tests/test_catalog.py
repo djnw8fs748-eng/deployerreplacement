@@ -14,41 +14,28 @@ def test_builtin_catalog_loads():
 def test_seed_apps_present():
     catalog = Catalog()
     seed_apps = [
-        # Phase 1 original apps
-        "traefik", "portainer", "jellyfin", "radarr", "sonarr",
-        "prowlarr", "homepage", "uptime-kuma", "adguardhome", "vaultwarden",
-        "socket-proxy",
-        # Phase 3 — database
-        "postgres", "mariadb", "redis", "mongo",
-        # Phase 3 — AI
+        # network
+        "nginx-proxy-manager", "adguardhome", "pihole", "wireguard", "headscale",
+        # ai
         "ollama", "open-webui",
-        # Phase 3 — monitoring
-        "grafana", "prometheus", "loki", "netdata",
-        # Phase 3 — media
-        "plex", "bazarr", "lidarr", "readarr", "overseerr", "jellyseerr",
-        "tdarr", "sabnzbd", "qbittorrent", "transmission",
-        # Phase 3 — management
-        "dozzle", "watchtower", "heimdall", "dasherr", "flame",
-        # Phase 3 — storage
-        "nextcloud", "filebrowser", "duplicati",
-        # Phase 3 — network
-        "pihole", "wireguard", "headscale", "nginx-proxy-manager",
-        # Gluetun VPN gateway
-        "gluetun",
-        # Phase 3 — productivity
-        "gitea", "paperless-ngx", "freshrss", "miniflux",
-        # Phase 3 — gaming
+        # media
+        "plex", "jellyfin", "sonarr", "radarr", "lidarr", "readarr", "prowlarr",
+        "bazarr", "seerr", "qbittorrent", "tdarr",
+        # management
+        "homepage", "flame", "heimdall", "dozzle", "portainer", "watchtower",
+        # monitoring
+        "uptime-kuma", "grafana", "prometheus", "loki", "netdata",
+        # security
+        "vaultwarden", "socket-proxy", "crowdsec", "pocket-id", "tinyauth",
+        # database
+        "postgres", "mariadb", "redis", "mongo",
+        # gaming
         "minecraft",
+        # storage
+        "filebrowser", "duplicati",
     ]
     missing = [name for name in seed_apps if catalog.get(name) is None]
     assert missing == [], f"Missing seed apps: {missing}"
-
-
-def test_traefik_host_ports():
-    catalog = Catalog()
-    traefik = catalog.get("traefik")
-    assert 80 in traefik.host_ports
-    assert 443 in traefik.host_ports
 
 
 def test_adguardhome_host_ports():
@@ -79,6 +66,18 @@ def test_qbittorrent_host_ports():
     catalog = Catalog()
     qbt = catalog.get("qbittorrent")
     assert qbt.host_ports == []
+
+
+def test_removed_apps_absent():
+    """Apps removed in the catalog restructure must not appear in the catalog."""
+    catalog = Catalog()
+    removed = [
+        "authelia", "authentik", "dasherr", "nextcloud",
+        "sabnzbd", "transmission", "jellyseerr", "overseerr",
+        "traefik", "freshrss", "gitea", "miniflux", "paperless-ngx",
+    ]
+    for app_name in removed:
+        assert catalog.get(app_name) is None, f"{app_name!r} should be absent from catalog"
 
 
 def test_all_apps_have_compose_templates():
@@ -133,15 +132,3 @@ def test_jellyfin_ports():
     assert 8096 in jellyfin.ports
 
 
-def test_traefik_requires_nothing():
-    catalog = Catalog()
-    traefik = catalog.get("traefik")
-    assert traefik.requires == []
-
-
-def test_portainer_suggests_traefik():
-    """traefik is a soft dependency (suggests) for portainer, not a hard one."""
-    catalog = Catalog()
-    portainer = catalog.get("portainer")
-    assert "traefik" not in portainer.requires
-    assert "traefik" in portainer.suggests

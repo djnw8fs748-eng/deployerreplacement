@@ -4,7 +4,6 @@ description: Docker-based reverse proxy with a beautiful web UI and Let's Encryp
 category: network
 homepage: https://nginxproxymanager.com
 version: latest
-exposure: external
 requires: []
 vars:
   version:

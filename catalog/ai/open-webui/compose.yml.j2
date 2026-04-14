@@ -11,10 +11,6 @@ services:
       - {{ global.data_dir }}/open-webui/data:/app/backend/data
     networks:
       - proxy
-    labels:
-{% for k, v in traefik_labels(8080).items() %}
-      - "{{ k }}={{ v }}"
-{% endfor %}
 
 networks:
   proxy:

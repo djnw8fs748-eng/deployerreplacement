@@ -4,9 +4,6 @@ description: Companion app to Sonarr and Radarr for managing and downloading sub
 category: media
 homepage: https://www.bazarr.media
 version: latest
-exposure: external
-requires:
-  - traefik
 suggests:
   - sonarr
   - radarr

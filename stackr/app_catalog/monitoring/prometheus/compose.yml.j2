@@ -15,10 +15,6 @@ services:
       - --web.enable-lifecycle
     networks:
       - proxy
-    labels:
-{% for k, v in traefik_labels(9090, 'internal').items() %}
-      - "{{ k }}={{ v }}"
-{% endfor %}
 
 networks:
   proxy:

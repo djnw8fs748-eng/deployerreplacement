@@ -4,9 +4,6 @@ description: Open source monitoring system with a time series database
 category: monitoring
 homepage: https://prometheus.io
 version: latest
-exposure: internal
-requires:
-  - traefik
 suggests:
   - grafana
 vars:

@@ -4,7 +4,6 @@ description: Open source relational database forked from MySQL
 category: database
 homepage: https://mariadb.org
 version: "11"
-exposure: internal
 requires: []
 vars:
   version:

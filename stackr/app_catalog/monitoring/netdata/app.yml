@@ -4,10 +4,8 @@ description: Real-time performance and health monitoring for systems and applica
 category: monitoring
 homepage: https://www.netdata.cloud
 version: stable
-exposure: internal
 requires: []
-suggests:
-  - traefik
+suggests: []
 vars:
   version:
     type: string

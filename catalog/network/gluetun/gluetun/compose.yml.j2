@@ -33,10 +33,6 @@ services:
       - "9696:9696"
     networks:
       - proxy
-    labels:
-{% for k, v in traefik_labels(8080).items() %}
-      - "{{ k }}={{ v }}"
-{% endfor %}
 
 networks:
   proxy:

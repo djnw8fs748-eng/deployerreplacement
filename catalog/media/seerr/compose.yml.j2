@@ -1,0 +1,15 @@
+services:
+  seerr:
+    image: seerr/seerr:{{ vars.version | default('latest') }}
+    container_name: seerr
+    restart: unless-stopped
+    environment:
+      - TZ={{ global.timezone }}
+    volumes:
+      - {{ global.data_dir }}/seerr/config:/app/config
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true

@@ -4,10 +4,8 @@ description: Real-time Docker log viewer with a clean web interface
 category: management
 homepage: https://dozzle.dev
 version: latest
-exposure: internal
 requires: []
-suggests:
-  - traefik
+suggests: []
 vars:
   version:
     type: string

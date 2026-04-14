@@ -4,10 +4,8 @@ description: A modern, fully static, fast, secure, fully proxied, highly customi
 category: dashboard
 homepage: https://gethomepage.dev
 version: latest
-exposure: external
 requires: []
 suggests:
-  - traefik
   - socket-proxy
 ports:
   - 3000

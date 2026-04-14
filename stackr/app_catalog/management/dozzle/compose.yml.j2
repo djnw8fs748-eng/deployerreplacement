@@ -20,10 +20,6 @@ services:
 {% if security.socket_proxy %}
       - socket_proxy
 {% endif %}
-    labels:
-{% for k, v in traefik_labels(8080, 'internal').items() %}
-      - "{{ k }}={{ v }}"
-{% endfor %}
 
 networks:
   proxy:

@@ -12,42 +12,6 @@ from stackr.catalog import CatalogApp
 from stackr.config import AppConfig, StackrConfig
 
 
-def _traefik_labels(
-    service: str,
-    port: int,
-    config: StackrConfig,
-    exposure: str = "external",
-) -> dict[str, str]:
-    """Generate Traefik labels for a service."""
-    mode = config.network.mode
-    domain = config.network.domain
-    local_domain = config.network.local_domain
-
-    labels: dict[str, str] = {"traefik.enable": "true"}
-
-    def _router(name: str, host: str, entrypoint: str, certresolver: str | None) -> None:
-        labels[f"traefik.http.routers.{name}.rule"] = f"Host(`{service}.{host}`)"
-        labels[f"traefik.http.routers.{name}.entrypoints"] = entrypoint
-        if certresolver:
-            labels[f"traefik.http.routers.{name}.tls.certresolver"] = certresolver
-            # Only enable TLS when a cert resolver is present; without one Traefik
-            # would serve a self-signed cert rather than a valid ACME certificate.
-            labels[f"traefik.http.routers.{name}.tls"] = "true"
-
-    labels[f"traefik.http.services.{service}.loadbalancer.server.port"] = str(port)
-
-    if mode == "external" or (mode == "hybrid" and exposure in ("external", "hybrid")):
-        _router(service, domain, "websecure", config.traefik.dns_provider)
-
-    if mode == "internal" or (mode == "hybrid" and exposure in ("internal", "hybrid")):
-        router_name = f"{service}-local" if mode == "hybrid" else service
-        # Use the same DNS-challenge resolver for internal domains — DNS challenge
-        # works for any domain regardless of public accessibility.
-        _router(router_name, local_domain, "websecure-local", config.traefik.dns_provider)
-
-    return labels
-
-
 def render_app(
     app_config: AppConfig,
     catalog_app: CatalogApp,
@@ -75,21 +39,13 @@ def render_app(
     resolved_vars.update(app_config.vars)
 
     def traefik_labels_helper(port: int, exposure: str | None = None) -> dict[str, str]:
-        if not stackr_config.traefik.enabled:
-            # When Traefik is not the active proxy, return an empty dict so that
-            # catalog templates that call traefik_labels() produce no labels.
-            return {}
-        return _traefik_labels(
-            catalog_app.name,
-            port,
-            stackr_config,
-            exposure or catalog_app.exposure,
-        )
+        # Traefik has been removed from the Stackr engine.
+        # traefik_labels() always returns {} so catalog templates render without labels.
+        return {}
 
     ctx = {
         "global": stackr_config.global_,
         "network": stackr_config.network,
-        "traefik": stackr_config.traefik,
         "security": stackr_config.security,
         "vars": resolved_vars,
         "traefik_labels": traefik_labels_helper,
@@ -99,10 +55,9 @@ def render_app(
     template = env.get_template("compose.yml.j2")
     rendered = template.render(**ctx)
 
-    # When Traefik is disabled, traefik_labels() returns {} and the for-loop
-    # in catalog templates emits nothing, leaving a bare ``labels:`` key with
-    # no value.  Docker Compose rejects null labels — strip them here so that
-    # NPM-mode deploys always produce valid compose files.
+    # traefik_labels() returns {} so the for-loop in catalog templates emits nothing,
+    # leaving a bare ``labels:`` key with no value.  Docker Compose rejects null
+    # labels — strip them here so deploys always produce valid compose files.
     rendered = _strip_empty_labels(rendered)
 
     # Apply user overrides (deep-merged on top of rendered compose)

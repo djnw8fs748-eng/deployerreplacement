@@ -9,8 +9,7 @@ from stackr.validator import validate
 def _make_config(apps: list[dict], **kwargs) -> StackrConfig:
     base = {
         "global": {"data_dir": "/data"},
-        "network": {"mode": "external", "domain": "test.com", "local_domain": "home.test.com"},
-        "traefik": {"enabled": False},
+        "network": {"domain": "test.com", "local_domain": "home.test.com"},
         "security": {"socket_proxy": False},
         "apps": apps,
     }
@@ -21,12 +20,10 @@ def _make_config(apps: list[dict], **kwargs) -> StackrConfig:
 def test_valid_config_passes():
     config = _make_config(
         [{"name": "uptime-kuma", "enabled": True}],
-        traefik={"enabled": True, "acme_email": "a@b.com", "dns_provider": "cloudflare"},
         security={"socket_proxy": False},
     )
     catalog = Catalog()
-    env = {"CF_DNS_API_TOKEN": "test-token"}
-    result = validate(config, catalog, env)
+    result = validate(config, catalog, {})
     assert result.ok
 
 
@@ -43,29 +40,13 @@ def test_missing_hard_dependency_fails():
     # prowlarr suggests sonarr/radarr; enable prowlarr alone to trigger it.
     config = _make_config(
         [{"name": "prowlarr", "enabled": True}],
-        traefik={"enabled": True, "acme_email": "a@b.com", "dns_provider": "cloudflare"},
-        security={"socket_proxy": False},
-    )
-    catalog = Catalog()
-    result = validate(config, catalog, {"CF_DNS_API_TOKEN": "x"})
-    # sonarr is a *suggests* dep of prowlarr — missing it is a warning, not an error
-    assert result.ok
-    assert any("sonarr" in w.message for w in result.warnings)
-
-
-def test_traefik_suggests_suppressed_when_npm():
-    # When traefik is disabled (NPM mode), suggests warnings for traefik and
-    # socket-proxy should be silently dropped — they're irrelevant noise.
-    config = _make_config(
-        [{"name": "uptime-kuma", "enabled": True}],
-        traefik={"enabled": False},
         security={"socket_proxy": False},
     )
     catalog = Catalog()
     result = validate(config, catalog, {})
+    # sonarr is a *suggests* dep of prowlarr — missing it is a warning, not an error
     assert result.ok
-    assert not any("traefik" in w.message for w in result.warnings)
-    assert not any("socket-proxy" in w.message for w in result.warnings)
+    assert any("sonarr" in w.message for w in result.warnings)
 
 
 def test_port_conflict_detected():
@@ -75,7 +56,6 @@ def test_port_conflict_detected():
             {"name": "jellyfin", "enabled": True},
             {"name": "sonarr", "enabled": True},
         ],
-        traefik={"enabled": True, "acme_email": "a@b.com", "dns_provider": "cloudflare"},
         security={"socket_proxy": False},
     )
     catalog = Catalog()
@@ -108,10 +88,9 @@ def test_port_conflict_same_host_port(monkeypatch):
             {"name": "adguardhome", "enabled": True},
             {"name": "fake-dns", "enabled": True},
         ],
-        traefik={"enabled": True, "acme_email": "a@b.com", "dns_provider": "cloudflare"},
         security={"socket_proxy": False},
     )
-    result = validate(config, catalog, {"CF_DNS_API_TOKEN": "test-token"})
+    result = validate(config, catalog, {})
     assert not result.ok
     assert any("53" in e.message and "conflicts" in e.message for e in result.errors)
 
@@ -123,7 +102,7 @@ def test_shared_traefik_port_no_conflict(monkeypatch):
     from stackr.catalog import CatalogApp
 
     catalog = Catalog()
-    # Two apps both listen on container port 8080 but are proxied by Traefik — no host conflict
+    # Two apps both listen on container port 8080 but are proxied — no host conflict
     fake_a = CatalogApp(
         name="app-a",
         display_name="A",
@@ -150,7 +129,6 @@ def test_shared_traefik_port_no_conflict(monkeypatch):
             {"name": "app-a", "enabled": True},
             {"name": "app-b", "enabled": True},
         ],
-        traefik={"enabled": False},
         security={"socket_proxy": False},
     )
     result = validate(config, catalog, {})
@@ -160,35 +138,25 @@ def test_shared_traefik_port_no_conflict(monkeypatch):
 
 def test_unresolved_secret_fails():
     config = _make_config(
-        [],
-        traefik={
-            "enabled": True,
-            "acme_email": "a@b.com",
-            "dns_provider": "cloudflare",
-            "dns_provider_env": {"CF_DNS_API_TOKEN": "${CF_DNS_API_TOKEN}"},
-        },
+        [{"name": "uptime-kuma", "enabled": True,
+          "vars": {"MY_SECRET": "${MY_SECRET}"}}],
         security={"socket_proxy": False},
     )
     catalog = Catalog()
-    # env is empty — token is unresolved
+    # env is empty — secret is unresolved
     result = validate(config, catalog, {})
     assert not result.ok
-    assert any("CF_DNS_API_TOKEN" in e.message for e in result.errors)
+    assert any("MY_SECRET" in e.message for e in result.errors)
 
 
 def test_resolved_secret_passes():
     config = _make_config(
-        [],
-        traefik={
-            "enabled": True,
-            "acme_email": "a@b.com",
-            "dns_provider": "cloudflare",
-            "dns_provider_env": {"CF_DNS_API_TOKEN": "${CF_DNS_API_TOKEN}"},
-        },
+        [{"name": "uptime-kuma", "enabled": True,
+          "vars": {"MY_SECRET": "${MY_SECRET}"}}],
         security={"socket_proxy": False},
     )
     catalog = Catalog()
-    env = {"CF_DNS_API_TOKEN": "abc123"}
+    env = {"MY_SECRET": "abc123"}
     result = validate(config, catalog, env)
     assert result.ok
 
@@ -216,7 +184,6 @@ def test_container_name_conflict_detected(monkeypatch):
     # are caught.
     dup_config = _make_config(
         [{"name": "jellyfin", "enabled": True}],
-        traefik={"enabled": True, "acme_email": "a@b.com", "dns_provider": "cloudflare"},
         security={"socket_proxy": False},
     )
     # Manually inject a second app entry with the same name
@@ -228,29 +195,16 @@ def test_container_name_conflict_detected(monkeypatch):
 
 def test_suggests_only_warns():
     catalog = Catalog()
-    # traefik suggests socket-proxy — check it's a warning, not an error
+    # seerr suggests sonarr and radarr — check missing suggests produce warnings, not errors
     config = _make_config(
-        [{"name": "traefik", "enabled": True}],
-        traefik={"enabled": True, "acme_email": "a@b.com", "dns_provider": "cloudflare"},
+        [{"name": "seerr", "enabled": True}],
         security={"socket_proxy": False},
     )
-    result = validate(config, catalog, {"CF_DNS_API_TOKEN": "test-token"})
-    suggest_warns = [w for w in result.warnings if "socket-proxy" in w.message]
-    assert len(suggest_warns) > 0
-    suggest_errors = [e for e in result.errors if "socket-proxy" in e.message]
-    assert suggest_errors == []
-
-
-def test_mutually_exclusive_traefik_npm():
-    """traefik and nginx-proxy-manager cannot both be enabled."""
-    catalog = Catalog()
-    config = _make_config([
-        {"name": "traefik", "enabled": True},
-        {"name": "nginx-proxy-manager", "enabled": True},
-    ])
     result = validate(config, catalog, {})
-    errors = [e for e in result.errors if "nginx-proxy-manager" in e.message]
-    assert errors, "Expected error for traefik + nginx-proxy-manager conflict"
+    suggest_warns = [w for w in result.warnings if "sonarr" in w.message or "radarr" in w.message]
+    assert len(suggest_warns) > 0
+    suggest_errors = [e for e in result.errors if "sonarr" in e.message or "radarr" in e.message]
+    assert suggest_errors == []
 
 
 def test_mutually_exclusive_pihole_adguard():

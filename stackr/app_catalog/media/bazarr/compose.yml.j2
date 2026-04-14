@@ -12,10 +12,6 @@ services:
       - /media:/media
     networks:
       - proxy
-    labels:
-{% for k, v in traefik_labels(6767).items() %}
-      - "{{ k }}={{ v }}"
-{% endfor %}
 
 networks:
   proxy:

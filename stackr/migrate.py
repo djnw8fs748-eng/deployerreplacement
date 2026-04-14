@@ -24,7 +24,6 @@ _DEPLOYRR_MAP: dict[str, str] = {
     "paperless": "paperless-ngx",
     "miniflux-v2": "miniflux",
     "nextcloud-aio": "nextcloud",
-    "traefik-v2": "traefik",
     "heimdall": "heimdall",
     "organizr-v2": "organizr",
     "organizr": "organizr",
@@ -120,19 +119,8 @@ def write_stackr_yml(
     data_dir: str = "/opt/appdata",
     timezone: str = "UTC",
     domain: str = "example.com",
-    dns_provider: str = "",
 ) -> None:
     """Emit a minimal stackr.yml skeleton with the given apps."""
-    from stackr.dns_providers import required_env_vars
-    env_vars = required_env_vars(dns_provider)
-    if env_vars:
-        dns_provider_env: dict[str, str] = {v: f"${{{v}}}" for v in env_vars}
-    elif dns_provider:
-        key = f"{dns_provider.upper()}_API_TOKEN"
-        dns_provider_env = {key: f"${{{key}}}"}
-    else:
-        dns_provider_env = {}
-
     config: dict[str, Any] = {
         "global": {
             "data_dir": data_dir,
@@ -141,20 +129,12 @@ def write_stackr_yml(
             "pgid": 1000,
         },
         "network": {
-            "mode": "external",
             "domain": domain,
             "local_domain": f"home.{domain}",
-        },
-        "traefik": {
-            "enabled": True,
-            "acme_email": "",
-            "dns_provider": dns_provider,
-            "dns_provider_env": dns_provider_env,
         },
         "security": {
             "socket_proxy": True,
             "crowdsec": False,
-            "auth_provider": "none",
         },
         "backup": {
             "enabled": False,

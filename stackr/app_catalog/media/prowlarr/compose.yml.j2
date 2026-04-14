@@ -15,10 +15,6 @@ services:
 {% if not vars.use_vpn | default(false) %}
     networks:
       - proxy
-    labels:
-{% for k, v in traefik_labels(9696).items() %}
-      - "{{ k }}={{ v }}"
-{% endfor %}
 {% endif %}
 
 {% if not vars.use_vpn | default(false) %}

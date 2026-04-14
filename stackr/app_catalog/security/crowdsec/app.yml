@@ -4,10 +4,8 @@ description: Open-source cybersecurity platform with crowd-sourced IP reputation
 category: security
 homepage: https://crowdsec.net
 version: latest
-exposure: internal
 requires: []
 suggests:
-  - traefik
   - socket-proxy
 ports: []
 volumes:

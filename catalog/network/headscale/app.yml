@@ -4,9 +4,6 @@ description: Open source self-hosted implementation of the Tailscale control ser
 category: network
 homepage: https://headscale.net
 version: latest
-exposure: external
-requires:
-  - traefik
 vars:
   version:
     type: string

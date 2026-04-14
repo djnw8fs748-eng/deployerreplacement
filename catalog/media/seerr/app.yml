@@ -1,0 +1,20 @@
+name: seerr
+display_name: Seerr
+description: Open-source media request and discovery manager for Jellyfin, Plex, and Emby
+category: media
+homepage: https://seerr.dev
+version: latest
+requires: []
+suggests:
+  - sonarr
+  - radarr
+vars:
+  version:
+    type: string
+    default: latest
+    description: Docker image tag
+ports: []
+host_ports: []
+volumes:
+  - name: config
+    path: /app/config

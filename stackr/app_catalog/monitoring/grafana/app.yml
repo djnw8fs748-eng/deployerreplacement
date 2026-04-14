@@ -4,10 +4,8 @@ description: Open source analytics and monitoring platform with beautiful dashbo
 category: monitoring
 homepage: https://grafana.com
 version: latest
-exposure: external
 requires: []
 suggests:
-  - traefik
   - prometheus
   - loki
 vars:

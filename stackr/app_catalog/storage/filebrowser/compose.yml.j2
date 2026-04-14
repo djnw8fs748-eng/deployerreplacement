@@ -10,10 +10,6 @@ services:
       - {{ global.data_dir }}:/srv
     networks:
       - proxy
-    labels:
-{% for k, v in traefik_labels(80, 'internal').items() %}
-      - "{{ k }}={{ v }}"
-{% endfor %}
 
 networks:
   proxy:

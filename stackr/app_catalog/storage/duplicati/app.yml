@@ -4,10 +4,8 @@ description: Free backup software with support for many cloud storage providers
 category: storage
 homepage: https://www.duplicati.com
 version: latest
-exposure: internal
 requires: []
-suggests:
-  - traefik
+suggests: []
 vars:
   version:
     type: string

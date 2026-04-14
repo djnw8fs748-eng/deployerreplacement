@@ -4,10 +4,8 @@ description: Distributed transcoding system for automating media library encodin
 category: media
 homepage: https://tdarr.io
 version: latest
-exposure: external
 requires: []
-suggests:
-  - traefik
+suggests: []
 vars:
   version:
     type: string

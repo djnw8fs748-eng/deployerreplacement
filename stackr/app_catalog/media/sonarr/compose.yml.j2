@@ -13,10 +13,6 @@ services:
       - /downloads:/downloads
     networks:
       - proxy
-    labels:
-{% for k, v in traefik_labels(8989).items() %}
-      - "{{ k }}={{ v }}"
-{% endfor %}
 
 networks:
   proxy:

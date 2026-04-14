@@ -18,10 +18,6 @@ services:
 {% if security.socket_proxy %}
       - socket_proxy
 {% endif %}
-    labels:
-{% for k, v in traefik_labels(9443).items() %}
-      - "{{ k }}={{ v }}"
-{% endfor %}
 networks:
   proxy:
     external: true

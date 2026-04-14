@@ -4,7 +4,6 @@ description: Automatically updates running Docker containers when new images are
 category: management
 homepage: https://containrrr.dev/watchtower
 version: latest
-exposure: internal
 requires: []
 vars:
   version:

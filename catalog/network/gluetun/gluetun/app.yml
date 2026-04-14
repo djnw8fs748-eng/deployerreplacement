@@ -4,7 +4,6 @@ description: VPN client container — routes other containers (qBittorrent, Tran
 category: network
 homepage: https://github.com/qdm12/gluetun
 version: latest
-exposure: internal
 requires: []
 suggests: []
 vars:

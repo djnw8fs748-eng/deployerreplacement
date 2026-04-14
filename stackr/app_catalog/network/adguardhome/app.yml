@@ -4,10 +4,8 @@ description: Network-wide ad and tracker blocking DNS server
 category: network
 homepage: https://adguard.com/adguard-home.html
 version: latest
-exposure: internal
 requires: []
-suggests:
-  - traefik
+suggests: []
 ports:
   - 3000
 host_ports:

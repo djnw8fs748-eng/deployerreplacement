@@ -4,9 +4,6 @@ description: Media server to organize and stream your personal media library
 category: media
 homepage: https://www.plex.tv
 version: latest
-exposure: external
-requires:
-  - traefik
 vars:
   version:
     type: string

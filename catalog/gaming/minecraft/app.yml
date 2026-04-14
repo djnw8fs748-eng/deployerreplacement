@@ -4,7 +4,6 @@ description: Self-hosted Minecraft Java Edition server
 category: gaming
 homepage: https://www.minecraft.net
 version: latest
-exposure: internal
 requires: []
 vars:
   version:

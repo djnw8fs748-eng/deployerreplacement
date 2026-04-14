@@ -30,29 +30,13 @@ class CatalogConfig(BaseModel):
 
 
 class NetworkConfig(BaseModel):
-    mode: str = "external"  # external | internal | hybrid
     domain: str = "example.com"
     local_domain: str = "home.example.com"
-
-    @field_validator("mode")
-    @classmethod
-    def validate_mode(cls, v: str) -> str:
-        if v not in ("external", "internal", "hybrid"):
-            raise ValueError("network.mode must be 'external', 'internal', or 'hybrid'")
-        return v
-
-
-class TraefikConfig(BaseModel):
-    enabled: bool = False
-    acme_email: str = ""
-    dns_provider: str = ""
-    dns_provider_env: dict[str, str] = Field(default_factory=dict)
 
 
 class SecurityConfig(BaseModel):
     socket_proxy: bool = True
     crowdsec: bool = False
-    auth_provider: str = "none"  # authentik | authelia | google_oauth | none | <app-name>
 
 
 class BackupConfig(BaseModel):
@@ -104,7 +88,6 @@ class StackrConfig(BaseModel):
     global_: GlobalConfig = Field(default_factory=GlobalConfig, alias="global")
     catalog: CatalogConfig = Field(default_factory=CatalogConfig)
     network: NetworkConfig = Field(default_factory=NetworkConfig)
-    traefik: TraefikConfig = Field(default_factory=TraefikConfig)
     security: SecurityConfig = Field(default_factory=SecurityConfig)
     backup: BackupConfig = Field(default_factory=BackupConfig)
     alerts: AlertConfig = Field(default_factory=AlertConfig)
@@ -123,27 +106,10 @@ class StackrConfig(BaseModel):
 
     @model_validator(mode="after")
     def inject_core_apps(self) -> StackrConfig:
-        """Ensure the reverse proxy and its dependencies are prepended in the correct deploy order.
-
-        When traefik is enabled:
-          socket-proxy must come before traefik so the socket_proxy network exists
-          when traefik starts and tries to connect to socket-proxy:2375.
-
-        When traefik is disabled:
-          nginx-proxy-manager is auto-injected as the default reverse proxy.
-        """
+        """Ensure nginx-proxy-manager is prepended as the default reverse proxy."""
         names = {a.name for a in self.apps}
-        if self.traefik.enabled:
-            # Insert in reverse deploy order (each insert goes to front):
-            # traefik first so socket-proxy ends up before it after both inserts.
-            if "traefik" not in names:
-                self.apps.insert(0, AppConfig(name="traefik"))
-            if self.security.socket_proxy and "socket-proxy" not in names:
-                self.apps.insert(0, AppConfig(name="socket-proxy"))
-        else:
-            # nginx-proxy-manager is the default proxy when traefik is disabled.
-            if "nginx-proxy-manager" not in names:
-                self.apps.insert(0, AppConfig(name="nginx-proxy-manager"))
+        if "nginx-proxy-manager" not in names:
+            self.apps.insert(0, AppConfig(name="nginx-proxy-manager"))
         return self
 
     @property
