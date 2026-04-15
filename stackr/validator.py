@@ -8,6 +8,7 @@ Checks run before any containers are touched:
 - Missing external volumes
 - CrowdSec dependency check (_check_crowdsec)
 - Mutually exclusive apps (pihole+adguardhome)
+- VPN port conflicts (gluetun+qbittorrent when use_vpn: false)
 """
 
 from __future__ import annotations
@@ -63,6 +64,7 @@ def validate(
     # Global checks (independent of individual apps)
     _check_crowdsec(config, enabled_names, result)
     _check_mutually_exclusive(enabled_names, result)
+    _check_vpn_port_conflicts(config, enabled_names, result)
 
     for app_config in config.enabled_apps:
         catalog_app = _resolve_catalog(app_config, catalog, result)
@@ -111,6 +113,30 @@ def _check_mutually_exclusive(
                 f"'{app_a}' and '{app_b}' cannot both be enabled — {reason}. "
                 f"Disable one of them.",
             )
+
+
+def _check_vpn_port_conflicts(
+    config: StackrConfig,
+    enabled_names: set[str],
+    result: ValidationResult,
+) -> None:
+    """Check for port conflicts between gluetun and apps that can route through it.
+
+    Gluetun always binds port 6881 (qBittorrent's torrent port). When qBittorrent
+    is also enabled but use_vpn is false, both containers try to bind 6881 on the
+    host, causing a runtime conflict.
+    """
+    if "gluetun" not in enabled_names or "qbittorrent" not in enabled_names:
+        return
+    qbt_cfg = next((a for a in config.apps if a.name == "qbittorrent"), None)
+    use_vpn = bool(qbt_cfg.vars.get("use_vpn", False)) if qbt_cfg else False
+    if not use_vpn:
+        result.error(
+            "qbittorrent",
+            "Port conflict: gluetun and qbittorrent both bind port 6881. "
+            "Set use_vpn: true on qbittorrent to route its traffic through "
+            "gluetun (recommended), or disable gluetun.",
+        )
 
 
 def _resolve_catalog(

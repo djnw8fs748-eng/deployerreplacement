@@ -252,7 +252,7 @@ def test_ensure_data_dirs_tolerates_invalid_yaml(tmp_path: Path) -> None:
 
 def test_ensure_data_dirs_uses_sudo_on_permission_error(tmp_path: Path) -> None:
     """When mkdir fails with permission denied, sudo mkdir should be attempted."""
-    from unittest.mock import call, patch
+    from unittest.mock import patch
 
     data_dir = tmp_path / "appdata"
     data_dir.mkdir()
