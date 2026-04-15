@@ -367,6 +367,7 @@
     <li><a href="#upgrade">Upgrade &amp; Uninstall</a></li>
 
     <li class="section-head">Reference</li>
+    <li><a href="#file-locations">File Locations</a></li>
     <li><a href="#command-reference">All Commands</a></li>
     <li><a href="#config-reference">Full Config Reference</a></li>
   </ul>
@@ -1220,6 +1221,70 @@ networks:
     <code>.stackr.env</code> files in your project directories are left in place — delete
     them manually if you no longer need the secrets they contain.
   </p>
+
+  <hr>
+
+  <!-- ─────────────────────────────── FILE LOCATIONS ─────────────────────────────── -->
+  <h2 id="file-locations">File Locations (Linux)</h2>
+  <p>
+    All Stackr runtime files live under <code>~/.stackr/</code> and next to your
+    <code>stackr.yml</code>. Nothing is written to system-wide paths except the
+    <code>data_dir</code> you configure (default <code>/opt/appdata</code>).
+  </p>
+
+  <div class="table-wrap">
+  <table>
+    <thead>
+      <tr><th>Path</th><th>What it is</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>stackr.yml</code></td>
+        <td>Your config file. Lives wherever you ran <code>stackr init</code> (e.g. <code>~/stackr/stackr.yml</code>). Pass <code>--config</code> to use a different path.</td>
+      </tr>
+      <tr>
+        <td><code>.stackr.env</code></td>
+        <td>Secrets file — same directory as <code>stackr.yml</code>. Auto-generated; gitignored. Contains API tokens, passwords, and auto-generated secrets.</td>
+      </tr>
+      <tr>
+        <td><code>~/.stackr/state.json</code></td>
+        <td>Deploy state — tracks the rendered compose hash and image digests for every deployed app. Used to skip unchanged apps and support rollback.</td>
+      </tr>
+      <tr>
+        <td><code>~/.stackr/compose/&lt;app&gt;/docker-compose.yml</code></td>
+        <td>Rendered compose files — written by Stackr before each deploy. One directory per app.</td>
+      </tr>
+      <tr>
+        <td><code>~/.stackr/catalog/</code></td>
+        <td>User catalog overlay. Populated by <code>stackr catalog update</code>. When present, replaces the built-in catalog entirely. Delete to revert to the bundled catalog.</td>
+      </tr>
+      <tr>
+        <td><code>~/.stackr/web-stdout.log</code><br><code>~/.stackr/web-stderr.log</code></td>
+        <td>Web UI service logs (Linux systemd only). Rotated automatically.</td>
+      </tr>
+      <tr>
+        <td><code>~/.config/systemd/user/stackr-web.service</code></td>
+        <td>systemd user unit written by <code>stackr service install</code> on Linux.</td>
+      </tr>
+      <tr>
+        <td><code>/opt/appdata/&lt;app&gt;/</code></td>
+        <td>Container data volumes — the <code>data_dir</code> from your config. Each app gets its own subdirectory. Created by Stackr on deploy (with <code>sudo</code> if needed).</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="callout">
+    <div class="callout-title">Permissions — /opt/appdata</div>
+    <code>/opt/appdata</code> is owned by root on most Linux installs. Stackr creates
+    subdirectories automatically using <code>sudo mkdir</code> and then
+    <code>sudo chown</code>s them to your user, so no manual setup is required as long
+    as passwordless sudo is configured (the default on most homelab distros).
+    <br><br>
+    To set it up manually:
+    <pre style="margin:8px 0 0;"><code><span class="cmd">sudo</span> mkdir -p /opt/appdata
+<span class="cmd">sudo</span> chown -R $USER:$USER /opt/appdata</code></pre>
+  </div>
 
   <hr>
 
