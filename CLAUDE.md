@@ -2,6 +2,15 @@
 
 Stackr is a declarative homelab deployment tool. It reads a `stackr.yml` config, renders Jinja2 Docker Compose templates from a YAML app catalog, and orchestrates deploys via `docker compose`.
 
+## Git workflow
+
+**Every change must go through a PR — never commit directly to main.**
+
+1. Create a new branch: `git checkout -b <type>/<short-description>` (e.g. `fix/sudo-data-dirs`, `feat/deploy-force-flag`)
+2. Make commits on the branch
+3. Push and open a PR: `gh pr create`
+4. Merge via the PR — do not `git push origin main` directly
+
 ## Project structure
 
 ```
