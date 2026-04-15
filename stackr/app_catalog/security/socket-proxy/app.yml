@@ -4,6 +4,11 @@ description: Secure proxy for the Docker socket — prevents apps from accessing
 category: security
 homepage: https://github.com/Tecnativa/docker-socket-proxy
 version: latest
+vars:
+  version:
+    type: string
+    default: latest
+    description: Docker image tag
 requires: []
 ports: []
 volumes: []

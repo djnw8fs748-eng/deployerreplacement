@@ -4,6 +4,11 @@ description: A modern, fully static, fast, secure, fully proxied, highly customi
 category: dashboard
 homepage: https://gethomepage.dev
 version: latest
+vars:
+  version:
+    type: string
+    default: latest
+    description: Docker image tag
 requires: []
 suggests:
   - socket-proxy

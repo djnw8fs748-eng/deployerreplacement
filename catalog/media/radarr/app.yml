@@ -4,6 +4,11 @@ description: Movie collection manager for Usenet and BitTorrent users
 category: media
 homepage: https://radarr.video
 version: latest
+vars:
+  version:
+    type: string
+    default: latest
+    description: Docker image tag
 requires: []
 suggests:
   - prowlarr

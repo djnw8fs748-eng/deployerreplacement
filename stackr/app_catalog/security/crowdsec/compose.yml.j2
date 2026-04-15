@@ -5,7 +5,7 @@ services:
     restart: unless-stopped
     environment:
       - TZ={{ global.timezone }}
-      - COLLECTIONS=crowdsecurity/traefik crowdsecurity/http-cve
+      - COLLECTIONS={{ vars.collections | default('crowdsecurity/traefik crowdsecurity/http-cve') }}
       - CUSTOM_HOSTNAME=crowdsec
     volumes:
       - {{ global.data_dir }}/crowdsec/config:/etc/crowdsec
