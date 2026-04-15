@@ -58,7 +58,16 @@ def deploy(
             continue
 
         compose_content = render_app(app_config, catalog_app, config)
-        _ensure_data_dirs(compose_content, str(config.global_.data_dir))
+        failed_dirs = _ensure_data_dirs(compose_content, str(config.global_.data_dir))
+        if failed_dirs:
+            paths_str = " ".join(str(p) for p in failed_dirs)
+            console.print(
+                f"  [red]ERROR[/red]  {app_config.name} — could not create data directories "
+                f"(even with sudo). Create them manually:\n"
+                f"         [bold]sudo mkdir -p {paths_str} "
+                f"&& sudo chown -R $USER:$USER {config.global_.data_dir}[/bold]"
+            )
+            continue
         compose_path = _write_compose(app_config.name, compose_content)
 
         # Determine whether anything has changed before pulling images so we
@@ -83,6 +92,19 @@ def deploy(
 
         try:
             _run_compose(compose_path, ["up", "-d", "--remove-orphans"])
+        except subprocess.CalledProcessError as exc:
+            stderr = exc.stderr.decode(errors="replace").strip() if exc.stderr else ""
+            if stderr:
+                console.print(f"  [red]Docker error:[/red]\n{stderr}")
+            if config.alerts.enabled:
+                from stackr.alerts import send_alert
+
+                send_alert(
+                    f"Deploy failed: {app_config.name}",
+                    stderr or str(exc),
+                    config.alerts,
+                )
+            raise
         except Exception as exc:
             if config.alerts.enabled:
                 from stackr.alerts import send_alert
@@ -195,41 +217,33 @@ def _write_compose(app_name: str, content: str) -> Path:
     return path
 
 
-def _ensure_data_dirs(compose_content: str, data_dir: str) -> None:
+def _ensure_data_dirs(compose_content: str, data_dir: str) -> list[Path]:
     """Create host-side bind-mount directories that live under data_dir.
 
     Parses the rendered compose YAML and mkdir -p's any host volume paths
-    that begin with data_dir so Docker doesn't error on missing directories.
-    Skips paths that cannot be created (permission denied, missing ancestor)
-    and prints a warning so the user can resolve it manually.
+    that begin with data_dir. Falls back to sudo when the current user lacks
+    write permission (common when data_dir is under /opt).
+
+    Returns a list of paths that still could not be created after the sudo
+    attempt (e.g. sudo not available or passwordless sudo not configured).
+    The caller should skip the deploy when this is non-empty.
     """
-    from rich.console import Console as _Console
-    _console = _Console()
-
     data_root = Path(data_dir)
+    failed: list[Path] = []
 
-    # Attempt to create the root data directory itself first. If it doesn't
-    # exist and can't be created (e.g. /opt requires root), warn and stop —
-    # there's no point attempting subdirectories.
+    # Ensure the root data directory exists first.
     if not data_root.exists():
-        try:
-            data_root.mkdir(parents=True, exist_ok=True)
-        except OSError as exc:
-            _console.print(
-                f"  [yellow]WARN[/yellow]  Cannot create data directory "
-                f"[bold]{data_root}[/bold]: {exc.strerror}. "
-                f"Run: [bold]sudo mkdir -p {data_root} && "
-                f"sudo chown $USER:$USER {data_root}[/bold]"
-            )
-            return
-
+        failed_root = _mkdir_with_sudo_fallback(data_root)
+        if failed_root:
+            failed.append(data_root)
+            return failed
 
     try:
         parsed = yaml.safe_load(compose_content)
     except yaml.YAMLError:
-        return
+        return failed
     if not isinstance(parsed, dict):
-        return
+        return failed
     services = parsed.get("services") or {}
     for service in services.values():
         if not isinstance(service, dict):
@@ -243,14 +257,44 @@ def _ensure_data_dirs(compose_content: str, data_dir: str) -> None:
                 host_path.relative_to(data_root)
             except ValueError:
                 continue
-            try:
-                host_path.mkdir(parents=True, exist_ok=True)
-            except OSError as exc:
-                _console.print(
-                    f"  [yellow]WARN[/yellow]  Could not create data directory "
-                    f"[bold]{host_path}[/bold]: {exc.strerror}. "
-                    "Create it manually or re-run with sudo."
-                )
+            if not host_path.exists() and _mkdir_with_sudo_fallback(host_path):
+                failed.append(host_path)
+
+    return failed
+
+
+def _mkdir_with_sudo_fallback(path: Path) -> bool:
+    """Create *path* (and parents) with a sudo fallback.
+
+    Returns True if the directory could NOT be created (caller should treat
+    this as a failure), False on success.
+    """
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+        return False
+    except OSError:
+        pass
+
+    # Fall back to sudo — common in homelab setups where data_dir is under /opt.
+    try:
+        import os
+
+        result = subprocess.run(
+            ["sudo", "mkdir", "-p", str(path)],
+            capture_output=True,
+            timeout=10,
+        )
+        if result.returncode != 0:
+            return True
+        # Hand ownership to the current user so future writes don't need sudo.
+        subprocess.run(
+            ["sudo", "chown", f"{os.getuid()}:{os.getgid()}", str(path)],
+            capture_output=True,
+            timeout=10,
+        )
+        return False
+    except (OSError, subprocess.TimeoutExpired):
+        return True
 
 
 def _run_compose(

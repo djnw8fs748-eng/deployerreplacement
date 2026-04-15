@@ -208,7 +208,8 @@ services:
       - {data_dir}/myapp/config:/config
       - {data_dir}/myapp/data:/data
 """
-    _ensure_data_dirs(compose, str(data_dir))
+    failed = _ensure_data_dirs(compose, str(data_dir))
+    assert failed == []
     assert (data_dir / "myapp" / "config").is_dir()
     assert (data_dir / "myapp" / "data").is_dir()
 
@@ -224,7 +225,8 @@ services:
       - {outside}/thing:/thing
       - {data_dir}/myapp/config:/config
 """
-    _ensure_data_dirs(compose, str(data_dir))
+    failed = _ensure_data_dirs(compose, str(data_dir))
+    assert failed == []
     assert not outside.exists()
     assert (data_dir / "myapp" / "config").is_dir()
 
@@ -238,13 +240,50 @@ services:
     volumes:
       - myapp_data:/data
 """
-    # Should not raise even though it's a named volume (no absolute path)
-    _ensure_data_dirs(compose, str(data_dir))
+    failed = _ensure_data_dirs(compose, str(data_dir))
+    assert failed == []
 
 
 def test_ensure_data_dirs_tolerates_invalid_yaml(tmp_path: Path) -> None:
     data_dir = tmp_path / "appdata"
-    _ensure_data_dirs("not: valid: yaml: [{", str(data_dir))
+    failed = _ensure_data_dirs("not: valid: yaml: [{", str(data_dir))
+    assert failed == []
+
+
+def test_ensure_data_dirs_uses_sudo_on_permission_error(tmp_path: Path) -> None:
+    """When mkdir fails with permission denied, sudo mkdir should be attempted."""
+    from unittest.mock import call, patch
+
+    data_dir = tmp_path / "appdata"
+    data_dir.mkdir()
+    target = data_dir / "myapp" / "config"
+    compose = f"""
+services:
+  myapp:
+    image: test
+    volumes:
+      - {target}:/config
+"""
+    # Simulate the normal mkdir succeeding for data_dir but failing for the subdir,
+    # then sudo succeeding.
+    original_mkdir = Path.mkdir
+
+    def mock_mkdir(self: Path, *args: object, **kwargs: object) -> None:
+        if self == target:
+            raise PermissionError("Permission denied")
+        original_mkdir(self, *args, **kwargs)  # type: ignore[arg-type]
+
+    with (
+        patch.object(Path, "mkdir", mock_mkdir),
+        patch("subprocess.run") as mock_run,
+    ):
+        mock_run.return_value = MagicMock(returncode=0)
+        failed = _ensure_data_dirs(compose, str(data_dir))
+
+    # sudo mkdir -p should have been called for the failing path
+    sudo_calls = [c for c in mock_run.call_args_list if "sudo" in (c[0][0] if c[0] else [])]
+    assert sudo_calls, "sudo mkdir should be attempted on permission error"
+    assert failed == [], "should not be in failed list when sudo succeeds"
 
 
 def test_rollback_applies_stored_compose(tmp_path: Path) -> None:
