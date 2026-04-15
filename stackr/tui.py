@@ -518,6 +518,15 @@ if HAS_TEXTUAL:
                 for a in raw.get("apps", [])
                 if isinstance(a, dict) and "name" in a
             }
+
+            # Track which apps were previously enabled so we can stop containers
+            # for any that are being disabled in this save.
+            previously_enabled: set[str] = {
+                name
+                for name, entry in existing.items()
+                if entry.get("enabled", True)
+            }
+
             apps_out: list[dict[str, Any]] = []
             catalog_names: set[str] = set()
             for category in self._catalog.categories():
@@ -537,6 +546,26 @@ if HAS_TEXTUAL:
             raw["mounts"] = self._mounts
             with open(self._config_path, "w") as f:
                 yaml.dump(raw, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
+
+            # Stop containers and clear state for apps that were just disabled,
+            # so that re-enabling them triggers a fresh deploy rather than SKIP.
+            newly_disabled = previously_enabled - self._enabled
+            if newly_disabled:
+                import subprocess as _sp
+
+                from stackr.deployer import COMPOSE_DIR
+                from stackr.state import State as _State
+                state = _State()
+                for app_name in newly_disabled:
+                    compose_path = COMPOSE_DIR / app_name / "docker-compose.yml"
+                    if compose_path.exists():
+                        _sp.run(
+                            ["docker", "compose", "-f", str(compose_path), "stop"],
+                            capture_output=True,
+                        )
+                    state.remove_app(app_name)
+                state.save()
+
             self.notify(f"Saved to {self._config_path}", title="Config saved")
 
         # ------------------------------------------------------------------

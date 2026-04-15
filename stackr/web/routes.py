@@ -184,10 +184,30 @@ def make_router(config_path: Path) -> fastapi.APIRouter:
                 status_code=404, detail=f"Unknown app '{app_name}'"
             )
 
+        # Capture the pre-toggle enabled state so we know the direction of the flip.
+        was_enabled = next(
+            (a.enabled for a in config.apps if a.name == app_name), False
+        )
+
         _toggle_app_in_config(config_path, app_name)
 
         config = load_config(config_path)
         state = State()
+
+        # When disabling a previously-enabled app: stop its containers and clear
+        # its state entry so that re-enabling triggers a fresh deploy instead of
+        # being silently skipped as "unchanged".
+        app_cfg_after = next((a for a in config.apps if a.name == app_name), None)
+        if was_enabled and app_cfg_after is not None and not app_cfg_after.enabled:
+            from stackr.deployer import COMPOSE_DIR
+            compose_path = COMPOSE_DIR / app_name / "docker-compose.yml"
+            if compose_path.exists():
+                subprocess.run(
+                    ["docker", "compose", "-f", str(compose_path), "stop"],
+                    capture_output=True,
+                )
+            state.remove_app(app_name)
+            state.save()
 
         app_cfg = next((a for a in config.apps if a.name == app_name), None)
         if app_cfg is None:

@@ -254,6 +254,9 @@ def deploy(
     app_name: Annotated[str | None, typer.Argument(help="Deploy a single app")] = None,
     config_path: Annotated[Path, typer.Option("--config", "-c")] = _DEFAULT_CONFIG,
     skip_pull: Annotated[bool, typer.Option("--skip-pull", help="Do not pull images")] = False,
+    force: Annotated[
+        bool, typer.Option("--force", "-f", help="Redeploy all apps, ignoring unchanged state")
+    ] = False,
 ) -> None:
     """Deploy all enabled apps (or a single app)."""
     from stackr.deployer import deploy as run_deploy
@@ -262,7 +265,7 @@ def deploy(
     config, catalog, env, state = _load(config_path)
     result = run_validate(config, catalog, env, data_dir=Path(str(config.global_.data_dir)))
 
-    run_deploy(config, catalog, result, state, app_name=app_name, pull=not skip_pull)
+    run_deploy(config, catalog, result, state, app_name=app_name, pull=not skip_pull, force=force)
     console.print("[green]Done.[/green]")
 
 

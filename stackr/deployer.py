@@ -32,6 +32,7 @@ def deploy(
     app_name: str | None = None,
     pull: bool = True,
     check_image_updates: bool = False,
+    force: bool = False,
 ) -> None:
     if not validation.ok:
         console.print("[bold red]Validation failed — aborting deploy.[/bold red]")
@@ -63,7 +64,7 @@ def deploy(
         # Determine whether anything has changed before pulling images so we
         # don't waste bandwidth on apps that will be skipped.
         compose_changed = state.is_changed(app_config.name, compose_content)
-        if not compose_changed:
+        if not force and not compose_changed:
             if check_image_updates:
                 from stackr import images as img
                 if not img.images_changed(app_config.name, compose_content, state):

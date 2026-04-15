@@ -102,6 +102,38 @@ def test_deploy_skips_unchanged_app(tmp_path: Path) -> None:
     assert up_calls == [], "unchanged app should not trigger 'up -d'"
 
 
+def test_deploy_force_redeploys_unchanged_app(tmp_path: Path) -> None:
+    """force=True must redeploy even when state.is_changed returns False."""
+    from stackr.catalog import Catalog
+    from stackr.config import StackrConfig
+    from stackr.validator import ValidationResult
+
+    config = StackrConfig.model_validate(
+        {
+            "global": {"data_dir": str(tmp_path)},
+            "network": {"domain": "test.com", "local_domain": "home.test.com"},
+            "security": {"socket_proxy": False},
+            "apps": [{"name": "uptime-kuma", "enabled": True}],
+        }
+    )
+    catalog = Catalog()
+    validation = ValidationResult()
+
+    state = MagicMock(spec=State)
+    state.is_changed.return_value = False  # unchanged — would normally be skipped
+
+    with (
+        patch("stackr.deployer.COMPOSE_DIR", tmp_path),
+        patch("stackr.deployer.ensure_networks"),
+        patch("subprocess.run") as mock_run,
+    ):
+        mock_run.return_value = MagicMock(returncode=0)
+        deploy(config, catalog, validation, state, pull=False, force=True)
+
+    all_cmds = [c[0][0] for c in mock_run.call_args_list]
+    assert any("up" in cmd for cmd in all_cmds), "force=True must deploy even unchanged apps"
+
+
 def test_deploy_restarts_changed_app(tmp_path: Path) -> None:
     """An app whose compose content has changed should be (re)deployed."""
     from stackr.catalog import Catalog
