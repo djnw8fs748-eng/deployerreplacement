@@ -62,6 +62,22 @@ def load_settings(config_path: Path) -> dict[str, Any]:
         return {}
 
 
+def load_app_vars(config_path: Path) -> dict[str, dict[str, Any]]:
+    """Return a dict mapping app name → vars dict from an existing stackr.yml."""
+    if not config_path.exists():
+        return {}
+    try:
+        with open(config_path) as f:
+            raw: dict[str, Any] = yaml.safe_load(f) or {}
+        return {
+            a["name"]: dict(a.get("vars") or {})
+            for a in raw.get("apps", [])
+            if isinstance(a, dict) and "name" in a and a.get("vars")
+        }
+    except Exception:  # noqa: BLE001
+        return {}
+
+
 def load_mounts(config_path: Path) -> list[dict[str, Any]]:
     """Return the list of mount dicts from an existing stackr.yml, or empty list."""
     if not config_path.exists():
@@ -284,6 +300,88 @@ if HAS_TEXTUAL:
                 result["username"] = username
             self.dismiss(result)
 
+    class VarEditorScreen(ModalScreen):  # type: ignore[misc]
+        """Modal dialog for editing per-app variables."""
+
+        CSS = """
+        VarEditorScreen {
+            align: center middle;
+        }
+        #var-dialog {
+            width: 70;
+            height: auto;
+            max-height: 80%;
+            border: solid $primary;
+            background: $surface;
+            padding: 1 2;
+        }
+        #var-dialog Label {
+            margin-bottom: 0;
+        }
+        .var-label {
+            color: $text-muted;
+        }
+        #var-dialog Input {
+            margin-bottom: 1;
+        }
+        #var-buttons {
+            margin-top: 1;
+            height: auto;
+        }
+        """
+
+        def __init__(self, app_name: str, var_defs: Any, current_vars: dict[str, Any]) -> None:
+            super().__init__()
+            self._app_name = app_name
+            self._var_defs = var_defs  # dict[str, VarDef]
+            self._current_vars = current_vars
+
+        def compose(self) -> ComposeResult:
+            with ScrollableContainer(id="var-dialog"):
+                yield Label(f"[bold]Variables — {self._app_name}[/bold]")
+                for vname, vdef in self._var_defs.items():
+                    current = self._current_vars.get(vname, vdef.default)
+                    hint = f"{vname}"
+                    if vdef.options:
+                        hint += f"  ({' | '.join(str(o) for o in vdef.options)})"
+                    elif vdef.type == "boolean":
+                        hint += "  (true | false)"
+                    elif vdef.type == "integer":
+                        hint += "  (integer)"
+                    if vdef.description:
+                        hint += f"  — {vdef.description}"
+                    yield Label(hint, classes="var-label")
+                    yield Input(
+                        placeholder=str(vdef.default) if vdef.default is not None else "",
+                        value=str(current) if current is not None else "",
+                        id=f"var-{vname}",
+                    )
+                with Horizontal(id="var-buttons"):
+                    yield Button("Save", variant="primary", id="btn-save")
+                    yield Button("Cancel", variant="default", id="btn-cancel")
+
+        def on_button_pressed(self, event: Button.Pressed) -> None:
+            if event.button.id == "btn-cancel":
+                self.dismiss(None)
+                return
+            result: dict[str, Any] = {}
+            for vname, vdef in self._var_defs.items():
+                raw = self.query_one(f"#var-{vname}", Input).value.strip()
+                if not raw:
+                    # Use default when field is cleared
+                    result[vname] = vdef.default
+                    continue
+                if vdef.type == "boolean":
+                    result[vname] = raw.lower() in ("true", "yes", "1", "on")
+                elif vdef.type == "integer":
+                    try:
+                        result[vname] = int(raw)
+                    except ValueError:
+                        result[vname] = vdef.default
+                else:
+                    result[vname] = raw
+            self.dismiss(result)
+
     class StackrTUI(App[None]):  # type: ignore[misc]
         """Browse and toggle catalog apps, and manage remote mounts."""
 
@@ -308,6 +406,7 @@ if HAS_TEXTUAL:
             Binding("enter", "toggle_app", "Toggle on/off", show=False, priority=True),
             Binding("a", "add_mount", "Add mount", show=True),
             Binding("e", "edit", "Edit", show=True),
+            Binding("v", "edit_vars", "App vars", show=True),
             Binding("d", "delete_mount", "Del mount", show=True),
             Binding("s", "save_config", "Save config", show=True),
             Binding("q", "quit", "Quit", show=True),
@@ -331,6 +430,7 @@ if HAS_TEXTUAL:
             self._settings_node: Any = None
             self._mounts: list[dict[str, Any]] = load_mounts(config_path)
             self._mounts_node: Any = None  # set in on_mount
+            self._app_vars: dict[str, dict[str, Any]] = load_app_vars(config_path)
 
         # ------------------------------------------------------------------
         # Compose
@@ -475,6 +575,48 @@ if HAS_TEXTUAL:
             self.push_screen(MountEditorScreen(mount=existing), _on_result)
 
         # ------------------------------------------------------------------
+        # Actions — app vars
+        # ------------------------------------------------------------------
+
+        def action_edit_vars(self) -> None:
+            """Open the var editor for the currently highlighted app."""
+            tree: Tree[Any] = self.query_one("#catalog-tree", Tree)
+            node = tree.cursor_node
+            if node is None or not isinstance(node.data, str):
+                self.notify("Select an app to edit its variables", severity="warning")
+                return
+            app_name: str = node.data
+            ca = self._catalog.get(app_name)
+            if ca is None:
+                return
+            if not ca.vars:
+                self.notify(f"'{app_name}' has no configurable variables", severity="information")
+                return
+            current = self._app_vars.get(app_name, {})
+            app_name_ref = app_name  # capture for closure
+
+            def _on_result(result: dict[str, Any] | None) -> None:
+                if result is None:
+                    return
+                # Strip vars that match the default — no need to store them
+                cleaned: dict[str, Any] = {}
+                for k, v in result.items():
+                    vdef = ca.vars.get(k)
+                    if vdef is None or v != vdef.default:
+                        cleaned[k] = v
+                if cleaned:
+                    self._app_vars[app_name_ref] = cleaned
+                elif app_name_ref in self._app_vars:
+                    del self._app_vars[app_name_ref]
+                self.query_one("#detail-content", Static).update(self._detail_markup(ca))
+                self.notify(
+                    f"Vars for '{app_name_ref}' updated — press S to save",
+                    title="Vars updated",
+                )
+
+            self.push_screen(VarEditorScreen(app_name, ca.vars, current), _on_result)
+
+        # ------------------------------------------------------------------
         # Actions — mounts
         # ------------------------------------------------------------------
 
@@ -534,6 +676,10 @@ if HAS_TEXTUAL:
                     catalog_names.add(ca.name)
                     entry = dict(existing.get(ca.name, {"name": ca.name}))
                     entry["enabled"] = ca.name in self._enabled
+                    if ca.name in self._app_vars and self._app_vars[ca.name]:
+                        entry["vars"] = self._app_vars[ca.name]
+                    elif "vars" in entry and ca.name not in self._app_vars:
+                        del entry["vars"]
                     apps_out.append(entry)
             # Preserve apps not present in the current catalog (e.g. local catalog_path apps)
             for name, entry in existing.items():
@@ -652,15 +798,22 @@ if HAS_TEXTUAL:
             if ca.host_ports:
                 lines.append(f"[dim]Host ports:[/dim] {', '.join(str(p) for p in ca.host_ports)}")
             if ca.vars:
+                current_vars = self._app_vars.get(ca.name, {})
                 lines += ["", "[dim]Variables:[/dim]"]
                 for vname, vdef in ca.vars.items():
-                    opts = f" ({', '.join(vdef.options)})" if vdef.options else ""
-                    lines.append(f"  • [bold]{vname}[/bold] = {vdef.default!r}{opts}")
+                    opts = f" ({' | '.join(str(o) for o in vdef.options)})" if vdef.options else ""
+                    # Show current value if overridden, otherwise show default
+                    if vname in current_vars:
+                        val_str = f"[green]{current_vars[vname]!r}[/green]"
+                    else:
+                        val_str = f"[dim]{vdef.default!r}[/dim]"
+                    lines.append(f"  • [bold]{vname}[/bold] = {val_str}{opts}")
                     if vdef.description:
-                        lines.append(f"    {vdef.description}")
+                        lines.append(f"    [dim]{vdef.description}[/dim]")
             lines += [
                 "",
                 "[dim]──────────────────────────[/dim]",
-                "[dim]Space[/dim] toggle  •  [dim]S[/dim] save  •  [dim]Q[/dim] quit",
+                "[dim]Space[/dim] toggle  •  [dim]V[/dim] edit vars  •  "
+                "[dim]S[/dim] save  •  [dim]Q[/dim] quit",
             ]
             return "\n".join(lines)

@@ -156,6 +156,71 @@ def test_load_settings_reads_sections(tmp_path: Path) -> None:
     assert "traefik" not in result
 
 
+def test_load_app_vars_empty_when_no_config(tmp_path: Path) -> None:
+    from stackr.tui import load_app_vars
+
+    assert load_app_vars(tmp_path / "stackr.yml") == {}
+
+
+def test_load_app_vars_returns_vars_for_apps(tmp_path: Path) -> None:
+    from stackr.tui import load_app_vars
+
+    cfg = {
+        "apps": [
+            {"name": "jellyfin", "enabled": True, "vars": {"version": "10.9.0"}},
+            {"name": "sonarr", "enabled": True},  # no vars
+        ]
+    }
+    f = tmp_path / "stackr.yml"
+    f.write_text(yaml.dump(cfg))
+    result = load_app_vars(f)
+    assert result == {"jellyfin": {"version": "10.9.0"}}
+
+
+def test_load_app_vars_survives_corrupt_yaml(tmp_path: Path) -> None:
+    from stackr.tui import load_app_vars
+
+    (tmp_path / "stackr.yml").write_text("{{{ not valid yaml")
+    assert load_app_vars(tmp_path / "stackr.yml") == {}
+
+
+def test_tui_save_writes_app_vars(tmp_path: Path) -> None:
+    """action_save_config must persist per-app vars into the apps list."""
+    from stackr.catalog import Catalog
+    from stackr.tui import build_stub_config
+
+    catalog = Catalog()
+    config_file = tmp_path / "stackr.yml"
+    config_file.write_text(
+        yaml.dump({"global": {"data_dir": "/data"}, "network": {"domain": "test.com"}, "apps": []})
+    )
+
+    app_vars = {"jellyfin": {"version": "10.9.0"}}
+
+    raw = build_stub_config(config_file)
+    existing: dict = {
+        a["name"]: a for a in raw.get("apps", []) if isinstance(a, dict) and "name" in a
+    }
+    apps_out = []
+    catalog_names: set = set()
+    for category in catalog.categories():
+        for ca in sorted(catalog.by_category(category), key=lambda a: a.name):
+            catalog_names.add(ca.name)
+            entry = dict(existing.get(ca.name, {"name": ca.name}))
+            entry["enabled"] = False
+            if ca.name in app_vars and app_vars[ca.name]:
+                entry["vars"] = app_vars[ca.name]
+            apps_out.append(entry)
+    raw["apps"] = apps_out
+    with open(config_file, "w") as f:
+        yaml.dump(raw, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
+
+    written = yaml.safe_load(config_file.read_text())
+    by_name = {a["name"]: a for a in written["apps"]}
+    assert by_name["jellyfin"].get("vars") == {"version": "10.9.0"}
+    assert "vars" not in by_name.get("sonarr", {})
+
+
 @pytest.mark.skipif(not HAS_TEXTUAL, reason="textual not installed")
 def test_settings_detail_markup_contains_domain(tmp_path: Path) -> None:
     from stackr.catalog import Catalog
