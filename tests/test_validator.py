@@ -217,3 +217,27 @@ def test_mutually_exclusive_pihole_adguard():
     result = validate(config, catalog, {})
     errors = [e for e in result.errors if "adguardhome" in e.message]
     assert errors, "Expected error for pihole + adguardhome conflict"
+
+
+def test_gluetun_qbittorrent_port_conflict_without_vpn():
+    """gluetun + qbittorrent both bind port 6881 when use_vpn is false."""
+    catalog = Catalog()
+    config = _make_config([
+        {"name": "gluetun", "enabled": True},
+        {"name": "qbittorrent", "enabled": True},  # use_vpn defaults to false
+    ])
+    result = validate(config, catalog, {})
+    errors = [e for e in result.errors if "6881" in e.message]
+    assert errors, "Expected port 6881 conflict error when gluetun + qbittorrent (no VPN)"
+
+
+def test_gluetun_qbittorrent_no_conflict_with_vpn():
+    """No error when qbittorrent has use_vpn: true — it uses gluetun's network."""
+    catalog = Catalog()
+    config = _make_config([
+        {"name": "gluetun", "enabled": True},
+        {"name": "qbittorrent", "enabled": True, "vars": {"use_vpn": True}},
+    ])
+    result = validate(config, catalog, {})
+    port_errors = [e for e in result.errors if "6881" in e.message]
+    assert not port_errors, "No port conflict when qbittorrent routes through gluetun"
