@@ -4,8 +4,11 @@ description: Network-wide ad and tracker blocking DNS server
 category: network
 homepage: https://adguard.com/adguard-home.html
 version: latest
-requires: []
-suggests: []
+vars:
+  version:
+    type: string
+    default: latest
+    description: Docker image tag
 ports:
   - 3000
 host_ports:

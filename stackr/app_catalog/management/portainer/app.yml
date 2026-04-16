@@ -4,8 +4,11 @@ description: Docker management UI
 category: management
 homepage: https://www.portainer.io
 version: latest
-requires: []
-suggests: []
+vars:
+  version:
+    type: string
+    default: latest
+    description: Docker image tag
 ports:
   - 9443
 volumes:

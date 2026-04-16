@@ -4,6 +4,15 @@ description: Open-source cybersecurity platform with crowd-sourced IP reputation
 category: security
 homepage: https://crowdsec.net
 version: latest
+vars:
+  version:
+    type: string
+    default: latest
+    description: Docker image tag
+  collections:
+    type: string
+    default: "crowdsecurity/traefik crowdsecurity/http-cve"
+    description: Space-separated CrowdSec collections to install (e.g. crowdsecurity/nginx crowdsecurity/linux)
 requires: []
 suggests:
   - socket-proxy

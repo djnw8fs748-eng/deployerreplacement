@@ -12,6 +12,14 @@ vars:
     type: string
     default: latest
     description: Docker image tag
+  admin_user:
+    type: string
+    default: admin
+    description: Grafana admin username
+  anonymous_access:
+    type: boolean
+    default: false
+    description: Allow unauthenticated read-only access to dashboards
 ports:
   - 3000
 host_ports: []

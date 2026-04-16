@@ -4,13 +4,23 @@ description: Unofficial Bitwarden-compatible server written in Rust
 category: security
 homepage: https://github.com/dani-garcia/vaultwarden
 version: latest
-requires: []
-suggests: []
 vars:
-  admin_token:
+  version:
     type: string
-    default: ""
-    description: Admin panel token (leave blank to auto-generate)
+    default: latest
+    description: Docker image tag
+  signups_allowed:
+    type: boolean
+    default: false
+    description: Allow new user registrations (enable during initial setup, disable afterwards)
+  invitations_allowed:
+    type: boolean
+    default: true
+    description: Allow admins to send email invitations for new accounts (requires SMTP config)
+  show_password_hint:
+    type: boolean
+    default: false
+    description: Show password hints on the login page
 ports:
   - 80
 volumes:

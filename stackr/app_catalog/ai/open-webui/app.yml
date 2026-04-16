@@ -4,7 +4,6 @@ description: User-friendly web interface for interacting with local LLMs via Oll
 category: ai
 homepage: https://openwebui.com
 version: main
-requires: []
 suggests:
   - ollama
 vars:
@@ -12,6 +11,14 @@ vars:
     type: string
     default: main
     description: Docker image tag
+  ollama_base_url:
+    type: string
+    default: "http://ollama:11434"
+    description: Ollama API URL (change if Ollama is on a different host or port)
+  enable_signup:
+    type: boolean
+    default: true
+    description: Allow new users to register accounts through the web UI
 ports:
   - 8080
 host_ports: []

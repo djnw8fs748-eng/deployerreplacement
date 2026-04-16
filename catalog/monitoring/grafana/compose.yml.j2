@@ -5,8 +5,10 @@ services:
     restart: unless-stopped
     environment:
       - TZ={{ global.timezone }}
+      - GF_SECURITY_ADMIN_USER={{ vars.admin_user | default('admin') }}
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
       - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_AUTH_ANONYMOUS_ENABLED={{ vars.anonymous_access | default(false) | lower }}
       - GF_SERVER_ROOT_URL=https://grafana.{{ network.domain }}
     volumes:
       - {{ global.data_dir }}/grafana/data:/var/lib/grafana

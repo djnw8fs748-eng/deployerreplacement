@@ -4,8 +4,11 @@ description: Self-hosted monitoring tool for uptime and status pages
 category: monitoring
 homepage: https://github.com/louislam/uptime-kuma
 version: latest
-requires: []
-suggests: []
+vars:
+  version:
+    type: string
+    default: latest
+    description: Docker image tag
 ports:
   - 3001
 volumes:
