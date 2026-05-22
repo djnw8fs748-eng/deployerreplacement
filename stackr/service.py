@@ -14,8 +14,8 @@ from pathlib import Path
 
 _LINUX_UNIT_DIR = Path.home() / ".config" / "systemd" / "user"
 _MACOS_AGENTS_DIR = Path.home() / "Library" / "LaunchAgents"
-_SERVICE_NAME = "stackr-web"
-_MACOS_LABEL = "dev.stackr.web"
+_SERVICE_NAME = "stackr-api"
+_MACOS_LABEL = "dev.stackr.api"
 
 
 def _platform() -> str:
@@ -34,12 +34,12 @@ def _systemd_unit(config_path: Path, host: str, port: int) -> str:
     executable = sys.executable
     return f"""\
 [Unit]
-Description=Stackr Web UI
+Description=Stackr API & Web UI
 After=network.target
 
 [Service]
 Type=simple
-ExecStart={executable} -m stackr web --config {config_path.resolve()} --host {host} --port {port}
+ExecStart={executable} -m stackr api --config {config_path.resolve()} --host {host} --port {port}
 Restart=on-failure
 RestartSec=5
 
@@ -64,7 +64,7 @@ def _launchd_plist(config_path: Path, host: str, port: int) -> str:
         <string>{executable}</string>
         <string>-m</string>
         <string>stackr</string>
-        <string>web</string>
+        <string>api</string>
         <string>--config</string>
         <string>{config_abs}</string>
         <string>--host</string>
@@ -77,15 +77,15 @@ def _launchd_plist(config_path: Path, host: str, port: int) -> str:
     <key>KeepAlive</key>
     <true/>
     <key>StandardOutPath</key>
-    <string>{Path.home()}/.stackr/web-stdout.log</string>
+    <string>{Path.home()}/.stackr/api-stdout.log</string>
     <key>StandardErrorPath</key>
-    <string>{Path.home()}/.stackr/web-stderr.log</string>
+    <string>{Path.home()}/.stackr/api-stderr.log</string>
 </dict>
 </plist>
 """
 
 
-def install(config_path: Path, host: str = "127.0.0.1", port: int = 8000) -> None:
+def install(config_path: Path, host: str = "127.0.0.1", port: int = 7274) -> None:
     """Write and enable the service unit for the current platform."""
     system = _platform()
     if system == "Linux":

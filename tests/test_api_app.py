@@ -104,3 +104,23 @@ async def test_static_files_served(tmp_path: Path, monkeypatch: pytest.MonkeyPat
         js = await client.get("/static/app.js")
     assert css.status_code == 200
     assert js.status_code == 200
+
+
+def test_service_systemd_unit_uses_api_command() -> None:
+    from pathlib import Path
+
+    from stackr.service import _systemd_unit
+    unit = _systemd_unit(Path("/home/user/stackr.yml"), "127.0.0.1", 7274)
+    assert "stackr api" in unit
+    assert "7274" in unit
+    assert "stackr web" not in unit
+
+
+def test_service_launchd_plist_uses_api_command() -> None:
+    from pathlib import Path
+
+    from stackr.service import _launchd_plist
+    plist = _launchd_plist(Path("/home/user/stackr.yml"), "127.0.0.1", 7274)
+    assert "stackr" in plist
+    assert "api" in plist
+    assert "web" not in plist

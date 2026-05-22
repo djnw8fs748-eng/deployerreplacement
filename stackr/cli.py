@@ -869,7 +869,7 @@ app.add_typer(service_app, name="service")
 def service_install(
     config_path: Annotated[Path, typer.Option("--config", "-c")] = _DEFAULT_CONFIG,
     host: Annotated[str, typer.Option("--host", "-H")] = "127.0.0.1",
-    port: Annotated[int, typer.Option("--port", "-p")] = 8000,
+    port: Annotated[int, typer.Option("--port", "-p")] = 7274,
 ) -> None:
     """Install and start the web UI as a persistent service (systemd on Linux, launchd on macOS)."""
     from stackr.service import install, is_installed
