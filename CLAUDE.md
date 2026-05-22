@@ -249,9 +249,9 @@ networks:
 ### Persistent service (`stackr service`)
 
 - `service.py` detects platform via `platform.system()` — `"Linux"` writes a systemd user unit; `"Darwin"` writes a launchd plist.
-- Linux: unit file at `~/.config/systemd/user/stackr-web.service`; uses `systemctl --user daemon-reload && enable --now`.
-- macOS: plist at `~/Library/LaunchAgents/dev.stackr.web.plist` with `RunAtLoad=true`, `KeepAlive=true`; stdout/stderr go to `~/.stackr/web-stdout.log` / `web-stderr.log`.
-- Both unit/plist hardcode `sys.executable -m stackr web` so the correct virtualenv is always used.
+- Linux: unit file at `~/.config/systemd/user/stackr-api.service`; uses `systemctl --user daemon-reload && enable --now`.
+- macOS: plist at `~/Library/LaunchAgents/dev.stackr.api.plist` with `RunAtLoad=true`, `KeepAlive=true`; stdout/stderr go to `~/.stackr/api-stdout.log` / `api-stderr.log`.
+- Both unit/plist hardcode `sys.executable -m stackr api` so the correct virtualenv is always used.
 - `is_installed()` checks whether the unit/plist file exists (does not query the daemon).
 - CLI subcommands are a `typer.Typer` sub-app added to the root `app` as `service_app = typer.Typer(); app.add_typer(service_app, name="service")`.
 

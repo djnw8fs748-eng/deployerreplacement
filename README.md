@@ -517,8 +517,8 @@ To keep the web UI running without a terminal session:
 # Install and start as a background service
 stackr service install
 
-# Linux: systemd user service at ~/.config/systemd/user/stackr-web.service
-# macOS: launchd LaunchAgent at ~/Library/LaunchAgents/dev.stackr.web.plist
+# Linux: systemd user service at ~/.config/systemd/user/stackr-api.service
+# macOS: launchd LaunchAgent at ~/Library/LaunchAgents/dev.stackr.api.plist
 
 # Manage the service
 stackr service status
