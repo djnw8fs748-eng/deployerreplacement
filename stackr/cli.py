@@ -432,7 +432,7 @@ def update(
 
     config, catalog, env, state = _load(config_path)
     result = run_validate(config, catalog, env, data_dir=Path(str(config.global_.data_dir)))
-    run_deploy(config, catalog, result, state, pull=True)
+    run_deploy(config, catalog, result, state, pull=True, force=True)
     console.print("[green]Update complete.[/green]")
 
 
@@ -569,16 +569,35 @@ def doctor(
     config_path: Annotated[Path, typer.Option("--config", "-c")] = _DEFAULT_CONFIG,
 ) -> None:
     """Check environment health: Docker, networks, secrets, and catalog consistency."""
-    from stackr.engine.docker import docker_available
+    from stackr.engine.docker import docker_available, network_exists
 
     if not config_path.exists():
         console.print(f"[red]Config not found: {config_path}[/red]")
         console.print("Run [bold]stackr init[/bold] to create one.")
         raise typer.Exit(1)
 
-    load_config(config_path)
+    config = load_config(config_path)
     build_env(config_path.parent)
-    ok = docker_available()
+    ok = True
+
+    if not docker_available():
+        console.print("  [red]FAIL[/red]  Docker daemon not reachable")
+        ok = False
+    else:
+        console.print("  [green]OK[/green]   Docker daemon reachable")
+
+    if not network_exists("proxy"):
+        console.print("  [red]FAIL[/red]  Docker network 'proxy' not found")
+        console.print("         run: docker network create proxy")
+        ok = False
+    else:
+        console.print("  [green]OK[/green]   Docker network 'proxy' exists")
+
+    if config.security.socket_proxy and not network_exists("socket_proxy"):
+        console.print("  [red]FAIL[/red]  Docker network 'socket_proxy' not found")
+        console.print("         run: docker network create socket_proxy")
+        ok = False
+
     if not ok:
         raise typer.Exit(1)
 

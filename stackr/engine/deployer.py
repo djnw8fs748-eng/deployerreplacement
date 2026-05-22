@@ -42,6 +42,8 @@ def deploy_app(
     if pull:
         pull_result = compose_pull(app_name, compose_path)
         db.record_event(_to_event(pull_result))
+        if not pull_result.success:
+            return pull_result
 
     result = compose_up(app_name, compose_path)
     db.record_event(_to_event(result))

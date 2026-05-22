@@ -207,7 +207,6 @@ def make_router(config_path: Path) -> fastapi.APIRouter:
                     capture_output=True,
                 )
             state.remove_app(app_name)
-            state.save()
 
         app_cfg = next((a for a in config.apps if a.name == app_name), None)
         if app_cfg is None:
