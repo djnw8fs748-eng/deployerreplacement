@@ -10,10 +10,10 @@ import yaml
 from rich.console import Console
 from rich.table import Table
 
-from stackr.catalog import Catalog
-from stackr.config import StackrConfig, load_config
-from stackr.secrets import build_env
-from stackr.state import State
+from stackr.engine.catalog import Catalog
+from stackr.engine.config import StackrConfig, load_config
+from stackr.engine.secrets import build_env
+from stackr.engine.state import DEFAULT_STATE_DIR as _STATE_DB_DIR, StateDB
 
 
 def _version_callback(value: bool) -> None:
@@ -48,7 +48,7 @@ console = Console()
 _DEFAULT_CONFIG = Path("stackr.yml")
 
 
-def _load(config_path: Path) -> tuple[StackrConfig, Catalog, dict[str, str], State]:
+def _load(config_path: Path) -> tuple[StackrConfig, Catalog, dict[str, str], StateDB]:
     if not config_path.exists():
         console.print(f"[red]Config not found: {config_path}[/red]")
         console.print("Run [bold]stackr init[/bold] to create one.")
@@ -57,8 +57,10 @@ def _load(config_path: Path) -> tuple[StackrConfig, Catalog, dict[str, str], Sta
     config = load_config(config_path)
     catalog = Catalog()
     env = build_env(config_path.parent)
-    state = State()
-    return config, catalog, env, state
+    db = StateDB()
+    # Migrate legacy JSON state on first use
+    db.migrate_from_json(_STATE_DB_DIR / "state.json")
+    return config, catalog, env, db
 
 
 # ---------------------------------------------------------------------------
@@ -72,7 +74,7 @@ def init(
     ] = _DEFAULT_CONFIG,
 ) -> None:
     """Interactive setup wizard — generates stackr.yml and .stackr.env."""
-    from stackr.secrets import init_env_file
+    from stackr.engine.secrets import init_env_file
 
     console.print("[bold green]Stackr Setup Wizard[/bold green]\n")
 
@@ -158,7 +160,7 @@ def validate(
     config_path: Annotated[Path, typer.Option("--config", "-c")] = _DEFAULT_CONFIG,
 ) -> None:
     """Validate stackr.yml without deploying."""
-    from stackr.validator import validate as run_validate
+    from stackr.engine.validator import validate as run_validate
 
     config, catalog, env, _ = _load(config_path)
     result = run_validate(config, catalog, env, data_dir=Path(str(config.global_.data_dir)))
@@ -186,7 +188,7 @@ def render(
     config_path: Annotated[Path, typer.Option("--config", "-c")] = _DEFAULT_CONFIG,
 ) -> None:
     """Print the generated compose YAML for an app (for debugging)."""
-    from stackr.renderer import render_app
+    from stackr.engine.renderer import render_app
 
     config, catalog, _, _ = _load(config_path)
 
@@ -213,7 +215,7 @@ def plan(
     config_path: Annotated[Path, typer.Option("--config", "-c")] = _DEFAULT_CONFIG,
 ) -> None:
     """Show what would change vs. current deployed state (dry run)."""
-    from stackr.renderer import render_app
+    from stackr.engine.renderer import render_app
 
     config, catalog, env, state = _load(config_path)
 
@@ -258,8 +260,8 @@ def deploy(
     ] = False,
 ) -> None:
     """Deploy all enabled apps (or a single app)."""
-    from stackr.deployer import deploy as run_deploy
-    from stackr.validator import validate as run_validate
+    from stackr.engine.deployer import deploy_all as run_deploy
+    from stackr.engine.validator import validate as run_validate
 
     config, catalog, env, state = _load(config_path)
     result = run_validate(config, catalog, env, data_dir=Path(str(config.global_.data_dir)))
@@ -278,7 +280,7 @@ def stop(
     config_path: Annotated[Path, typer.Option("--config", "-c")] = _DEFAULT_CONFIG,
 ) -> None:
     """Stop an app."""
-    from stackr.deployer import stop_app
+    from stackr.engine.deployer import stop_app
     _, _, _, state = _load(config_path)
     stop_app(app_name, state)
 
@@ -301,7 +303,7 @@ def remove(
     yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip confirmation")] = False,
 ) -> None:
     """Remove an app and its containers."""
-    from stackr.deployer import remove_app
+    from stackr.engine.deployer import remove_app
     _, _, _, state = _load(config_path)
     if not yes:
         typer.confirm(f"Remove '{app_name}' and its containers?", abort=True)
@@ -318,9 +320,9 @@ def rollback(
     config_path: Annotated[Path, typer.Option("--config", "-c")] = _DEFAULT_CONFIG,
 ) -> None:
     """Redeploy the last known-good compose for an app."""
-    from stackr.deployer import rollback as run_rollback
-    config, catalog, _, state = _load(config_path)
-    run_rollback(app_name, config, catalog, state)
+    from stackr.engine.deployer import rollback_app
+    _, _, _, state = _load(config_path)
+    rollback_app(app_name, state)
 
 
 # ---------------------------------------------------------------------------
@@ -376,7 +378,7 @@ def list_apps(
     category: Annotated[str | None, typer.Option("--category", "-c")] = None,
 ) -> None:
     """List available apps in the catalog."""
-    from stackr.catalog import Catalog
+    from stackr.engine.catalog import Catalog
     catalog = Catalog()
 
     apps = catalog.by_category(category) if category else catalog.all()
@@ -403,7 +405,7 @@ def search(
     query: Annotated[str, typer.Argument(help="Search term")],
 ) -> None:
     """Search the app catalog."""
-    from stackr.catalog import Catalog
+    from stackr.engine.catalog import Catalog
     catalog = Catalog()
     results = catalog.search(query)
 
@@ -424,12 +426,12 @@ def update(
     config_path: Annotated[Path, typer.Option("--config", "-c")] = _DEFAULT_CONFIG,
 ) -> None:
     """Pull latest images and redeploy apps with changes (including upstream image updates)."""
-    from stackr.deployer import deploy as run_deploy
-    from stackr.validator import validate as run_validate
+    from stackr.engine.deployer import deploy_all as run_deploy
+    from stackr.engine.validator import validate as run_validate
 
     config, catalog, env, state = _load(config_path)
     result = run_validate(config, catalog, env, data_dir=Path(str(config.global_.data_dir)))
-    run_deploy(config, catalog, result, state, pull=True, check_image_updates=True)
+    run_deploy(config, catalog, result, state, pull=True)
     console.print("[green]Update complete.[/green]")
 
 
@@ -442,15 +444,14 @@ def backup(
     config_path: Annotated[Path, typer.Option("--config", "-c")] = _DEFAULT_CONFIG,
 ) -> None:
     """Run a backup now."""
-    from stackr.backup import backup as run_backup
-    from stackr.state import DEFAULT_STATE_DIR
+    from stackr.engine.backup import backup as run_backup
 
     config, _, env, _ = _load(config_path)
     try:
         run_backup(
             destination=str(config.backup.destination),
             data_dir=config.global_.data_dir,
-            state_dir=DEFAULT_STATE_DIR,
+            state_dir=_STATE_DB_DIR,
             config_dir=config_path.parent,
             env=env,
         )
@@ -466,7 +467,7 @@ def restore(
     target: Annotated[Path | None, typer.Option("--target", "-t")] = None,
 ) -> None:
     """Restore from a backup snapshot."""
-    from stackr.backup import restore as run_restore
+    from stackr.engine.backup import restore as run_restore
 
     config, _, env, _ = _load(config_path)
     try:
@@ -487,7 +488,7 @@ def snapshots(
     config_path: Annotated[Path, typer.Option("--config", "-c")] = _DEFAULT_CONFIG,
 ) -> None:
     """List available backup snapshots."""
-    from stackr.backup import list_snapshots
+    from stackr.engine.backup import list_snapshots
 
     config, _, env, _ = _load(config_path)
     try:
@@ -527,7 +528,7 @@ def migrate(
     output: Annotated[Path, typer.Option("--output", "-o")] = Path("stackr.yml"),
 ) -> None:
     """Generate stackr.yml from a Deployrr app list."""
-    from stackr.catalog import Catalog
+    from stackr.engine.catalog import Catalog
     from stackr.migrate import migrate_from_deployrr, write_stackr_yml
 
     if from_tool != "deployrr":
@@ -591,7 +592,7 @@ def mount(
     config_path: Annotated[Path, typer.Option("--config", "-c")] = _DEFAULT_CONFIG,
 ) -> None:
     """Mount all remote shares configured under `mounts:` in stackr.yml."""
-    from stackr.mounts import mount_all
+    from stackr.engine.mounts import mount_all
 
     config, _, _, _ = _load(config_path)
     if not config.mounts:
@@ -608,7 +609,7 @@ def umount(
     config_path: Annotated[Path, typer.Option("--config", "-c")] = _DEFAULT_CONFIG,
 ) -> None:
     """Unmount all remote shares configured under `mounts:` in stackr.yml."""
-    from stackr.mounts import umount_all
+    from stackr.engine.mounts import umount_all
 
     config, _, _, _ = _load(config_path)
     if not config.mounts:
@@ -695,7 +696,7 @@ def catalog_update(
 @catalog_app.command(name="version")
 def catalog_version() -> None:
     """Show current catalog path, version, and available app count."""
-    from stackr.catalog import BUILTIN_CATALOG, USER_CATALOG, Catalog
+    from stackr.engine.catalog import BUILTIN_CATALOG, USER_CATALOG, Catalog
     from stackr.catalog_sync import read_installed_version
 
     catalog = Catalog()
@@ -774,8 +775,6 @@ def uninstall(
     import shutil
     import subprocess
 
-    from stackr.state import DEFAULT_STATE_DIR
-
     console.print("[bold red]Stackr Uninstaller[/bold red]\n")
 
     # --- Remove pipx package ---
@@ -792,7 +791,7 @@ def uninstall(
         console.print("[yellow]pipx not found — skipping package removal.[/yellow]")
 
     # --- Remove ~/.stackr state/catalog directory ---
-    state_dir = DEFAULT_STATE_DIR
+    state_dir = _STATE_DB_DIR
     if state_dir.exists():
         console.print(f"\nFound data directory: [bold]{state_dir}[/bold]")
         console.print("  Contains: app state, catalog overrides, and generated secrets.")
