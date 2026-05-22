@@ -15,7 +15,7 @@ def create_app(config_path: Path = Path("stackr.yml")) -> Any:
         import fastapi
     except ImportError as exc:
         raise RuntimeError(
-            "FastAPI is not installed. Run: pip install 'stackr[web]'"
+            "FastAPI is not installed."
         ) from exc
 
     from stackr.web.routes import make_router

@@ -631,13 +631,12 @@ def web(
     host: Annotated[str, typer.Option("--host", "-H")] = "127.0.0.1",
     port: Annotated[int, typer.Option("--port", "-p")] = 8000,
 ) -> None:
-    """Launch the web UI (requires the 'web' extra: pip install 'stackr[web]')."""
+    """Launch the web UI."""
     from stackr.web import HAS_FASTAPI
 
     if not HAS_FASTAPI:
         console.print(
-            "[red]Web UI requires FastAPI and Uvicorn.[/red]\n"
-            "Install them with: [bold]pip install 'stackr[web]'[/bold]"
+            "[red]FastAPI and Uvicorn are required for the web UI.[/red]"
         )
         raise typer.Exit(1)
 
@@ -645,8 +644,7 @@ def web(
         import uvicorn
     except ImportError:
         console.print(
-            "[red]uvicorn is required for the web UI.[/red]\n"
-            "Install it with: [bold]pip install 'stackr[web]'[/bold]"
+            "[red]Uvicorn is required for the web UI.[/red]"
         )
         raise typer.Exit(1) from None
 
