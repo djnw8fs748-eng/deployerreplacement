@@ -8,8 +8,8 @@ from typing import Any
 import yaml
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
-from stackr.catalog import CatalogApp
-from stackr.config import AppConfig, StackrConfig
+from stackr.engine.catalog import CatalogApp
+from stackr.engine.config import AppConfig, StackrConfig
 
 
 def render_app(

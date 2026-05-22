@@ -5,10 +5,19 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
-
-from stackr.deployer import _ensure_data_dirs, _run_compose, deploy, remove_app, rollback
-from stackr.state import State
+from stackr.engine.deployer import (
+    _ensure_data_dirs,
+    _run_compose,
+    remove_app,
+)
+from stackr.engine.deployer import (
+    deploy_all as deploy,
+)
+from stackr.engine.deployer import (
+    rollback_app as rollback,
+)
+from stackr.engine.docker import OperationResult
+from stackr.engine.state import AppState, StateDB
 
 # ---------------------------------------------------------------------------
 # _run_compose
@@ -47,14 +56,14 @@ def test_remove_app_does_not_destroy_volumes(tmp_path: Path) -> None:
     compose_file.parent.mkdir(parents=True)
     compose_file.write_text("services: {}")
 
-    state = MagicMock(spec=State)
+    db = StateDB(db_path=tmp_path / "test.db")
 
     with (
-        patch("stackr.deployer.COMPOSE_DIR", tmp_path),
+        patch("stackr.engine.deployer.COMPOSE_DIR", tmp_path),
         patch("subprocess.run") as mock_run,
     ):
-        mock_run.return_value = MagicMock(returncode=0)
-        remove_app("myapp", state)
+        mock_run.return_value = MagicMock(returncode=0, stdout=b"", stderr=b"")
+        remove_app("myapp", db, tmp_path)
 
     called_cmd = mock_run.call_args[0][0]
     assert "-v" not in called_cmd, "remove_app must not pass -v (would destroy named volumes)"
@@ -68,9 +77,12 @@ def test_remove_app_does_not_destroy_volumes(tmp_path: Path) -> None:
 
 def test_deploy_skips_unchanged_app(tmp_path: Path) -> None:
     """An app whose compose content hasn't changed should not be restarted."""
-    from stackr.catalog import Catalog
-    from stackr.config import StackrConfig
-    from stackr.validator import ValidationResult
+    import hashlib
+
+    from stackr.engine.catalog import Catalog
+    from stackr.engine.config import StackrConfig
+    from stackr.engine.renderer import render_app
+    from stackr.engine.validator import ValidationResult
 
     config = StackrConfig.model_validate(
         {
@@ -84,16 +96,26 @@ def test_deploy_skips_unchanged_app(tmp_path: Path) -> None:
     catalog = Catalog()
     validation = ValidationResult()  # ok=True
 
-    state = MagicMock(spec=State)
-    state.is_changed.return_value = False  # nothing changed
+    db = StateDB(db_path=tmp_path / "test.db")
+
+    # Pre-populate state so is_changed returns False (compose hash matches current content)
+    for app_cfg in config.enabled_apps:
+        try:
+            catalog_app = catalog.get(app_cfg.name)
+        except (KeyError, Exception):
+            continue
+        if catalog_app:
+            content = render_app(app_cfg, catalog_app, config)
+            compose_hash = hashlib.sha256(content.encode()).hexdigest()
+            db.set_app(AppState(name=app_cfg.name, enabled=True, compose_hash=compose_hash))
 
     with (
-        patch("stackr.deployer.COMPOSE_DIR", tmp_path),
-        patch("stackr.deployer.ensure_networks"),
+        patch("stackr.engine.deployer.COMPOSE_DIR", tmp_path),
+        patch("stackr.engine.deployer.ensure_networks"),
         patch("subprocess.run") as mock_run,
     ):
         mock_run.return_value = MagicMock(returncode=0)
-        deploy(config, catalog, validation, state, pull=False)
+        deploy(config, catalog, validation, db, pull=False)
 
     # up -d should NOT have been called
     up_calls = [
@@ -103,10 +125,10 @@ def test_deploy_skips_unchanged_app(tmp_path: Path) -> None:
 
 
 def test_deploy_force_redeploys_unchanged_app(tmp_path: Path) -> None:
-    """force=True must redeploy even when state.is_changed returns False."""
-    from stackr.catalog import Catalog
-    from stackr.config import StackrConfig
-    from stackr.validator import ValidationResult
+    """force=True must redeploy even when compose hash is unchanged."""
+    from stackr.engine.catalog import Catalog
+    from stackr.engine.config import StackrConfig
+    from stackr.engine.validator import ValidationResult
 
     config = StackrConfig.model_validate(
         {
@@ -119,16 +141,15 @@ def test_deploy_force_redeploys_unchanged_app(tmp_path: Path) -> None:
     catalog = Catalog()
     validation = ValidationResult()
 
-    state = MagicMock(spec=State)
-    state.is_changed.return_value = False  # unchanged — would normally be skipped
+    db = StateDB(db_path=tmp_path / "test.db")
 
     with (
-        patch("stackr.deployer.COMPOSE_DIR", tmp_path),
-        patch("stackr.deployer.ensure_networks"),
+        patch("stackr.engine.deployer.COMPOSE_DIR", tmp_path),
+        patch("stackr.engine.deployer.ensure_networks"),
         patch("subprocess.run") as mock_run,
     ):
-        mock_run.return_value = MagicMock(returncode=0)
-        deploy(config, catalog, validation, state, pull=False, force=True)
+        mock_run.return_value = MagicMock(returncode=0, stdout=b"", stderr=b"")
+        deploy(config, catalog, validation, db, pull=False, force=True)
 
     all_cmds = [c[0][0] for c in mock_run.call_args_list]
     assert any("up" in cmd for cmd in all_cmds), "force=True must deploy even unchanged apps"
@@ -136,9 +157,9 @@ def test_deploy_force_redeploys_unchanged_app(tmp_path: Path) -> None:
 
 def test_deploy_restarts_changed_app(tmp_path: Path) -> None:
     """An app whose compose content has changed should be (re)deployed."""
-    from stackr.catalog import Catalog
-    from stackr.config import StackrConfig
-    from stackr.validator import ValidationResult
+    from stackr.engine.catalog import Catalog
+    from stackr.engine.config import StackrConfig
+    from stackr.engine.validator import ValidationResult
 
     config = StackrConfig.model_validate(
         {
@@ -152,16 +173,17 @@ def test_deploy_restarts_changed_app(tmp_path: Path) -> None:
     catalog = Catalog()
     validation = ValidationResult()
 
-    state = MagicMock(spec=State)
-    state.is_changed.return_value = True  # content changed
+    db = StateDB(db_path=tmp_path / "test.db")
+    # Store a different hash so is_changed returns True
+    db.set_app(AppState(name="uptime-kuma", enabled=True, compose_hash="old_hash"))
 
     with (
-        patch("stackr.deployer.COMPOSE_DIR", tmp_path),
-        patch("stackr.deployer.ensure_networks"),
+        patch("stackr.engine.deployer.COMPOSE_DIR", tmp_path),
+        patch("stackr.engine.deployer.ensure_networks"),
         patch("subprocess.run") as mock_run,
     ):
-        mock_run.return_value = MagicMock(returncode=0)
-        deploy(config, catalog, validation, state, pull=False)
+        mock_run.return_value = MagicMock(returncode=0, stdout=b"", stderr=b"")
+        deploy(config, catalog, validation, db, pull=False)
 
     all_cmds = [c[0][0] for c in mock_run.call_args_list]
     assert any("up" in cmd for cmd in all_cmds), "changed app should trigger 'up -d'"
@@ -173,24 +195,11 @@ def test_deploy_restarts_changed_app(tmp_path: Path) -> None:
 
 
 def test_rollback_no_state_exits(tmp_path: Path) -> None:
-    from stackr.catalog import Catalog
-    from stackr.config import StackrConfig
-
-    config = StackrConfig.model_validate(
-        {
-            "global": {"data_dir": str(tmp_path)},
-            "network": {"mode": "external", "domain": "test.com", "local_domain": "home.test.com"},
-            "traefik": {"enabled": False},
-            "security": {"socket_proxy": False},
-            "apps": [],
-        }
-    )
-    catalog = Catalog()
-    state = MagicMock(spec=State)
-    state.get_app.return_value = None
-
-    with pytest.raises(SystemExit):
-        rollback("nonexistent-app", config, catalog, state)
+    db = StateDB(db_path=tmp_path / "test.db")
+    # db has no state for "nonexistent-app" — rollback_app returns failure result
+    result = rollback("nonexistent-app", db, tmp_path)
+    assert result.success is False
+    assert result.error is not None
 
 
 # ---------------------------------------------------------------------------
@@ -287,36 +296,118 @@ services:
 
 
 def test_rollback_applies_stored_compose(tmp_path: Path) -> None:
-    from stackr.catalog import Catalog
-    from stackr.config import StackrConfig
-    from stackr.state import AppState
-
-    config = StackrConfig.model_validate(
-        {
-            "global": {"data_dir": str(tmp_path)},
-            "network": {"mode": "external", "domain": "test.com", "local_domain": "home.test.com"},
-            "traefik": {"enabled": False},
-            "security": {"socket_proxy": False},
-            "apps": [],
-        }
-    )
-    catalog = Catalog()
     stored = AppState(
         name="myapp",
         enabled=True,
         compose_hash="abc123",
-        compose_content="services:\n  myapp:\n    image: test\n",
+        compose_yaml="services:\n  myapp:\n    image: test\n",
         deployed_at="2024-01-01T00:00:00+00:00",
     )
-    state = MagicMock(spec=State)
-    state.get_app.return_value = stored
+    db = StateDB(db_path=tmp_path / "test.db")
+    db.set_app(stored)
 
     with (
-        patch("stackr.deployer.COMPOSE_DIR", tmp_path),
+        patch("stackr.engine.deployer.COMPOSE_DIR", tmp_path),
         patch("subprocess.run") as mock_run,
     ):
-        mock_run.return_value = MagicMock(returncode=0)
-        rollback("myapp", config, catalog, state)
+        mock_run.return_value = MagicMock(returncode=0, stdout=b"", stderr=b"")
+        result = rollback("myapp", db, tmp_path)
 
+    assert result.success is True
     all_cmds = [c[0][0] for c in mock_run.call_args_list]
     assert any("up" in cmd for cmd in all_cmds), "rollback should run 'up -d' with stored compose"
+
+
+# ---------------------------------------------------------------------------
+# Additional tests for new deployer interface using StateDB and OperationResult
+# ---------------------------------------------------------------------------
+
+
+def _make_op_result(success: bool = True, app_name: str = "app") -> OperationResult:
+
+    return OperationResult(
+        success=success,
+        app_name=app_name,
+        event_type="deploy",
+        stdout="done" if success else "",
+        stderr="" if success else "error",
+        exit_code=0 if success else 1,
+        duration_ms=100,
+        command="docker compose up -d",
+        error=None if success else "error",
+    )
+
+
+def test_deploy_records_success_event(tmp_path: Path, mocker: object) -> None:
+    from stackr.engine.deployer import deploy_app
+
+    db = StateDB(db_path=tmp_path / "test.db")
+    mocker.patch("stackr.engine.deployer.compose_up", return_value=_make_op_result(True))
+    mocker.patch("stackr.engine.deployer.compose_pull", return_value=_make_op_result(True, "pull"))
+    mocker.patch("stackr.engine.deployer.get_image_digests", return_value={})
+    mocker.patch("stackr.engine.deployer._write_compose", return_value=tmp_path / "compose.yml")
+    mocker.patch("stackr.engine.deployer._ensure_data_dirs", return_value=[])
+
+    result = deploy_app("app", "services:\n  app: {}", db, tmp_path)
+
+    assert result.success is True
+    history = db.get_app_history("app")
+    assert len(history) == 1
+    assert history[0].success is True
+
+
+def test_deploy_records_failure_event(tmp_path: Path, mocker: object) -> None:
+    from stackr.engine.deployer import deploy_app
+
+    db = StateDB(db_path=tmp_path / "test.db")
+    mocker.patch("stackr.engine.deployer.compose_pull", return_value=_make_op_result(True))
+    mocker.patch("stackr.engine.deployer.compose_up", return_value=_make_op_result(False))
+    mocker.patch("stackr.engine.deployer._write_compose", return_value=tmp_path / "compose.yml")
+    mocker.patch("stackr.engine.deployer._ensure_data_dirs", return_value=[])
+
+    result = deploy_app("app", "services:\n  app: {}", db, tmp_path)
+
+    assert result.success is False
+    history = db.get_app_history("app")
+    # pull event (success=True) + deploy event (success=False)
+    assert len(history) == 2
+    assert any(not e.success for e in history)
+
+
+def test_deploy_updates_app_state_on_success(tmp_path: Path, mocker: object) -> None:
+    from stackr.engine.deployer import deploy_app
+
+    db = StateDB(db_path=tmp_path / "test.db")
+    mocker.patch("stackr.engine.deployer.compose_pull", return_value=_make_op_result(True))
+    mocker.patch("stackr.engine.deployer.compose_up", return_value=_make_op_result(True))
+    mocker.patch("stackr.engine.deployer.get_image_digests", return_value={"app": "sha256:abc"})
+    mocker.patch("stackr.engine.deployer._write_compose", return_value=tmp_path / "compose.yml")
+    mocker.patch("stackr.engine.deployer._ensure_data_dirs", return_value=[])
+
+    deploy_app("app", "services:\n  app: {}", db, tmp_path)
+
+    state = db.get_app("app")
+    assert state is not None
+    assert state.status == "running"
+    assert state.last_error is None
+    assert state.image_digests == {"app": "sha256:abc"}
+
+
+def test_deploy_sets_error_on_failure(tmp_path: Path, mocker: object) -> None:
+    from stackr.engine.deployer import deploy_app
+
+    db = StateDB(db_path=tmp_path / "test.db")
+    mocker.patch("stackr.engine.deployer.compose_pull", return_value=_make_op_result(True))
+    mocker.patch(
+        "stackr.engine.deployer.compose_up",
+        return_value=_make_op_result(False),
+    )
+    mocker.patch("stackr.engine.deployer._write_compose", return_value=tmp_path / "compose.yml")
+    mocker.patch("stackr.engine.deployer._ensure_data_dirs", return_value=[])
+
+    deploy_app("app", "services:\n  app: {}", db, tmp_path)
+
+    state = db.get_app("app")
+    assert state is not None
+    assert state.status == "failed"
+    assert state.last_error is not None

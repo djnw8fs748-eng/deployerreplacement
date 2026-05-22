@@ -2,7 +2,7 @@
 
 import pytest
 
-from stackr.secrets import (
+from stackr.engine.secrets import (
     ensure_secret,
     find_unresolved,
     generate_secret,
@@ -72,7 +72,7 @@ def test_load_env_file_missing(tmp_path):
 
 def test_build_env_shell_wins_over_file(tmp_path, monkeypatch):
     """Shell environment must take priority over .stackr.env values."""
-    from stackr.secrets import build_env
+    from stackr.engine.secrets import build_env
     env_file = tmp_path / ".stackr.env"
     env_file.write_text("MY_TOKEN=from-file\n")
     monkeypatch.setenv("MY_TOKEN", "from-shell")
@@ -82,7 +82,7 @@ def test_build_env_shell_wins_over_file(tmp_path, monkeypatch):
 
 def test_build_env_file_used_when_no_shell_var(tmp_path, monkeypatch):
     """Values from .stackr.env are used when not overridden by shell env."""
-    from stackr.secrets import build_env
+    from stackr.engine.secrets import build_env
     env_file = tmp_path / ".stackr.env"
     env_file.write_text("ONLY_IN_FILE=secret\n")
     monkeypatch.delenv("ONLY_IN_FILE", raising=False)
@@ -110,7 +110,7 @@ def test_ensure_secret_returns_existing(tmp_path):
 
 def test_append_to_env_file_adds_newline_when_missing(tmp_path):
     """_append_to_env_file must not corrupt the file when the last line has no newline."""
-    from stackr.secrets import _append_to_env_file
+    from stackr.engine.secrets import _append_to_env_file
 
     env_file = tmp_path / ".stackr.env"
     # Write a line without a trailing newline (simulates manual edit)
@@ -125,7 +125,7 @@ def test_append_to_env_file_adds_newline_when_missing(tmp_path):
 
 def test_append_to_env_file_normal_file(tmp_path):
     """_append_to_env_file works correctly when the file already has a trailing newline."""
-    from stackr.secrets import _append_to_env_file
+    from stackr.engine.secrets import _append_to_env_file
 
     env_file = tmp_path / ".stackr.env"
     env_file.write_text("EXISTING=value\n")

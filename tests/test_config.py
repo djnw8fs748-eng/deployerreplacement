@@ -3,7 +3,7 @@
 import textwrap
 from pathlib import Path
 
-from stackr.config import StackrConfig, load_config
+from stackr.engine.config import StackrConfig, load_config
 
 
 def _config_from_dict(d: dict) -> StackrConfig:
@@ -57,7 +57,7 @@ def test_apps_missing_key_defaults_to_empty():
 
 def test_no_traefik_config():
     """TraefikConfig and traefik field must not exist after removal."""
-    import stackr.config as cfg
+    import stackr.engine.config as cfg
     assert not hasattr(cfg, "TraefikConfig")
     config = StackrConfig.model_validate({
         "global": {"data_dir": "/data", "timezone": "UTC", "puid": 1000, "pgid": 1000},

@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import yaml
 
-from stackr.catalog import Catalog
-from stackr.config import AppConfig, StackrConfig
-from stackr.renderer import render_app
+from stackr.engine.catalog import Catalog
+from stackr.engine.config import AppConfig, StackrConfig
+from stackr.engine.renderer import render_app
 
 
 def _make_config(**overrides: object) -> StackrConfig:
@@ -59,8 +59,8 @@ class TestValidatorSecurityChecks:
     """Integration tests for the Phase 2 validator checks."""
 
     def test_crowdsec_true_without_app_fails(self):
-        from stackr.catalog import Catalog
-        from stackr.validator import validate
+        from stackr.engine.catalog import Catalog
+        from stackr.engine.validator import validate
 
         config = _make_config(
             security={"socket_proxy": False, "crowdsec": True},
@@ -69,8 +69,8 @@ class TestValidatorSecurityChecks:
         assert any("crowdsec" in e.message for e in result.errors)
 
     def test_crowdsec_true_with_app_passes(self):
-        from stackr.catalog import Catalog
-        from stackr.validator import validate
+        from stackr.engine.catalog import Catalog
+        from stackr.engine.validator import validate
 
         config = _make_config(
             security={"socket_proxy": False, "crowdsec": True},

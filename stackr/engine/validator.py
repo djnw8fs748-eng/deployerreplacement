@@ -17,9 +17,9 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from stackr.catalog import Catalog, CatalogApp
-from stackr.config import AppConfig, StackrConfig
-from stackr.secrets import find_unresolved
+from stackr.engine.catalog import Catalog, CatalogApp
+from stackr.engine.config import AppConfig, StackrConfig
+from stackr.engine.secrets import find_unresolved
 
 _VAR_RE = re.compile(r"\$\{([^}]+)\}")
 
@@ -145,7 +145,7 @@ def _resolve_catalog(
     result: ValidationResult,
 ) -> CatalogApp | None:
     if app_config.catalog_path:
-        from stackr.catalog import _load_app
+        from stackr.engine.catalog import _load_app
 
         app_yml = app_config.catalog_path / "app.yml"
         if not app_yml.exists():

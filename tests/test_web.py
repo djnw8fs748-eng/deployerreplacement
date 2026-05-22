@@ -126,7 +126,7 @@ def test_api_apps_returns_all_catalog_apps(tmp_path: pytest.FixtureLookupError) 
     import yaml
     from fastapi.testclient import TestClient
 
-    from stackr.catalog import Catalog
+    from stackr.engine.catalog import Catalog
     from stackr.web.app import create_app
 
     config_path = tmp_path / "stackr.yml"  # type: ignore[operator]

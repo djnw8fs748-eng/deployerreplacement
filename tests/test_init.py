@@ -6,7 +6,7 @@ from pathlib import Path
 
 import yaml
 
-from stackr.catalog import Catalog
+from stackr.engine.catalog import Catalog
 
 
 def _run_init(tmp_path: Path) -> Path:

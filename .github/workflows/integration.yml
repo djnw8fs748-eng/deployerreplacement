@@ -280,9 +280,9 @@ jobs:
           python - << 'PYEOF'
           import json, os, sys
           from pathlib import Path
-          from stackr.catalog import Catalog
-          from stackr.config import AppConfig, StackrConfig
-          from stackr.renderer import render_app
+          from stackr.engine.catalog import Catalog
+          from stackr.engine.config import AppConfig, StackrConfig
+          from stackr.engine.renderer import render_app
 
           app_name = "${{ matrix.app }}"
           extra_vars = json.loads(os.environ.get("EXTRA_VARS", "{}"))

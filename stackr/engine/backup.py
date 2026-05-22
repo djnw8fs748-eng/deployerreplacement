@@ -30,7 +30,7 @@ def _check_restic() -> None:
 
 def _restic_env(destination: str, config_dir: Path, env: dict[str, str]) -> dict[str, str]:
     """Build the environment dict for restic subprocess calls."""
-    from stackr.secrets import ensure_secret
+    from stackr.engine.secrets import ensure_secret
 
     password = ensure_secret("STACKR_RESTIC_PASSWORD", config_dir, env)
     result = dict(os.environ)

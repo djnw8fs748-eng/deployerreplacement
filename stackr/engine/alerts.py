@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING
 from rich.console import Console
 
 if TYPE_CHECKING:
-    from stackr.config import AlertConfig
+    from stackr.engine.config import AlertConfig
 
 console = Console()
 
