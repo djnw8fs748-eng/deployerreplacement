@@ -7,7 +7,7 @@ import subprocess
 from rich.console import Console
 from rich.table import Table
 
-from stackr.deployer import COMPOSE_DIR
+from stackr.engine.deployer import COMPOSE_DIR
 from stackr.engine.state import StateDB
 
 console = Console()

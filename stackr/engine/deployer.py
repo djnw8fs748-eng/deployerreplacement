@@ -220,28 +220,96 @@ def _get_catalog_app(app_config: AppConfig, catalog: Catalog) -> CatalogApp | No
         return None
 
 
+def restart_app(app_name: str, compose_base_dir: Path = COMPOSE_DIR) -> None:
+    """Restart an app's containers without full redeploy."""
+    compose_path = _compose_path(app_name, compose_base_dir)
+    if not compose_path.exists():
+        console.print(f"[red]No compose file found for '{app_name}'.[/red]")
+        raise SystemExit(1)
+    console.print(f"  [cyan]RESTART[/cyan] {app_name}")
+    _run_compose(compose_path, ["restart"])
+
+
+def tail_logs(app_name: str, follow: bool = True, compose_base_dir: Path = COMPOSE_DIR) -> None:
+    """Tail logs for an app (interactive, not captured)."""
+    compose_path = _compose_path(app_name, compose_base_dir)
+    if not compose_path.exists():
+        console.print(f"[red]No compose file found for '{app_name}'.[/red]")
+        raise SystemExit(1)
+    args = ["logs"]
+    if follow:
+        args.append("-f")
+    _run_compose(compose_path, args, capture=False)
+
+
+def shell_app(
+    app_name: str,
+    service: str | None = None,
+    shell: str = "sh",
+    compose_base_dir: Path = COMPOSE_DIR,
+) -> None:
+    """Open an interactive shell in a running container."""
+    compose_path = _compose_path(app_name, compose_base_dir)
+    if not compose_path.exists():
+        console.print(f"[red]No compose file found for '{app_name}'.[/red]")
+        raise SystemExit(1)
+    svc = service or app_name
+    _run_compose(compose_path, ["exec", svc, shell], capture=False)
+
+
+def _run_compose(
+    compose_path: Path,
+    args: list[str],
+    capture: bool = True,
+) -> subprocess.CompletedProcess[bytes]:
+    """Run a docker compose subcommand. Use capture=False for interactive commands."""
+    cmd = ["docker", "compose", "-f", str(compose_path), *args]
+    if capture:
+        return subprocess.run(cmd, check=True, capture_output=True)
+    return subprocess.run(cmd, check=True)
+
+
 def _ensure_data_dirs(compose_content: str, data_dir: str) -> list[Path]:
-    """Create volume bind-mount directories. Returns list of dirs that could not be created."""
+    """Create host-side bind-mount directories that live under data_dir.
+
+    Parses the rendered compose YAML and mkdir -p's any host volume paths
+    that begin with data_dir. Falls back to sudo when the current user lacks
+    write permission (common when data_dir is under /opt).
+
+    Returns a list of paths that still could not be created after the sudo
+    attempt (e.g. sudo not available or passwordless sudo not configured).
+    The caller should skip the deploy when this is non-empty.
+    """
+    data_root = Path(data_dir)
     failed: list[Path] = []
     try:
-        data = yaml.safe_load(compose_content) or {}
-        for svc in data.get("services", {}).values():
-            for vol in svc.get("volumes", []):
-                host_path_str = str(vol).split(":")[0] if ":" in str(vol) else ""
-                if not host_path_str or not host_path_str.startswith("/"):
-                    continue
-                host_path = Path(host_path_str)
-                if host_path.exists():
-                    continue
-                try:
-                    host_path.mkdir(parents=True, exist_ok=True)
-                except PermissionError:
-                    result = subprocess.run(
-                        ["sudo", "mkdir", "-p", str(host_path)],
-                        capture_output=True,
-                    )
-                    if result.returncode != 0:
-                        failed.append(host_path)
-    except Exception:
-        pass
+        parsed = yaml.safe_load(compose_content)
+    except yaml.YAMLError:
+        return failed
+    if not isinstance(parsed, dict):
+        return failed
+    services = parsed.get("services") or {}
+    for service in services.values():
+        if not isinstance(service, dict):
+            continue
+        for vol in service.get("volumes") or []:
+            if not isinstance(vol, str):
+                continue
+            host_part = vol.split(":")[0]
+            host_path = Path(host_part)
+            try:
+                host_path.relative_to(data_root)
+            except ValueError:
+                continue
+            if host_path.exists():
+                continue
+            try:
+                host_path.mkdir(parents=True, exist_ok=True)
+            except PermissionError:
+                result = subprocess.run(
+                    ["sudo", "mkdir", "-p", str(host_path)],
+                    capture_output=True,
+                )
+                if result.returncode != 0:
+                    failed.append(host_path)
     return failed

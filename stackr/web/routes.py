@@ -35,7 +35,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 
 from stackr.engine.catalog import Catalog
 from stackr.engine.config import load_config
-from stackr.state import State
+from stackr.engine.state import StateDB as State
 
 _TEMPLATES_DIR = Path(__file__).parent / "templates"
 
@@ -199,7 +199,7 @@ def make_router(config_path: Path) -> fastapi.APIRouter:
         # being silently skipped as "unchanged".
         app_cfg_after = next((a for a in config.apps if a.name == app_name), None)
         if was_enabled and app_cfg_after is not None and not app_cfg_after.enabled:
-            from stackr.deployer import COMPOSE_DIR
+            from stackr.engine.deployer import COMPOSE_DIR
             compose_path = COMPOSE_DIR / app_name / "docker-compose.yml"
             if compose_path.exists():
                 subprocess.run(
@@ -579,7 +579,7 @@ def _run_stackr_deploy(config_path: Path, app_name: str | None = None) -> JSONRe
 
 def _log_generator(app_name: str):  # type: ignore[return]
     """Yield SSE-formatted lines from `docker compose logs`."""
-    from stackr.deployer import COMPOSE_DIR
+    from stackr.engine.deployer import COMPOSE_DIR
 
     compose_path = COMPOSE_DIR / app_name / "docker-compose.yml"
     if not compose_path.exists():

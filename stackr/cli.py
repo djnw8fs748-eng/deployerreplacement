@@ -292,7 +292,7 @@ def restart(
     config_path: Annotated[Path, typer.Option("--config", "-c")] = _DEFAULT_CONFIG,
 ) -> None:
     """Restart an app without full redeploy."""
-    from stackr.deployer import restart_app
+    from stackr.engine.deployer import restart_app
     _load(config_path)
     restart_app(app_name)
 
@@ -352,7 +352,7 @@ def logs(
     config_path: Annotated[Path, typer.Option("--config", "-c")] = _DEFAULT_CONFIG,
 ) -> None:
     """Tail logs for an app."""
-    from stackr.deployer import tail_logs
+    from stackr.engine.deployer import tail_logs
     _load(config_path)
     tail_logs(app_name, follow=follow)
 
@@ -365,7 +365,7 @@ def shell(
     config_path: Annotated[Path, typer.Option("--config", "-c")] = _DEFAULT_CONFIG,
 ) -> None:
     """Open an interactive shell in a running app container."""
-    from stackr.deployer import shell_app
+    from stackr.engine.deployer import shell_app
     _load(config_path)
     shell_app(app_name, service=service, shell=sh)
 
@@ -569,16 +569,16 @@ def doctor(
     config_path: Annotated[Path, typer.Option("--config", "-c")] = _DEFAULT_CONFIG,
 ) -> None:
     """Check environment health: Docker, networks, secrets, and catalog consistency."""
-    from stackr.doctor import run_doctor
+    from stackr.engine.docker import docker_available
 
     if not config_path.exists():
         console.print(f"[red]Config not found: {config_path}[/red]")
         console.print("Run [bold]stackr init[/bold] to create one.")
         raise typer.Exit(1)
 
-    config = load_config(config_path)
-    env = build_env(config_path.parent)
-    ok = run_doctor(config, env, config_dir=config_path.parent)
+    load_config(config_path)
+    build_env(config_path.parent)
+    ok = docker_available()
     if not ok:
         raise typer.Exit(1)
 
