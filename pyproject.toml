@@ -56,6 +56,15 @@ ignore_errors = true
 module = "uvicorn"
 ignore_missing_imports = true
 
+[[tool.mypy.overrides]]
+module = "docker"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "stackr.engine.docker"
+ignore_missing_imports = true
+ignore_errors = true
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = [

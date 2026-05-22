@@ -47,7 +47,11 @@ def show_status(db: StateDB, app_name: str | None = None) -> None:
             drift = "—"
             state_label = "[dim]unknown[/dim]"
 
-        deployed_at = app_state.deployed_at[:19].replace("T", " ") if app_state else "—"
+        deployed_at = (
+            app_state.deployed_at[:19].replace("T", " ")
+            if app_state and app_state.deployed_at
+            else "—"
+        )
 
         table.add_row(name, state_label, docker_status, drift, deployed_at)
 
