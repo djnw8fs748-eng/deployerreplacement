@@ -74,10 +74,14 @@ def secret_names(env: Env) -> SecretNamesOut:
 
 
 @router.post("/backup")
-def trigger_backup(config: Config, env: Env) -> dict:
+def trigger_backup(
+    background_tasks: fastapi.BackgroundTasks,
+    config: Config,
+    env: Env,
+) -> dict:
     from stackr.engine.backup import backup as run_backup
     config_path = get_config_path()
-    run_backup(config, env, config_dir=config_path.parent)
+    background_tasks.add_task(run_backup, config, env, config_dir=config_path.parent)
     return {"status": "backup started"}
 
 

@@ -119,9 +119,12 @@ def update_vars(name: str, vars: dict[str, Any], config_path: ConfigPath) -> dic
         apps = raw.setdefault("apps", [])
         found = next((a for a in apps if a.get("name") == name), None)
         if found is None:
-            apps.append({"name": name, "enabled": True, "vars": vars})
+            new_entry: dict[str, Any] = {"name": name, "enabled": True, "vars": dict(vars)}
+            apps.append(new_entry)
+            result_vars: dict[str, Any] = dict(vars)
         else:
             found.setdefault("vars", {}).update(vars)
+            result_vars = dict(found.get("vars", {}))
         fd, tmp = tempfile.mkstemp(dir=config_path.parent, suffix=".tmp")
         try:
             with os.fdopen(fd, "w") as f:
@@ -130,11 +133,7 @@ def update_vars(name: str, vars: dict[str, Any], config_path: ConfigPath) -> dic
         except Exception:
             os.unlink(tmp)
             raise
-    updated_raw: dict[str, Any] = yaml.safe_load(config_path.read_text()) or {}
-    updated_app = next(
-        (a for a in updated_raw.get("apps", []) if a.get("name") == name), {}
-    )
-    return updated_app.get("vars", {})
+    return result_vars
 
 
 @router.get("/{name}/logs")
