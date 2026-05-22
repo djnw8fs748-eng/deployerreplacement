@@ -677,6 +677,31 @@ def web(
 
 
 # ---------------------------------------------------------------------------
+# stackr api
+# ---------------------------------------------------------------------------
+
+
+@app.command("api")
+def api_server(
+    config_path: Annotated[Path, typer.Option("--config", "-c")] = _DEFAULT_CONFIG,
+    host: str = "0.0.0.0",
+    port: int = 7274,
+) -> None:
+    """Start the Stackr REST API server on port 7274 (OpenAPI at /api/docs)."""
+    try:
+        import uvicorn
+    except ImportError:
+        console.print("[red]Uvicorn is required for the API server.[/red]")
+        raise typer.Exit(1) from None
+
+    from stackr.api.app import create_api
+
+    app_instance = create_api(config_path)
+    console.print(f"[green]Stackr API at http://{host}:{port}/api/docs[/green]")
+    uvicorn.run(app_instance, host=host, port=port)
+
+
+# ---------------------------------------------------------------------------
 # stackr catalog subcommands
 # ---------------------------------------------------------------------------
 
