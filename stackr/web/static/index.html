@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stackr</title>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/app.js"></script>
+</head>
+<body x-data="stackrApp()" x-init="init()">
+
+  <!-- ── Top bar ── -->
+  <header class="topbar">
+    <div class="logo">
+      <div class="logo-mark">S</div>
+      Stackr
+    </div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <template x-if="deployJob && deployJob.status === 'running'">
+        <div style="display:flex;align-items:center;gap:7px;font-size:13px;color:var(--muted)">
+          <span class="spinner"></span> Deploying…
+        </div>
+      </template>
+      <template x-if="deployJob && deployJob.status === 'done'">
+        <span style="color:var(--accent2);font-size:13px;font-weight:600">✓ Done</span>
+      </template>
+      <template x-if="deployJob && deployJob.status === 'failed'">
+        <span style="color:var(--danger);font-size:13px;font-weight:600">✗ Failed</span>
+      </template>
+      <button class="btn btn-primary"
+        @click="deployAll()"
+        :disabled="deployJob && deployJob.status === 'running'">
+        ⬆ Deploy All
+      </button>
+    </div>
+  </header>
+
+  <!-- ── Sidebar ── -->
+  <nav class="sidebar">
+    <button class="nav-item" :class="page==='dashboard' && 'active'" @click="navigate('dashboard')">
+      ▦ Dashboard
+    </button>
+    <button class="nav-item" :class="page==='catalog' && 'active'" @click="navigate('catalog')">
+      ⊞ Catalog
+    </button>
+    <button class="nav-item" :class="page==='settings' && 'active'" @click="navigate('settings')">
+      ⚙ Settings
+    </button>
+    <button class="nav-item" :class="page==='mounts' && 'active'" @click="navigate('mounts')">
+      ⛁ Mounts
+    </button>
+    <button class="nav-item" :class="page==='system' && 'active'" @click="navigate('system')">
+      ◎ System
+    </button>
+  </nav>
+
+  <!-- ── Main ── -->
+  <main class="main">
+
+    <!-- Error banner -->
+    <template x-if="error">
+      <div class="error-banner" x-text="error"></div>
+    </template>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         DASHBOARD PAGE
+    ══════════════════════════════════════════════════════════════════════════ -->
+    <div x-show="page === 'dashboard'" x-cloak>
+      <div class="page-header">
+        <h1 class="page-title">Dashboard</h1>
+        <button class="btn btn-secondary btn-sm" @click="loadApps()">↺ Refresh</button>
+      </div>
+
+      <!-- Deploy console (shown when a deploy job exists) -->
+      <template x-if="deployJob && deployJob.status !== 'idle'">
+        <div class="card" style="margin-bottom:20px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+            <span x-show="deployJob.status === 'running'" class="spinner"></span>
+            <strong>
+              <span x-show="deployJob.status === 'running'">Deploying…</span>
+              <span x-show="deployJob.status === 'done'" style="color:var(--accent2)">✓ Deploy complete</span>
+              <span x-show="deployJob.status === 'failed'" style="color:var(--danger)">✗ Deploy failed</span>
+            </strong>
+            <span x-show="deployJob.error" style="color:var(--danger);font-size:12px" x-text="deployJob.error"></span>
+          </div>
+          <template x-if="deployJob.results && deployJob.results.length">
+            <div class="deploy-console">
+              <template x-for="r in deployJob.results" :key="r.app_name">
+                <div :style="`color:${r.success ? 'var(--accent2)' : 'var(--danger)'}`">
+                  <span x-text="r.success ? '✓ ' : '✗ '"></span>
+                  <span x-text="r.app_name"></span>
+                  <span x-show="!r.success && r.error" x-text="' — ' + r.error" style="color:var(--danger)"></span>
+                  <span x-show="r.duration_ms" x-text="` (${r.duration_ms}ms)`" style="color:var(--muted)"></span>
+                </div>
+              </template>
+            </div>
+          </template>
+        </div>
+      </template>
+
+      <div x-show="appsLoading && apps.length === 0" class="empty">
+        <span class="spinner"></span>
+      </div>
+      <div x-show="!appsLoading && apps.length === 0" class="empty">
+        No apps configured. Enable apps from the <strong>Catalog</strong> or edit <code>stackr.yml</code>.
+      </div>
+
+      <div class="app-grid">
+        <template x-for="app in apps" :key="app.name">
+          <div class="app-card" @click="openPanel(app)">
+            <div class="app-card-header">
+              <div>
+                <div class="app-name" x-text="app.name"></div>
+                <div class="app-meta"
+                  x-text="app.deployed_at ? 'Deployed ' + app.deployed_at.slice(0,10) : 'Never deployed'">
+                </div>
+              </div>
+              <span :class="badgeClass(app.status)" x-text="app.status"></span>
+            </div>
+            <template x-if="app.last_error">
+              <div class="app-error" x-text="app.last_error.slice(0, 120)"></div>
+            </template>
+            <div class="app-actions" @click.stop>
+              <!-- enabled toggle -->
+              <div class="toggle-track"
+                :class="app.enabled && 'on'"
+                @click="toggleApp(app, $event)"
+                title="Toggle enabled">
+                <div class="toggle-thumb"></div>
+              </div>
+              <span style="font-size:12px;color:var(--muted)" x-text="app.enabled ? 'On' : 'Off'"></span>
+              <!-- deploy button -->
+              <button class="btn btn-primary btn-sm"
+                x-show="app.enabled"
+                @click.stop="deploySingle(app, $event)">
+                Deploy
+              </button>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         CATALOG PAGE
+    ══════════════════════════════════════════════════════════════════════════ -->
+    <div x-show="page === 'catalog'" x-cloak>
+      <div class="page-header">
+        <h1 class="page-title">Catalog</h1>
+        <input type="text" class="form-input" style="width:260px"
+          placeholder="Search apps…" x-model="catalogSearch">
+      </div>
+
+      <div x-show="catalogLoading" class="empty"><span class="spinner"></span></div>
+
+      <template x-if="!catalogLoading && catalog.length > 0">
+        <div>
+          <template x-for="[cat, catApps] in Object.entries(catalogByCategory())" :key="cat">
+            <div>
+              <div class="section-header" x-text="cat"></div>
+              <div class="catalog-grid">
+                <template x-for="app in catApps" :key="app.name">
+                  <div class="catalog-card">
+                    <div class="catalog-name" x-text="app.display_name || app.name"></div>
+                    <div class="catalog-desc" x-text="app.description"></div>
+                    <div style="margin-top:10px;display:flex;align-items:center;justify-content:space-between;gap:8px">
+                      <span x-show="app.requires.length > 0"
+                        style="font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+                        x-text="'Needs: ' + app.requires.join(', ')"></span>
+                      <button
+                        class="btn btn-sm"
+                        style="flex-shrink:0"
+                        :class="isEnabled(app.name) ? 'btn-secondary' : 'btn-primary'"
+                        @click="enableFromCatalog(app.name)"
+                        x-text="isEnabled(app.name) ? '✓ Enabled' : 'Enable'">
+                      </button>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </template>
+        </div>
+      </template>
+
+      <div x-show="!catalogLoading && catalog.length === 0" class="empty">
+        No catalog apps found.
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         SETTINGS PAGE
+    ══════════════════════════════════════════════════════════════════════════ -->
+    <div x-show="page === 'settings'" x-cloak>
+      <div class="page-header">
+        <h1 class="page-title">Settings</h1>
+      </div>
+
+      <div x-show="!configData" class="empty"><span class="spinner"></span></div>
+
+      <template x-if="configData">
+        <div>
+
+          <!-- Global -->
+          <div class="card">
+            <div class="card-title">Global</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 16px">
+              <div class="form-row" style="grid-column:1/-1">
+                <label class="form-label">Data directory</label>
+                <input type="text" class="form-input" x-model="configData.globalCfg.data_dir">
+              </div>
+              <div class="form-row" style="grid-column:1/-1">
+                <label class="form-label">Timezone</label>
+                <input type="text" class="form-input" x-model="configData.globalCfg.timezone"
+                  placeholder="UTC">
+              </div>
+              <div class="form-row">
+                <label class="form-label">PUID</label>
+                <input type="number" class="form-input" x-model.number="configData.globalCfg.puid">
+              </div>
+              <div class="form-row">
+                <label class="form-label">PGID</label>
+                <input type="number" class="form-input" x-model.number="configData.globalCfg.pgid">
+              </div>
+            </div>
+            <button class="btn btn-primary btn-sm"
+              :disabled="configSaving['global']"
+              @click="saveConfigSection('global', {
+                data_dir: configData.globalCfg.data_dir,
+                timezone: configData.globalCfg.timezone,
+                puid: configData.globalCfg.puid,
+                pgid: configData.globalCfg.pgid
+              })">
+              <span x-show="configSaving['global']" class="spinner"></span>
+              Save
+            </button>
+          </div>
+
+          <!-- Network -->
+          <div class="card">
+            <div class="card-title">Network</div>
+            <div class="form-row">
+              <label class="form-label">Public domain</label>
+              <input type="text" class="form-input" x-model="configData.network.domain"
+                placeholder="example.com">
+            </div>
+            <div class="form-row">
+              <label class="form-label">Local domain</label>
+              <input type="text" class="form-input" x-model="configData.network.local_domain"
+                placeholder="home.example.com">
+            </div>
+            <button class="btn btn-primary btn-sm"
+              :disabled="configSaving['network']"
+              @click="saveConfigSection('network', {
+                domain: configData.network.domain,
+                local_domain: configData.network.local_domain
+              })">
+              <span x-show="configSaving['network']" class="spinner"></span>
+              Save
+            </button>
+          </div>
+
+          <!-- Security -->
+          <div class="card">
+            <div class="card-title">Security</div>
+            <div class="form-row" style="display:flex;align-items:center;gap:10px">
+              <div class="toggle-track"
+                :class="configData.security.socket_proxy && 'on'"
+                @click="configData.security.socket_proxy = !configData.security.socket_proxy">
+                <div class="toggle-thumb"></div>
+              </div>
+              <span>Socket proxy (recommended)</span>
+            </div>
+            <div class="form-row" style="display:flex;align-items:center;gap:10px">
+              <div class="toggle-track"
+                :class="configData.security.crowdsec && 'on'"
+                @click="configData.security.crowdsec = !configData.security.crowdsec">
+                <div class="toggle-thumb"></div>
+              </div>
+              <span>CrowdSec</span>
+            </div>
+            <button class="btn btn-primary btn-sm"
+              :disabled="configSaving['security']"
+              @click="saveConfigSection('security', {
+                socket_proxy: configData.security.socket_proxy,
+                crowdsec: configData.security.crowdsec
+              })">
+              <span x-show="configSaving['security']" class="spinner"></span>
+              Save
+            </button>
+          </div>
+
+          <!-- Backup -->
+          <div class="card">
+            <div class="card-title">Backup</div>
+            <div class="form-row" style="display:flex;align-items:center;gap:10px">
+              <div class="toggle-track"
+                :class="configData.backup.enabled && 'on'"
+                @click="configData.backup.enabled = !configData.backup.enabled">
+                <div class="toggle-thumb"></div>
+              </div>
+              <span>Enable backups</span>
+            </div>
+            <div class="form-row">
+              <label class="form-label">Destination</label>
+              <input type="text" class="form-input" x-model="configData.backup.destination"
+                placeholder="/mnt/backup">
+            </div>
+            <div class="form-row">
+              <label class="form-label">Schedule (cron)</label>
+              <input type="text" class="form-input" x-model="configData.backup.schedule"
+                placeholder="0 2 * * *">
+            </div>
+            <button class="btn btn-primary btn-sm"
+              :disabled="configSaving['backup']"
+              @click="saveConfigSection('backup', {
+                enabled: configData.backup.enabled,
+                destination: configData.backup.destination,
+                schedule: configData.backup.schedule
+              })">
+              <span x-show="configSaving['backup']" class="spinner"></span>
+              Save
+            </button>
+          </div>
+
+          <!-- Alerts -->
+          <div class="card">
+            <div class="card-title">Alerts</div>
+            <div class="form-row" style="display:flex;align-items:center;gap:10px">
+              <div class="toggle-track"
+                :class="configData.alerts.enabled && 'on'"
+                @click="configData.alerts.enabled = !configData.alerts.enabled">
+                <div class="toggle-thumb"></div>
+              </div>
+              <span>Enable alerts</span>
+            </div>
+            <div class="form-row">
+              <label class="form-label">Provider</label>
+              <select class="form-input form-select" x-model="configData.alerts.provider">
+                <option value="ntfy">ntfy</option>
+                <option value="gotify">Gotify</option>
+                <option value="webhook">Webhook</option>
+              </select>
+            </div>
+            <div class="form-row">
+              <label class="form-label">URL</label>
+              <input type="text" class="form-input" x-model="configData.alerts.url"
+                placeholder="https://ntfy.sh/my-topic">
+            </div>
+            <button class="btn btn-primary btn-sm"
+              :disabled="configSaving['alerts']"
+              @click="saveConfigSection('alerts', {
+                enabled: configData.alerts.enabled,
+                provider: configData.alerts.provider,
+                url: configData.alerts.url
+              })">
+              <span x-show="configSaving['alerts']" class="spinner"></span>
+              Save
+            </button>
+          </div>
+
+        </div>
+      </template>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         MOUNTS PAGE
+    ══════════════════════════════════════════════════════════════════════════ -->
+    <div x-show="page === 'mounts'" x-cloak>
+      <div class="page-header">
+        <h1 class="page-title">Mounts</h1>
+      </div>
+
+      <!-- Add form -->
+      <div class="card">
+        <div class="card-title">Add mount</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 16px">
+          <div class="form-row">
+            <label class="form-label">Name</label>
+            <input type="text" class="form-input" x-model="mountForm.name" placeholder="media">
+          </div>
+          <div class="form-row">
+            <label class="form-label">Type</label>
+            <select class="form-input form-select" x-model="mountForm.type">
+              <option value="smb">SMB / CIFS</option>
+              <option value="nfs">NFS</option>
+              <option value="rclone">Rclone</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <label class="form-label">Remote</label>
+            <input type="text" class="form-input" x-model="mountForm.remote"
+              placeholder="//server/share or remote:path">
+          </div>
+          <div class="form-row">
+            <label class="form-label">Mountpoint</label>
+            <input type="text" class="form-input" x-model="mountForm.mountpoint"
+              placeholder="/mnt/media">
+          </div>
+          <div class="form-row">
+            <label class="form-label">Options (optional)</label>
+            <input type="text" class="form-input" x-model="mountForm.options"
+              placeholder="uid=1000,gid=1000">
+          </div>
+          <div class="form-row">
+            <label class="form-label">Username (optional)</label>
+            <input type="text" class="form-input" x-model="mountForm.username">
+          </div>
+        </div>
+        <button class="btn btn-primary btn-sm"
+          :disabled="mountAdding || !mountForm.name || !mountForm.remote || !mountForm.mountpoint"
+          @click="addMount()">
+          <span x-show="mountAdding" class="spinner"></span>
+          Add mount
+        </button>
+      </div>
+
+      <!-- List -->
+      <div class="card">
+        <div class="card-title">Configured mounts</div>
+        <div x-show="mounts.length === 0" style="color:var(--muted);font-size:13px">
+          No mounts configured.
+        </div>
+        <table class="table" x-show="mounts.length > 0">
+          <thead>
+            <tr>
+              <th>Name</th><th>Type</th><th>Remote</th><th>Mountpoint</th><th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <template x-for="m in mounts" :key="m.name">
+              <tr>
+                <td x-text="m.name"></td>
+                <td x-text="m.type"></td>
+                <td style="font-family:var(--mono);font-size:12px" x-text="m.remote"></td>
+                <td style="font-family:var(--mono);font-size:12px" x-text="m.mountpoint"></td>
+                <td>
+                  <button class="btn btn-danger btn-sm" @click="deleteMount(m.name)">Remove</button>
+                </td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         SYSTEM PAGE
+    ══════════════════════════════════════════════════════════════════════════ -->
+    <div x-show="page === 'system'" x-cloak>
+      <div class="page-header">
+        <h1 class="page-title">System</h1>
+        <button class="btn btn-secondary btn-sm" @click="loadSystem()">↺ Refresh</button>
+      </div>
+
+      <!-- Health -->
+      <div class="card">
+        <div class="card-title">Health checks</div>
+        <div x-show="healthLoading" class="empty"><span class="spinner"></span></div>
+        <template x-if="health">
+          <div>
+            <div style="margin-bottom:12px">
+              <span :class="health.healthy ? 'badge badge-running' : 'badge badge-stopped'"
+                x-text="health.healthy ? 'All checks passed' : 'Issues detected'">
+              </span>
+            </div>
+            <template x-for="c in health.checks" :key="c.name">
+              <div class="check-row">
+                <div class="dot" :class="c.ok ? 'dot-ok' : 'dot-fail'"></div>
+                <strong style="font-size:13px" x-text="c.name"></strong>
+                <span style="color:var(--muted);font-size:12px;flex:1" x-text="c.message"></span>
+              </div>
+            </template>
+          </div>
+        </template>
+      </div>
+
+      <!-- Validate -->
+      <div class="card">
+        <div class="card-title">Pre-deploy validation</div>
+        <button class="btn btn-secondary btn-sm" @click="runValidate()" :disabled="validating">
+          <span x-show="validating" class="spinner"></span>
+          Run validation
+        </button>
+        <template x-if="validationResult">
+          <div style="margin-top:14px">
+            <span :class="validationResult.ok ? 'badge badge-running' : 'badge badge-stopped'"
+              x-text="validationResult.ok ? '✓ Validation passed' : '✗ Validation failed'">
+            </span>
+            <template x-if="validationResult.errors.length > 0">
+              <div style="margin-top:12px">
+                <div style="font-size:12px;font-weight:600;color:var(--danger);margin-bottom:6px">
+                  Errors
+                </div>
+                <template x-for="e in validationResult.errors" :key="e.app + e.message">
+                  <div style="font-size:12px;color:var(--danger);margin-bottom:3px">
+                    <strong x-text="e.app"></strong>: <span x-text="e.message"></span>
+                  </div>
+                </template>
+              </div>
+            </template>
+            <template x-if="validationResult.warnings.length > 0">
+              <div style="margin-top:12px">
+                <div style="font-size:12px;font-weight:600;color:var(--warn);margin-bottom:6px">
+                  Warnings
+                </div>
+                <template x-for="w in validationResult.warnings" :key="w.app + w.message">
+                  <div style="font-size:12px;color:var(--warn);margin-bottom:3px">
+                    <strong x-text="w.app"></strong>: <span x-text="w.message"></span>
+                  </div>
+                </template>
+              </div>
+            </template>
+          </div>
+        </template>
+      </div>
+
+      <!-- Secrets -->
+      <div class="card">
+        <div class="card-title">Resolved secret names</div>
+        <div x-show="secrets.length === 0" style="color:var(--muted);font-size:13px">
+          No secrets loaded. Set vars in <code>.stackr.env</code>.
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">
+          <template x-for="s in secrets" :key="s">
+            <span style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;
+              padding:3px 8px;font-family:var(--mono);font-size:12px;color:var(--muted)"
+              x-text="s">
+            </span>
+          </template>
+        </div>
+      </div>
+
+      <!-- Backup -->
+      <div class="card">
+        <div class="card-title">Backup</div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <button class="btn btn-secondary btn-sm" @click="runBackup()" :disabled="backupRunning">
+            <span x-show="backupRunning" class="spinner"></span>
+            Run backup now
+          </button>
+          <button class="btn btn-secondary btn-sm" @click="loadSnapshots()">
+            List snapshots
+          </button>
+        </div>
+        <template x-if="snapshots.length > 0">
+          <div style="margin-top:14px">
+            <table class="table">
+              <thead>
+                <tr><th>ID</th><th>Time</th><th>Hostname</th></tr>
+              </thead>
+              <tbody>
+                <template x-for="s in snapshots" :key="s.id || s.short_id">
+                  <tr>
+                    <td style="font-family:var(--mono);font-size:12px"
+                      x-text="(s.short_id || s.id || '').slice(0,8)">
+                    </td>
+                    <td x-text="s.time ? s.time.slice(0,19).replace('T',' ') : '—'"></td>
+                    <td x-text="s.hostname || '—'"></td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </template>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- ══════════════════════════════════════════════════════════════════════
+       APP DETAIL SLIDE PANEL
+  ══════════════════════════════════════════════════════════════════════════ -->
+  <template x-if="panelOpen">
+    <div>
+      <div class="panel-overlay" @click="closePanel()"></div>
+      <div class="panel">
+
+        <!-- Panel header -->
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:20px">
+          <div>
+            <h2 style="font-size:18px;font-weight:700;margin-bottom:6px" x-text="panelApp.name"></h2>
+            <span :class="badgeClass(panelApp.status)" x-text="panelApp.status"></span>
+          </div>
+          <button class="btn btn-secondary btn-sm" @click="closePanel()">✕ Close</button>
+        </div>
+
+        <div x-show="!panelDetail" class="empty"><span class="spinner"></span></div>
+
+        <template x-if="panelDetail">
+          <div>
+
+            <!-- Actions -->
+            <div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap">
+              <button class="btn btn-primary btn-sm"
+                @click="deploySingle(panelApp, $event)">
+                ⬆ Deploy
+              </button>
+              <button class="btn btn-secondary btn-sm"
+                x-show="panelDetail.compose_hash"
+                @click="rollbackApp()">
+                ↩ Rollback
+              </button>
+            </div>
+
+            <!-- Variables -->
+            <template x-if="Object.keys(panelVars).length > 0">
+              <div style="margin-bottom:20px">
+                <div class="card-title">Variables</div>
+                <template x-for="[k, v] in Object.entries(panelVars)" :key="k">
+                  <div class="form-row">
+                    <label class="form-label" x-text="k"></label>
+                    <input type="text" class="form-input"
+                      :value="panelVars[k]"
+                      @input="panelVars[k] = $event.target.value">
+                  </div>
+                </template>
+                <button class="btn btn-primary btn-sm"
+                  :disabled="panelVarsSaving"
+                  @click="saveVars()">
+                  <span x-show="panelVarsSaving" class="spinner"></span>
+                  Save vars
+                </button>
+              </div>
+            </template>
+
+            <!-- Logs -->
+            <div style="margin-bottom:20px">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+                <strong style="font-size:14px">Logs</strong>
+                <button class="btn btn-secondary btn-sm"
+                  x-show="!panelLogsRunning"
+                  @click="startLogs()">
+                  ▶ Stream
+                </button>
+                <button class="btn btn-danger btn-sm"
+                  x-show="panelLogsRunning"
+                  @click="stopLogs()">
+                  ■ Stop
+                </button>
+              </div>
+              <template x-if="panelLogsRunning || panelLogs.length > 0">
+                <div class="deploy-console" style="height:180px" id="log-scroll">
+                  <template x-for="(line, i) in panelLogs" :key="i">
+                    <div x-text="line"></div>
+                  </template>
+                </div>
+              </template>
+            </div>
+
+            <!-- Deploy history -->
+            <div>
+              <strong style="font-size:14px;display:block;margin-bottom:10px">Deploy history</strong>
+              <div x-show="panelHistory.length === 0"
+                style="color:var(--muted);font-size:13px">No history yet.</div>
+              <template x-for="ev in panelHistory" :key="ev.id">
+                <div style="border:1px solid var(--border);border-radius:8px;padding:10px;
+                  margin-bottom:8px">
+                  <div style="display:flex;align-items:center;justify-content:space-between;
+                    margin-bottom:4px">
+                    <span :style="`color:${ev.success ? 'var(--accent2)' : 'var(--danger)'}`"
+                      x-text="(ev.success ? '✓ ' : '✗ ') + ev.event_type">
+                    </span>
+                    <span style="font-size:11px;color:var(--muted)"
+                      x-text="ev.started_at ? ev.started_at.slice(0,19).replace('T',' ') : ''">
+                    </span>
+                  </div>
+                  <span x-show="ev.duration_ms"
+                    style="font-size:11px;color:var(--muted)"
+                    x-text="ev.duration_ms + 'ms'">
+                  </span>
+                  <template x-if="!ev.success && ev.stderr">
+                    <pre style="font-size:11px;color:var(--danger);white-space:pre-wrap;
+                      margin-top:6px;max-height:100px;overflow-y:auto"
+                      x-text="ev.stderr.slice(0,400)">
+                    </pre>
+                  </template>
+                </div>
+              </template>
+            </div>
+
+          </div>
+        </template>
+      </div>
+    </div>
+  </template>
+
+  <style>[x-cloak] { display: none !important; }</style>
+</body>
+</html>
