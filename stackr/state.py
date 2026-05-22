@@ -96,11 +96,7 @@ class State:
         self._db.set_app(state)
 
     def remove_app(self, name: str) -> None:
-        # StateDB doesn't have remove_app yet — delete directly via SQL
-        import sqlite3
-        with self._db._conn() as conn:
-            conn.execute("DELETE FROM app_state WHERE name = ?", (name,))
-            conn.execute("DELETE FROM image_digests WHERE app_name = ?", (name,))
+        self._db.remove_app(name)
 
     def all_apps(self) -> dict[str, _LegacyAppState]:
         return {a.name: _LegacyAppState._from_new(a) for a in self._db.list_apps()}

@@ -43,6 +43,8 @@ CREATE TABLE IF NOT EXISTS deploy_events (
     command       TEXT,
     started_at    TEXT NOT NULL
 );
+
+CREATE INDEX IF NOT EXISTS idx_deploy_events_app ON deploy_events (app_name, started_at DESC);
 """
 
 
@@ -162,10 +164,15 @@ class StateDB:
         with self._conn() as conn:
             rows = conn.execute(
                 """SELECT * FROM deploy_events WHERE app_name = ?
-                   ORDER BY started_at DESC LIMIT ?""",
+                   ORDER BY started_at DESC, id DESC LIMIT ?""",
                 (app_name, limit),
             ).fetchall()
             return [self._row_to_deploy_event(row) for row in rows]
+
+    def remove_app(self, name: str) -> None:
+        with self._conn() as conn:
+            conn.execute("DELETE FROM app_state WHERE name = ?", (name,))
+            conn.execute("DELETE FROM image_digests WHERE app_name = ?", (name,))
 
     def is_changed(self, name: str, compose_hash: str) -> bool:
         app = self.get_app(name)
@@ -179,6 +186,8 @@ class StateDB:
             return
         data = json.loads(json_path.read_text())
         for name, app_data in data.get("apps", {}).items():
+            if self.get_app(name) is not None:
+                continue
             state = AppState(
                 name=name,
                 enabled=app_data.get("enabled", False),
