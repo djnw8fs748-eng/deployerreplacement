@@ -1,77 +1,81 @@
-"""Deployed state tracking via a JSON lock file."""
+"""Compatibility shim — use stackr.engine.state directly.
 
+This module bridges the old JSON-file State API to the new SQLite StateDB.
+New code should import from stackr.engine.state.
+"""
 from __future__ import annotations
 
 import hashlib
-import json
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-DEFAULT_STATE_DIR = Path.home() / ".stackr"
+from stackr.engine.state import (  # noqa: F401
+    DEFAULT_STATE_DIR,
+    AppState as _NewAppState,
+    DeployEvent,
+    StateDB,
+)
+
+# Legacy constant
 STATE_FILE = "state.json"
 
+# Provide a backward-compatible AppState that accepts both old `compose_content`
+# and new `compose_yaml` kwargs so existing tests/code keep working.
+class AppState(_NewAppState):
+    """Backward-compatible AppState — accepts `compose_content` as alias for `compose_yaml`."""
 
-class AppState:
-    def __init__(
-        self,
-        name: str,
-        enabled: bool,
-        compose_hash: str,
-        compose_content: str,
-        deployed_at: str,
-        image_digests: dict[str, str] | None = None,
-    ) -> None:
-        self.name = name
-        self.enabled = enabled
-        self.compose_hash = compose_hash
-        self.compose_content = compose_content
-        self.deployed_at = deployed_at
-        self.image_digests: dict[str, str] = image_digests or {}
+    def __init__(self, **kwargs: Any) -> None:  # type: ignore[override]
+        if "compose_content" in kwargs and "compose_yaml" not in kwargs:
+            kwargs["compose_yaml"] = kwargs.pop("compose_content")
+        else:
+            kwargs.pop("compose_content", None)
+        super().__init__(**kwargs)
 
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "enabled": self.enabled,
-            "compose_hash": self.compose_hash,
-            "compose_content": self.compose_content,
-            "deployed_at": self.deployed_at,
-            "image_digests": self.image_digests,
-        }
+    @property
+    def compose_content(self) -> str | None:
+        return self.compose_yaml
 
-    @classmethod
-    def from_dict(cls, name: str, d: dict[str, Any]) -> AppState:
-        return cls(
-            name=name,
-            enabled=d.get("enabled", True),
-            compose_hash=d.get("compose_hash", ""),
-            compose_content=d.get("compose_content", ""),
-            deployed_at=d.get("deployed_at", ""),
-            image_digests=d.get("image_digests", {}),
-        )
+
+def _hash(content: str) -> str:
+    return hashlib.sha256(content.encode()).hexdigest()
+
+
+def hash_content(content: str) -> str:
+    """Legacy helper — kept for tests/external callers."""
+    return _hash(content)
+
+
+def now_iso() -> str:
+    from datetime import UTC, datetime
+    return datetime.now(UTC).isoformat()
 
 
 class State:
+    """Backward-compatible wrapper around StateDB.
+
+    Supports the old API:
+      - State(state_dir=Path(...))
+      - state.set_app(name, compose_content, enabled=True, image_digests={})
+      - state.get_app(name)  → object with .compose_content attribute
+      - state.is_changed(name, compose_content)
+      - state.remove_app(name)
+      - state.save()   (no-op — SQLite commits immediately)
+      - state.all_apps()
+    """
+
     def __init__(self, state_dir: Path = DEFAULT_STATE_DIR) -> None:
-        self._path = state_dir / STATE_FILE
-        self._path.parent.mkdir(parents=True, exist_ok=True)
-        self._data: dict[str, Any] = self._load()
+        db_path = state_dir / "stackr.db"
+        self._db = StateDB(db_path=db_path)
 
-    def _load(self) -> dict[str, Any]:
-        if self._path.exists():
-            with open(self._path) as f:
-                data: dict[str, Any] = json.load(f)
-                return data
-        return {"apps": {}, "deployed_at": None, "catalog_version": None}
+    # ------------------------------------------------------------------
+    # Compat API
+    # ------------------------------------------------------------------
 
-    def save(self) -> None:
-        with open(self._path, "w") as f:
-            json.dump(self._data, f, indent=2)
-
-    def get_app(self, name: str) -> AppState | None:
-        apps = self._data.get("apps", {})
-        if name not in apps:
+    def get_app(self, name: str) -> _LegacyAppState | None:
+        result = self._db.get_app(name)
+        if result is None:
             return None
-        return AppState.from_dict(name, apps[name])
+        return _LegacyAppState._from_new(result)
 
     def set_app(
         self,
@@ -80,35 +84,52 @@ class State:
         enabled: bool = True,
         image_digests: dict[str, str] | None = None,
     ) -> None:
-        self._data.setdefault("apps", {})[name] = AppState(
+        from stackr.engine.state import AppState as NewAppState
+        state = NewAppState(
             name=name,
             enabled=enabled,
-            compose_hash=hash_content(compose_content),
-            compose_content=compose_content,
+            compose_hash=_hash(compose_content),
+            compose_yaml=compose_content,
             deployed_at=now_iso(),
             image_digests=image_digests or {},
-        ).to_dict()
-        self._data["deployed_at"] = now_iso()
+        )
+        self._db.set_app(state)
 
     def remove_app(self, name: str) -> None:
-        self._data.get("apps", {}).pop(name, None)
+        # StateDB doesn't have remove_app yet — delete directly via SQL
+        import sqlite3
+        with self._db._conn() as conn:
+            conn.execute("DELETE FROM app_state WHERE name = ?", (name,))
+            conn.execute("DELETE FROM image_digests WHERE app_name = ?", (name,))
 
-    def all_apps(self) -> dict[str, AppState]:
-        return {
-            name: AppState.from_dict(name, d)
-            for name, d in self._data.get("apps", {}).items()
-        }
+    def all_apps(self) -> dict[str, _LegacyAppState]:
+        return {a.name: _LegacyAppState._from_new(a) for a in self._db.list_apps()}
 
     def is_changed(self, name: str, compose_content: str) -> bool:
-        app = self.get_app(name)
-        if app is None:
-            return True
-        return app.compose_hash != hash_content(compose_content)
+        return self._db.is_changed(name, _hash(compose_content))
+
+    def save(self) -> None:
+        """No-op — SQLite commits are immediate."""
 
 
-def hash_content(content: str) -> str:
-    return hashlib.sha256(content.encode()).hexdigest()
+class _LegacyAppState:
+    """Wraps the new AppState dataclass to expose the old .compose_content attribute."""
 
+    def __init__(self, **kwargs: Any) -> None:
+        self.name: str = kwargs["name"]
+        self.enabled: bool = kwargs.get("enabled", True)
+        self.compose_hash: str = kwargs.get("compose_hash", "")
+        self.compose_content: str = kwargs.get("compose_content", "")
+        self.deployed_at: str = kwargs.get("deployed_at", "")
+        self.image_digests: dict[str, str] = kwargs.get("image_digests", {})
 
-def now_iso() -> str:
-    return datetime.now(UTC).isoformat()
+    @classmethod
+    def _from_new(cls, new: _NewAppState) -> _LegacyAppState:
+        return cls(
+            name=new.name,
+            enabled=new.enabled,
+            compose_hash=new.compose_hash or "",
+            compose_content=new.compose_yaml or "",
+            deployed_at=new.deployed_at or "",
+            image_digests=new.image_digests,
+        )

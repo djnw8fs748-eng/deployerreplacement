@@ -1,132 +1,134 @@
-"""Tests for state lock file."""
+"""Tests for SQLite-backed state management."""
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import pytest
+
+from stackr.engine.state import AppState, DeployEvent, StateDB
 
 
-from stackr.state import State, hash_content
+@pytest.fixture
+def db(tmp_path: Path) -> StateDB:
+    return StateDB(db_path=tmp_path / "test.db")
 
 
-def test_state_empty_on_init(tmp_path):
-    state = State(state_dir=tmp_path)
-    assert state.all_apps() == {}
+def test_get_app_returns_none_for_unknown(db: StateDB) -> None:
+    assert db.get_app("jellyfin") is None
 
 
-def test_set_and_get_app(tmp_path):
-    state = State(state_dir=tmp_path)
-    state.set_app("jellyfin", "compose content here")
-    app = state.get_app("jellyfin")
-    assert app is not None
-    assert app.name == "jellyfin"
-    assert app.enabled is True
-    assert app.compose_content == "compose content here"
+def test_set_and_get_app(db: StateDB) -> None:
+    state = AppState(
+        name="jellyfin",
+        enabled=True,
+        compose_hash="abc123",
+        compose_yaml="services:\n  jellyfin: {}",
+        status="running",
+        deployed_at="2026-01-01T00:00:00+00:00",
+        image_digests={"jellyfin": "sha256:abc"},
+    )
+    db.set_app(state)
+    result = db.get_app("jellyfin")
+    assert result is not None
+    assert result.name == "jellyfin"
+    assert result.enabled is True
+    assert result.compose_hash == "abc123"
+    assert result.status == "running"
+    assert result.image_digests == {"jellyfin": "sha256:abc"}
 
 
-def test_compose_content_persists(tmp_path):
-    state = State(state_dir=tmp_path)
-    state.set_app("jellyfin", "services:\n  jellyfin: {}")
-    state.save()
-    state2 = State(state_dir=tmp_path)
-    app = state2.get_app("jellyfin")
-    assert app is not None
-    assert app.compose_content == "services:\n  jellyfin: {}"
+def test_set_app_overwrites(db: StateDB) -> None:
+    db.set_app(AppState(name="jellyfin", enabled=True, status="running"))
+    db.set_app(AppState(name="jellyfin", enabled=False, status="stopped"))
+    result = db.get_app("jellyfin")
+    assert result is not None
+    assert result.enabled is False
+    assert result.status == "stopped"
 
 
-def test_is_changed_new_app(tmp_path):
-    state = State(state_dir=tmp_path)
-    assert state.is_changed("jellyfin", "some content") is True
+def test_set_app_replaces_image_digests(db: StateDB) -> None:
+    db.set_app(AppState(name="app", image_digests={"svc": "old-digest"}))
+    db.set_app(AppState(name="app", image_digests={"svc": "new-digest"}))
+    result = db.get_app("app")
+    assert result is not None
+    assert result.image_digests == {"svc": "new-digest"}
 
 
-def test_is_changed_same_content(tmp_path):
-    state = State(state_dir=tmp_path)
-    state.set_app("jellyfin", "some content")
-    assert state.is_changed("jellyfin", "some content") is False
+def test_list_apps(db: StateDB) -> None:
+    db.set_app(AppState(name="jellyfin", enabled=True))
+    db.set_app(AppState(name="radarr", enabled=False))
+    apps = db.list_apps()
+    assert len(apps) == 2
+    names = {a.name for a in apps}
+    assert names == {"jellyfin", "radarr"}
 
 
-def test_is_changed_different_content(tmp_path):
-    state = State(state_dir=tmp_path)
-    state.set_app("jellyfin", "old content")
-    assert state.is_changed("jellyfin", "new content") is True
+def test_is_changed_returns_true_for_unknown_app(db: StateDB) -> None:
+    assert db.is_changed("unknown", "hash") is True
 
 
-def test_state_persists(tmp_path):
-    state = State(state_dir=tmp_path)
-    state.set_app("jellyfin", "content")
-    state.save()
-
-    state2 = State(state_dir=tmp_path)
-    app = state2.get_app("jellyfin")
-    assert app is not None
-    assert app.name == "jellyfin"
+def test_is_changed_returns_false_when_hash_matches(db: StateDB) -> None:
+    db.set_app(AppState(name="app", compose_hash="hash123"))
+    assert db.is_changed("app", "hash123") is False
 
 
-def test_remove_app(tmp_path):
-    state = State(state_dir=tmp_path)
-    state.set_app("jellyfin", "content")
-    state.remove_app("jellyfin")
-    assert state.get_app("jellyfin") is None
+def test_is_changed_returns_true_when_hash_differs(db: StateDB) -> None:
+    db.set_app(AppState(name="app", compose_hash="old"))
+    assert db.is_changed("app", "new") is True
 
 
-def test_hash_content_deterministic():
-    assert hash_content("abc") == hash_content("abc")
+def test_record_event_and_get_history(db: StateDB) -> None:
+    event = DeployEvent(
+        app_name="jellyfin",
+        event_type="deploy",
+        success=True,
+        stdout="done",
+        stderr="",
+        exit_code=0,
+        duration_ms=1234,
+        command="docker compose up -d",
+    )
+    event_id = db.record_event(event)
+    assert event_id is not None
+
+    history = db.get_app_history("jellyfin")
+    assert len(history) == 1
+    assert history[0].success is True
+    assert history[0].stdout == "done"
+    assert history[0].duration_ms == 1234
 
 
-def test_hash_content_differs():
-    assert hash_content("abc") != hash_content("xyz")
+def test_get_app_history_empty(db: StateDB) -> None:
+    assert db.get_app_history("unknown") == []
 
 
-def test_image_digests_stored_and_retrieved(tmp_path):
-    state = State(state_dir=tmp_path)
-    digests = {"jellyfin/jellyfin:latest": "jellyfin/jellyfin@sha256:abc123"}
-    state.set_app("jellyfin", "content", image_digests=digests)
-    app = state.get_app("jellyfin")
-    assert app is not None
-    assert app.image_digests == digests
+def test_get_app_history_limit(db: StateDB) -> None:
+    for i in range(25):
+        db.record_event(DeployEvent(app_name="app", event_type="deploy", success=True))
+    history = db.get_app_history("app", limit=10)
+    assert len(history) == 10
 
 
-def test_image_digests_default_empty(tmp_path):
-    state = State(state_dir=tmp_path)
-    state.set_app("jellyfin", "content")
-    app = state.get_app("jellyfin")
-    assert app is not None
-    assert app.image_digests == {}
-
-
-def test_image_digests_survive_round_trip(tmp_path):
-    state = State(state_dir=tmp_path)
-    digests = {"foo:latest": "foo@sha256:deadbeef"}
-    state.set_app("myapp", "content", image_digests=digests)
-    state.save()
-
-    state2 = State(state_dir=tmp_path)
-    app = state2.get_app("myapp")
-    assert app is not None
-    assert app.image_digests == digests
-
-
-def test_image_digests_missing_in_old_state_defaults_empty(tmp_path):
-    """Pre-Wave-3 state files without image_digests field should load as {}."""
-    import json
-
-    state_file = tmp_path / "state.json"
-    # Write a state file without image_digests (simulating old format)
-    state_file.write_text(json.dumps({
+def test_migrate_from_json(db: StateDB, tmp_path: Path) -> None:
+    legacy = tmp_path / "state.json"
+    legacy.write_text(json.dumps({
         "apps": {
             "jellyfin": {
                 "enabled": True,
-                "compose_hash": "abc123",
-                "compose_content": "services: {}",
-                "deployed_at": "2025-01-01T00:00:00+00:00",
+                "compose_hash": "abc",
+                "compose_content": "services:\n  jellyfin: {}",
+                "deployed_at": "2026-01-01T00:00:00",
+                "image_digests": {"jellyfin": "sha256:abc"},
             }
-        },
-        "deployed_at": "2025-01-01T00:00:00+00:00",
-        "catalog_version": None,
+        }
     }))
-    state = State(state_dir=tmp_path)
-    app = state.get_app("jellyfin")
-    assert app is not None
-    assert app.image_digests == {}
+    db.migrate_from_json(legacy)
+    result = db.get_app("jellyfin")
+    assert result is not None
+    assert result.compose_hash == "abc"
+    assert result.image_digests == {"jellyfin": "sha256:abc"}
 
 
-def test_hash_content_is_full_sha256():
-    """hash_content must return a full 64-character hex digest (not truncated)."""
-    h = hash_content("some compose content")
-    assert len(h) == 64, f"Expected 64-char hex digest, got {len(h)}"
-    assert all(c in "0123456789abcdef" for c in h)
+def test_migrate_from_json_no_op_if_missing(db: StateDB, tmp_path: Path) -> None:
+    db.migrate_from_json(tmp_path / "nonexistent.json")  # must not raise
