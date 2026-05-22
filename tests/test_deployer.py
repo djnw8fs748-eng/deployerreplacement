@@ -375,8 +375,9 @@ def test_deploy_records_failure_event(tmp_path: Path, mocker: object) -> None:
 
     assert result.success is False
     history = db.get_app_history("app")
-    assert len(history) == 1
-    assert history[0].success is False
+    # pull event (success=True) + deploy event (success=False)
+    assert len(history) == 2
+    assert any(not e.success for e in history)
 
 
 def test_deploy_updates_app_state_on_success(tmp_path: Path, mocker: object) -> None:

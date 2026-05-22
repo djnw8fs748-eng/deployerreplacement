@@ -41,23 +41,27 @@ def deploy_app(
 
     if pull:
         pull_result = compose_pull(app_name, compose_path)
-        if not pull_result.success:
-            db.record_event(_to_event(pull_result))
+        db.record_event(_to_event(pull_result))
 
     result = compose_up(app_name, compose_path)
     db.record_event(_to_event(result))
 
     compose_hash = hashlib.sha256(compose_content.encode()).hexdigest()
-    image_digests = get_image_digests(app_name, _services(compose_content)) if result.success else {}
+    image_digests = (
+        get_image_digests(app_name, _services(compose_content)) if result.success else {}
+    )
 
     existing = db.get_app(app_name)
+    deployed_at = datetime.now(UTC).isoformat() if result.success else (
+        existing.deployed_at if existing else None
+    )
     db.set_app(AppState(
         name=app_name,
         enabled=existing.enabled if existing else True,
         compose_hash=compose_hash,
         compose_yaml=compose_content,
         status="running" if result.success else "failed",
-        deployed_at=datetime.now(UTC).isoformat() if result.success else (existing.deployed_at if existing else None),
+        deployed_at=deployed_at,
         last_error=None if result.success else result.error,
         image_digests=image_digests,
     ))
@@ -82,10 +86,16 @@ def remove_app(app_name: str, db: StateDB, compose_base_dir: Path = COMPOSE_DIR)
     compose_path = _compose_path(app_name, compose_base_dir)
     result = compose_down(app_name, compose_path)
     db.record_event(_to_event(result))
+    if result.success:
+        existing = db.get_app(app_name)
+        if existing:
+            db.set_app(AppState(**{**existing.__dict__, "status": "removed"}))
     return result
 
 
-def rollback_app(app_name: str, db: StateDB, compose_base_dir: Path = COMPOSE_DIR) -> OperationResult:
+def rollback_app(
+    app_name: str, db: StateDB, compose_base_dir: Path = COMPOSE_DIR
+) -> OperationResult:
     """Redeploy the last stored compose content from DB."""
     existing = db.get_app(app_name)
     if existing is None or not existing.compose_yaml:
