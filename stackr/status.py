@@ -8,13 +8,13 @@ from rich.console import Console
 from rich.table import Table
 
 from stackr.deployer import COMPOSE_DIR
-from stackr.state import State
+from stackr.engine.state import StateDB
 
 console = Console()
 
 
-def show_status(state: State, app_name: str | None = None) -> None:
-    all_state = state.all_apps()
+def show_status(db: StateDB, app_name: str | None = None) -> None:
+    all_state = {app.name: app for app in db.list_apps()}
     compose_apps = _discover_compose_apps()
 
     all_names = sorted(set(all_state.keys()) | compose_apps)
