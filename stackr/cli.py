@@ -142,8 +142,7 @@ def init(
     console.print(f"  {total} apps listed — nginx-proxy-manager and portainer enabled by default.")
     console.print(f"[green]Secrets file:[/green]    {env_file}  (gitignored)")
     console.print("\nNext steps:")
-    console.print("  1. Run [bold]stackr ui[/bold] to toggle apps on/off interactively")
-    console.print("     or edit [bold]stackr.yml[/bold] directly")
+    console.print("  1. Edit [bold]stackr.yml[/bold] to toggle apps on/off")
     console.print("  2. After deploying, open [bold]http://<host>:81[/bold] to configure")
     console.print("     Nginx Proxy Manager (default login: admin@example.com / changeme)")
     console.print("  3. Run [bold]stackr validate[/bold] to check your config")
@@ -814,38 +813,6 @@ def uninstall(
         "      Delete them manually if you no longer need the secrets they contain."
     )
     console.print("\n[green]Uninstall complete.[/green]")
-
-
-# ---------------------------------------------------------------------------
-# stackr ui
-# ---------------------------------------------------------------------------
-
-
-@app.command()
-def ui(
-    config_path: Annotated[Path, typer.Option("--config", "-c")] = _DEFAULT_CONFIG,
-) -> None:
-    """Launch the interactive TUI app browser."""
-    has_textual: bool
-    try:
-        from stackr.tui import HAS_TEXTUAL, StackrTUI
-
-        has_textual = HAS_TEXTUAL
-    except ImportError:
-        has_textual = False
-
-    if not has_textual:
-        console.print(
-            "[red]TUI requires the 'textual' package.[/red]\n"
-            "Install it with: [bold]pip install 'stackr[tui]'[/bold]"
-        )
-        raise typer.Exit(1)
-
-    from stackr.catalog import Catalog
-
-    catalog = Catalog()
-    tui = StackrTUI(config_path=config_path, catalog=catalog)
-    tui.run()
 
 
 # ---------------------------------------------------------------------------
