@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from stackr.deployer import _ensure_data_dirs, _run_compose, deploy, remove_app, rollback
+from stackr.engine.state import StateDB
 from stackr.state import State
 
 # ---------------------------------------------------------------------------
@@ -320,3 +321,98 @@ def test_rollback_applies_stored_compose(tmp_path: Path) -> None:
 
     all_cmds = [c[0][0] for c in mock_run.call_args_list]
     assert any("up" in cmd for cmd in all_cmds), "rollback should run 'up -d' with stored compose"
+
+
+# ---------------------------------------------------------------------------
+# Additional tests for new deployer interface using StateDB and OperationResult
+# ---------------------------------------------------------------------------
+
+
+def _make_op_result(success: bool = True, app_name: str = "app") -> "OperationResult":
+    from stackr.engine.docker import OperationResult
+
+    return OperationResult(
+        success=success,
+        app_name=app_name,
+        event_type="deploy",
+        stdout="done" if success else "",
+        stderr="" if success else "error",
+        exit_code=0 if success else 1,
+        duration_ms=100,
+        command="docker compose up -d",
+        error=None if success else "error",
+    )
+
+
+def test_deploy_records_success_event(tmp_path: Path, mocker: object) -> None:
+    from stackr.engine.deployer import deploy_app
+
+    db = StateDB(db_path=tmp_path / "test.db")
+    mocker.patch("stackr.engine.deployer.compose_up", return_value=_make_op_result(True))
+    mocker.patch("stackr.engine.deployer.compose_pull", return_value=_make_op_result(True, "pull"))
+    mocker.patch("stackr.engine.deployer.get_image_digests", return_value={})
+    mocker.patch("stackr.engine.deployer._write_compose", return_value=tmp_path / "compose.yml")
+    mocker.patch("stackr.engine.deployer._ensure_data_dirs", return_value=[])
+
+    result = deploy_app("app", "services:\n  app: {}", db, tmp_path)
+
+    assert result.success is True
+    history = db.get_app_history("app")
+    assert len(history) == 1
+    assert history[0].success is True
+
+
+def test_deploy_records_failure_event(tmp_path: Path, mocker: object) -> None:
+    from stackr.engine.deployer import deploy_app
+
+    db = StateDB(db_path=tmp_path / "test.db")
+    mocker.patch("stackr.engine.deployer.compose_pull", return_value=_make_op_result(True))
+    mocker.patch("stackr.engine.deployer.compose_up", return_value=_make_op_result(False))
+    mocker.patch("stackr.engine.deployer._write_compose", return_value=tmp_path / "compose.yml")
+    mocker.patch("stackr.engine.deployer._ensure_data_dirs", return_value=[])
+
+    result = deploy_app("app", "services:\n  app: {}", db, tmp_path)
+
+    assert result.success is False
+    history = db.get_app_history("app")
+    assert len(history) == 1
+    assert history[0].success is False
+
+
+def test_deploy_updates_app_state_on_success(tmp_path: Path, mocker: object) -> None:
+    from stackr.engine.deployer import deploy_app
+
+    db = StateDB(db_path=tmp_path / "test.db")
+    mocker.patch("stackr.engine.deployer.compose_pull", return_value=_make_op_result(True))
+    mocker.patch("stackr.engine.deployer.compose_up", return_value=_make_op_result(True))
+    mocker.patch("stackr.engine.deployer.get_image_digests", return_value={"app": "sha256:abc"})
+    mocker.patch("stackr.engine.deployer._write_compose", return_value=tmp_path / "compose.yml")
+    mocker.patch("stackr.engine.deployer._ensure_data_dirs", return_value=[])
+
+    deploy_app("app", "services:\n  app: {}", db, tmp_path)
+
+    state = db.get_app("app")
+    assert state is not None
+    assert state.status == "running"
+    assert state.last_error is None
+    assert state.image_digests == {"app": "sha256:abc"}
+
+
+def test_deploy_sets_error_on_failure(tmp_path: Path, mocker: object) -> None:
+    from stackr.engine.deployer import deploy_app
+
+    db = StateDB(db_path=tmp_path / "test.db")
+    mocker.patch("stackr.engine.deployer.compose_pull", return_value=_make_op_result(True))
+    mocker.patch(
+        "stackr.engine.deployer.compose_up",
+        return_value=_make_op_result(False),
+    )
+    mocker.patch("stackr.engine.deployer._write_compose", return_value=tmp_path / "compose.yml")
+    mocker.patch("stackr.engine.deployer._ensure_data_dirs", return_value=[])
+
+    deploy_app("app", "services:\n  app: {}", db, tmp_path)
+
+    state = db.get_app("app")
+    assert state is not None
+    assert state.status == "failed"
+    assert state.last_error is not None

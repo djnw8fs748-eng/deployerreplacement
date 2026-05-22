@@ -306,3 +306,16 @@ def _run_compose(
     if capture:
         return subprocess.run(cmd, check=True, capture_output=True)
     return subprocess.run(cmd, check=True)
+
+
+# ---------------------------------------------------------------------------
+# Compatibility shim — new engine interface available via stackr.deployer
+# ---------------------------------------------------------------------------
+
+from stackr.engine.deployer import (  # noqa: E402, F401
+    deploy_all,
+    deploy_app,
+    remove_app as engine_remove_app,
+    rollback_app,
+    stop_app as engine_stop_app,
+)
