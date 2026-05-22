@@ -3,18 +3,15 @@ from __future__ import annotations
 
 import os
 import tempfile
-import threading
 from typing import Any
 
 import fastapi
 import yaml
 
-from stackr.api.deps import Config, ConfigPath
+from stackr.api.deps import CONFIG_WRITE_LOCK, Config, ConfigPath
 from stackr.api.models import MountCreate, MountOut
 
 router = fastapi.APIRouter(prefix="/mounts", tags=["mounts"])
-
-_lock = threading.Lock()
 
 
 def _mount_to_out(m: Any) -> MountOut:
@@ -46,7 +43,7 @@ def list_mounts(config: Config) -> list[MountOut]:
 
 @router.post("/", response_model=list[MountOut], status_code=201)
 def add_mount(body: MountCreate, config_path: ConfigPath) -> list[MountOut]:
-    with _lock:
+    with CONFIG_WRITE_LOCK:
         raw: dict[str, Any] = yaml.safe_load(config_path.read_text()) or {}
         mounts: list[dict[str, Any]] = raw.setdefault("mounts", [])
         existing = next((i for i, m in enumerate(mounts) if m.get("name") == body.name), None)
@@ -73,7 +70,7 @@ def add_mount(body: MountCreate, config_path: ConfigPath) -> list[MountOut]:
 
 @router.delete("/{name}", response_model=list[MountOut])
 def delete_mount(name: str, config_path: ConfigPath) -> list[MountOut]:
-    with _lock:
+    with CONFIG_WRITE_LOCK:
         raw: dict[str, Any] = yaml.safe_load(config_path.read_text()) or {}
         mounts: list[dict[str, Any]] = raw.get("mounts", [])
         before = len(mounts)

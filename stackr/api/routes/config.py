@@ -3,19 +3,16 @@ from __future__ import annotations
 
 import os
 import tempfile
-import threading
 from pathlib import Path
 from typing import Any
 
 import fastapi
 import yaml
 
-from stackr.api.deps import Config, ConfigPath
+from stackr.api.deps import CONFIG_WRITE_LOCK, Config, ConfigPath
 from stackr.api.models import AlertUpdate, BackupUpdate, GlobalUpdate, NetworkUpdate, SecurityUpdate
 
 router = fastapi.APIRouter(prefix="/config", tags=["config"])
-
-_write_lock = threading.Lock()
 
 
 def _atomic_write(path: Path, data: dict[str, Any]) -> None:
@@ -30,7 +27,7 @@ def _atomic_write(path: Path, data: dict[str, Any]) -> None:
 
 
 def _patch_section(config_path: Path, section: str, updates: dict[str, Any]) -> dict[str, Any]:
-    with _write_lock:
+    with CONFIG_WRITE_LOCK:
         raw: dict[str, Any] = yaml.safe_load(config_path.read_text()) or {}
         raw.setdefault(section, {})
         for k, v in updates.items():

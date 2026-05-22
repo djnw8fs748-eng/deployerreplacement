@@ -48,6 +48,20 @@ def get_job() -> DeployJob | None:
         return _current_job
 
 
+def get_job_snapshot() -> dict | None:
+    """Return a consistent snapshot of the current job state, or None if idle."""
+    with _lock:
+        if _current_job is None:
+            return None
+        return {
+            "job_id": _current_job.job_id,
+            "status": _current_job.status,
+            "app_name": _current_job.app_name,
+            "results": list(_current_job.results),
+            "error": _current_job.error,
+        }
+
+
 def reset_for_tests() -> None:
     """Test helper — clears job state between tests."""
     global _current_job

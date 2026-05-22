@@ -1,6 +1,7 @@
 """FastAPI dependency providers for the Stackr API."""
 from __future__ import annotations
 
+import threading
 from pathlib import Path
 from typing import Annotated
 
@@ -10,6 +11,9 @@ from stackr.engine.catalog import Catalog
 from stackr.engine.config import StackrConfig, load_config
 from stackr.engine.secrets import build_env
 from stackr.engine.state import DEFAULT_STATE_DIR, StateDB
+
+# Shared lock protecting all writes to stackr.yml
+CONFIG_WRITE_LOCK = threading.Lock()
 
 _config_path: Path = Path("stackr.yml")
 

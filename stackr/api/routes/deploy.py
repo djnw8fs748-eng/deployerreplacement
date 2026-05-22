@@ -6,7 +6,7 @@ from pathlib import Path
 import fastapi
 
 from stackr.api.deps import ConfigPath
-from stackr.api.jobs import DeployJob, finish_job, get_job, start_job
+from stackr.api.jobs import DeployJob, finish_job, get_job_snapshot, start_job
 from stackr.api.models import DeployJobOut, DeployStatusOut, JobStatus
 
 router = fastapi.APIRouter(prefix="/deploy", tags=["deploy"])
@@ -67,13 +67,13 @@ def deploy_all_apps(
 
 @router.get("/status", response_model=DeployStatusOut)
 def deploy_status() -> DeployStatusOut:
-    job = get_job()
-    if job is None:
+    snap = get_job_snapshot()
+    if snap is None:
         return DeployStatusOut(status=JobStatus.idle)
     return DeployStatusOut(
-        status=job.status,
-        job_id=job.job_id,
-        app_name=job.app_name,
-        results=job.results,
-        error=job.error,
+        status=snap["status"],
+        job_id=snap["job_id"],
+        app_name=snap["app_name"],
+        results=snap["results"],
+        error=snap["error"],
     )

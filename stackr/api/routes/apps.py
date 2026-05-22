@@ -3,21 +3,18 @@ from __future__ import annotations
 
 import os
 import tempfile
-import threading
 from typing import Any
 
 import fastapi
 import yaml
 from fastapi.responses import StreamingResponse
 
-from stackr.api.deps import DB, Config, ConfigPath
+from stackr.api.deps import CONFIG_WRITE_LOCK, DB, Config, ConfigPath
 from stackr.api.models import AppDetail, AppStatusEnum, AppSummary, DeployEventOut
 from stackr.engine.docker import get_container_status
 from stackr.engine.state import AppState
 
 router = fastapi.APIRouter(prefix="/apps", tags=["apps"])
-
-_config_lock = threading.Lock()
 
 
 def _live_status(app_name: str) -> AppStatusEnum:
@@ -69,7 +66,7 @@ def get_app(name: str, db: DB, config: Config) -> AppDetail:
 
 @router.post("/{name}/toggle", response_model=AppSummary)
 def toggle_app(name: str, config_path: ConfigPath, db: DB) -> AppSummary:
-    with _config_lock:
+    with CONFIG_WRITE_LOCK:
         raw: dict[str, Any] = yaml.safe_load(config_path.read_text()) or {}
         apps = raw.setdefault("apps", [])
         found = next((a for a in apps if a.get("name") == name), None)
@@ -117,7 +114,7 @@ def get_vars(name: str, config: Config) -> dict[str, Any]:
 
 @router.put("/{name}/vars")
 def update_vars(name: str, vars: dict[str, Any], config_path: ConfigPath) -> dict[str, Any]:
-    with _config_lock:
+    with CONFIG_WRITE_LOCK:
         raw: dict[str, Any] = yaml.safe_load(config_path.read_text()) or {}
         apps = raw.setdefault("apps", [])
         found = next((a for a in apps if a.get("name") == name), None)
@@ -143,15 +140,27 @@ def update_vars(name: str, vars: dict[str, Any], config_path: ConfigPath) -> dic
 @router.get("/{name}/logs")
 def stream_logs(name: str, service: str | None = None) -> StreamingResponse:
     from stackr.engine.deployer import COMPOSE_DIR
-    from stackr.engine.docker import compose_logs
 
     compose_path = COMPOSE_DIR / name / "docker-compose.yml"
     if not compose_path.exists():
         raise fastapi.HTTPException(status_code=404, detail=f"No compose file for '{name}'")
 
+    import subprocess
+
     def generate():  # type: ignore[return]
-        for line in compose_logs(compose_path, service):
-            yield f"data: {line}\n\n"
+        cmd = ["docker", "compose", "-f", str(compose_path), "logs", "-f", "--no-color"]
+        if service:
+            cmd.append(service)
+        with subprocess.Popen(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
+        ) as proc:
+            try:
+                assert proc.stdout is not None
+                for line in proc.stdout:
+                    yield f"data: {line.rstrip()}\n\n"
+            finally:
+                proc.kill()
+                proc.wait()
 
     return StreamingResponse(generate(), media_type="text/event-stream")
 
@@ -174,10 +183,12 @@ def deploy_single_app(
 
 
 @router.post("/{name}/rollback", response_model=AppSummary)
-def rollback_app_endpoint(name: str, db: DB) -> AppSummary:
+def rollback_app_endpoint(name: str, db: DB, config: Config) -> AppSummary:
     from stackr.engine.deployer import rollback_app
 
     result = rollback_app(name, db)
     if not result.success:
         raise fastapi.HTTPException(status_code=500, detail=result.error or "Rollback failed")
-    return _to_summary(name, db.get_app(name), True)
+    app_cfg = next((a for a in config.apps if a.name == name), None)
+    enabled = app_cfg.enabled if app_cfg else False
+    return _to_summary(name, db.get_app(name), enabled)
