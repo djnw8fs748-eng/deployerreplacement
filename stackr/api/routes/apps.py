@@ -154,3 +154,30 @@ def stream_logs(name: str, service: str | None = None) -> StreamingResponse:
             yield f"data: {line}\n\n"
 
     return StreamingResponse(generate(), media_type="text/event-stream")
+
+
+@router.post("/{name}/deploy", status_code=202)
+def deploy_single_app(
+    name: str,
+    background_tasks: fastapi.BackgroundTasks,
+    config_path: ConfigPath,
+):
+    from stackr.api.jobs import start_job
+    from stackr.api.models import DeployJobOut, JobStatus
+    from stackr.api.routes.deploy import _run_deploy_job
+
+    job = start_job(app_name=name)
+    if job is None:
+        raise fastapi.HTTPException(status_code=409, detail="A deploy job is already running")
+    background_tasks.add_task(_run_deploy_job, job, config_path, name)
+    return DeployJobOut(job_id=job.job_id, status=JobStatus.running, message=f"Deploying {name}")
+
+
+@router.post("/{name}/rollback", response_model=AppSummary)
+def rollback_app_endpoint(name: str, db: DB) -> AppSummary:
+    from stackr.engine.deployer import rollback_app
+
+    result = rollback_app(name, db)
+    if not result.success:
+        raise fastapi.HTTPException(status_code=500, detail=result.error or "Rollback failed")
+    return _to_summary(name, db.get_app(name), True)

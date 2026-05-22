@@ -16,6 +16,7 @@ def create_api(config_path: Path = Path("stackr.yml")) -> Any:
     from stackr.api.routes.apps import router as apps_router
     from stackr.api.routes.catalog import router as catalog_router
     from stackr.api.routes.config import router as config_router
+    from stackr.api.routes.deploy import router as deploy_router
     from stackr.api.routes.system import router as system_router
 
     set_config_path(config_path)
@@ -34,6 +35,7 @@ def create_api(config_path: Path = Path("stackr.yml")) -> Any:
     api.include_router(catalog_router)
     api.include_router(config_router)
     api.include_router(apps_router)
+    api.include_router(deploy_router)
     app.include_router(api)
 
     return app
