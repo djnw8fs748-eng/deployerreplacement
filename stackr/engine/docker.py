@@ -7,9 +7,9 @@ from __future__ import annotations
 
 import subprocess
 import time
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterator
 
 try:
     import docker as _docker_sdk
@@ -160,7 +160,7 @@ def _ensure_network(name: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-def compose_up(app_name: str, compose_path: Path, *, pull: bool = True) -> OperationResult:
+def compose_up(app_name: str, compose_path: Path) -> OperationResult:
     """Run docker compose up -d --remove-orphans."""
     cmd = ["docker", "compose", "-f", str(compose_path), "up", "-d", "--remove-orphans"]
     return _run(app_name, "deploy", cmd)
