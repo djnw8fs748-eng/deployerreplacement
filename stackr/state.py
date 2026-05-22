@@ -11,9 +11,11 @@ from typing import Any
 
 from stackr.engine.state import (  # noqa: F401
     DEFAULT_STATE_DIR,
-    AppState as _NewAppState,
     DeployEvent,
     StateDB,
+)
+from stackr.engine.state import (
+    AppState as _NewAppState,
 )
 
 # Legacy constant

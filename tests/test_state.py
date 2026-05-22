@@ -104,7 +104,7 @@ def test_get_app_history_empty(db: StateDB) -> None:
 
 
 def test_get_app_history_limit(db: StateDB) -> None:
-    for i in range(25):
+    for _i in range(25):
         db.record_event(DeployEvent(app_name="app", event_type="deploy", success=True))
     history = db.get_app_history("app", limit=10)
     assert len(history) == 10

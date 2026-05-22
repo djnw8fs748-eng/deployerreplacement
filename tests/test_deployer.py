@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from stackr.deployer import _ensure_data_dirs, _run_compose, deploy, remove_app, rollback
+from stackr.engine.docker import OperationResult
 from stackr.engine.state import StateDB
 from stackr.state import State
 
@@ -69,9 +70,9 @@ def test_remove_app_does_not_destroy_volumes(tmp_path: Path) -> None:
 
 def test_deploy_skips_unchanged_app(tmp_path: Path) -> None:
     """An app whose compose content hasn't changed should not be restarted."""
-    from stackr.catalog import Catalog
-    from stackr.config import StackrConfig
-    from stackr.validator import ValidationResult
+    from stackr.engine.catalog import Catalog
+    from stackr.engine.config import StackrConfig
+    from stackr.engine.validator import ValidationResult
 
     config = StackrConfig.model_validate(
         {
@@ -105,9 +106,9 @@ def test_deploy_skips_unchanged_app(tmp_path: Path) -> None:
 
 def test_deploy_force_redeploys_unchanged_app(tmp_path: Path) -> None:
     """force=True must redeploy even when state.is_changed returns False."""
-    from stackr.catalog import Catalog
-    from stackr.config import StackrConfig
-    from stackr.validator import ValidationResult
+    from stackr.engine.catalog import Catalog
+    from stackr.engine.config import StackrConfig
+    from stackr.engine.validator import ValidationResult
 
     config = StackrConfig.model_validate(
         {
@@ -137,9 +138,9 @@ def test_deploy_force_redeploys_unchanged_app(tmp_path: Path) -> None:
 
 def test_deploy_restarts_changed_app(tmp_path: Path) -> None:
     """An app whose compose content has changed should be (re)deployed."""
-    from stackr.catalog import Catalog
-    from stackr.config import StackrConfig
-    from stackr.validator import ValidationResult
+    from stackr.engine.catalog import Catalog
+    from stackr.engine.config import StackrConfig
+    from stackr.engine.validator import ValidationResult
 
     config = StackrConfig.model_validate(
         {
@@ -174,8 +175,8 @@ def test_deploy_restarts_changed_app(tmp_path: Path) -> None:
 
 
 def test_rollback_no_state_exits(tmp_path: Path) -> None:
-    from stackr.catalog import Catalog
-    from stackr.config import StackrConfig
+    from stackr.engine.catalog import Catalog
+    from stackr.engine.config import StackrConfig
 
     config = StackrConfig.model_validate(
         {
@@ -288,8 +289,8 @@ services:
 
 
 def test_rollback_applies_stored_compose(tmp_path: Path) -> None:
-    from stackr.catalog import Catalog
-    from stackr.config import StackrConfig
+    from stackr.engine.catalog import Catalog
+    from stackr.engine.config import StackrConfig
     from stackr.state import AppState
 
     config = StackrConfig.model_validate(
@@ -328,8 +329,7 @@ def test_rollback_applies_stored_compose(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _make_op_result(success: bool = True, app_name: str = "app") -> "OperationResult":
-    from stackr.engine.docker import OperationResult
+def _make_op_result(success: bool = True, app_name: str = "app") -> OperationResult:
 
     return OperationResult(
         success=success,

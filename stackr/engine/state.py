@@ -3,11 +3,11 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from collections.abc import Generator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Generator
 
 DEFAULT_STATE_DIR = Path.home() / ".stackr"
 DEFAULT_DB_PATH = DEFAULT_STATE_DIR / "stackr.db"

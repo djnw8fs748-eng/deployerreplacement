@@ -1,9 +1,9 @@
 """Tests for pre-deploy validation."""
 
 
-from stackr.catalog import Catalog
-from stackr.config import AppConfig, StackrConfig
-from stackr.validator import validate
+from stackr.engine.catalog import Catalog
+from stackr.engine.config import AppConfig, StackrConfig
+from stackr.engine.validator import validate
 
 
 def _make_config(apps: list[dict], **kwargs) -> StackrConfig:
@@ -69,7 +69,7 @@ def test_port_conflict_same_host_port(monkeypatch):
     """Two apps binding the same host port produce a conflict error."""
     from pathlib import Path
 
-    from stackr.catalog import CatalogApp
+    from stackr.engine.catalog import CatalogApp
 
     catalog = Catalog()
     # Simulate two DNS servers both trying to bind host port 53
@@ -99,7 +99,7 @@ def test_shared_traefik_port_no_conflict(monkeypatch):
     """Apps sharing the same container port (Traefik-proxied) do not conflict."""
     from pathlib import Path
 
-    from stackr.catalog import CatalogApp
+    from stackr.engine.catalog import CatalogApp
 
     catalog = Catalog()
     # Two apps both listen on container port 8080 but are proxied — no host conflict
@@ -165,7 +165,7 @@ def test_container_name_conflict_detected(monkeypatch):
     """Two apps with the same name produce a container name conflict error."""
     from pathlib import Path
 
-    from stackr.catalog import CatalogApp
+    from stackr.engine.catalog import CatalogApp
 
     catalog = Catalog()
     fake_app = CatalogApp(

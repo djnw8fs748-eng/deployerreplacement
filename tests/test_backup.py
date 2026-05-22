@@ -14,7 +14,7 @@ import pytest
 
 
 def test_check_restic_raises_when_not_on_path() -> None:
-    from stackr.backup import _check_restic
+    from stackr.engine.backup import _check_restic
 
     with patch("shutil.which", return_value=None):
         try:
@@ -26,7 +26,7 @@ def test_check_restic_raises_when_not_on_path() -> None:
 
 
 def test_check_restic_passes_when_found() -> None:
-    from stackr.backup import _check_restic
+    from stackr.engine.backup import _check_restic
 
     with patch("shutil.which", return_value="/usr/bin/restic"):
         _check_restic()  # must not raise
@@ -38,7 +38,7 @@ def test_check_restic_passes_when_found() -> None:
 
 
 def test_ensure_repo_initialized_skips_init_when_repo_exists() -> None:
-    from stackr.backup import _ensure_repo_initialized
+    from stackr.engine.backup import _ensure_repo_initialized
 
     env: dict[str, str] = {}
     with patch("subprocess.run") as mock_run:
@@ -51,7 +51,7 @@ def test_ensure_repo_initialized_skips_init_when_repo_exists() -> None:
 
 
 def test_ensure_repo_initialized_runs_init_when_repo_missing() -> None:
-    from stackr.backup import _ensure_repo_initialized
+    from stackr.engine.backup import _ensure_repo_initialized
 
     env: dict[str, str] = {}
     # restic's exact message when no repo exists at the path
@@ -77,7 +77,7 @@ def test_ensure_repo_initialized_runs_init_when_repo_missing() -> None:
 
 
 def test_ensure_repo_initialized_raises_on_real_error() -> None:
-    from stackr.backup import _ensure_repo_initialized
+    from stackr.engine.backup import _ensure_repo_initialized
 
     env: dict[str, str] = {}
 
@@ -99,7 +99,7 @@ def test_ensure_repo_initialized_raises_on_real_error() -> None:
 
 
 def test_backup_happy_path(tmp_path: Path) -> None:
-    from stackr.backup import backup
+    from stackr.engine.backup import backup
 
     data_dir = tmp_path / "data"
     state_dir = tmp_path / "state"
@@ -136,7 +136,7 @@ def test_backup_happy_path(tmp_path: Path) -> None:
 
 
 def test_backup_raises_on_restic_failure(tmp_path: Path) -> None:
-    from stackr.backup import backup
+    from stackr.engine.backup import backup
 
     env: dict[str, str] = {"STACKR_RESTIC_PASSWORD": "secret"}
 
@@ -170,7 +170,7 @@ def test_backup_raises_on_restic_failure(tmp_path: Path) -> None:
 
 
 def test_restore_delegates_correct_args(tmp_path: Path) -> None:
-    from stackr.backup import restore
+    from stackr.engine.backup import restore
 
     env: dict[str, str] = {"STACKR_RESTIC_PASSWORD": "secret"}
 
@@ -194,7 +194,7 @@ def test_restore_delegates_correct_args(tmp_path: Path) -> None:
 
 
 def test_restore_raises_on_failure(tmp_path: Path) -> None:
-    from stackr.backup import restore
+    from stackr.engine.backup import restore
 
     env: dict[str, str] = {"STACKR_RESTIC_PASSWORD": "secret"}
 
@@ -217,7 +217,7 @@ def test_restore_raises_on_failure(tmp_path: Path) -> None:
 
 
 def test_list_snapshots_returns_parsed_json(tmp_path: Path) -> None:
-    from stackr.backup import list_snapshots
+    from stackr.engine.backup import list_snapshots
 
     sample = [
         {
@@ -245,7 +245,7 @@ def test_list_snapshots_returns_parsed_json(tmp_path: Path) -> None:
 
 
 def test_list_snapshots_raises_on_failure(tmp_path: Path) -> None:
-    from stackr.backup import list_snapshots
+    from stackr.engine.backup import list_snapshots
 
     env: dict[str, str] = {"STACKR_RESTIC_PASSWORD": "secret"}
 

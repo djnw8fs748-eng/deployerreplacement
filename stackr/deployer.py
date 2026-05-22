@@ -12,12 +12,12 @@ from pathlib import Path
 import yaml
 from rich.console import Console
 
-from stackr.catalog import Catalog, CatalogApp
-from stackr.config import AppConfig, StackrConfig
-from stackr.network import ensure_networks
-from stackr.renderer import render_app
+from stackr.engine.catalog import Catalog, CatalogApp
+from stackr.engine.config import AppConfig, StackrConfig
+from stackr.engine.docker import ensure_networks
+from stackr.engine.renderer import render_app
+from stackr.engine.validator import ValidationResult
 from stackr.state import State
-from stackr.validator import ValidationResult
 
 console = Console()
 
@@ -97,7 +97,7 @@ def deploy(
             if stderr:
                 console.print(f"  [red]Docker error:[/red]\n{stderr}")
             if config.alerts.enabled:
-                from stackr.alerts import send_alert
+                from stackr.engine.alerts import send_alert
 
                 send_alert(
                     f"Deploy failed: {app_config.name}",
@@ -107,7 +107,7 @@ def deploy(
             raise
         except Exception as exc:
             if config.alerts.enabled:
-                from stackr.alerts import send_alert
+                from stackr.engine.alerts import send_alert
 
                 send_alert(
                     f"Deploy failed: {app_config.name}",
@@ -200,7 +200,7 @@ def _get_catalog_app(
     catalog: Catalog,
 ) -> CatalogApp | None:
     if app_config.catalog_path:
-        from stackr.catalog import _load_app
+        from stackr.engine.catalog import _load_app
         app_yml = app_config.catalog_path / "app.yml"
         if not app_yml.exists():
             console.print(f"[red]Local catalog not found: {app_yml}[/red]")
@@ -315,7 +315,5 @@ def _run_compose(
 from stackr.engine.deployer import (  # noqa: E402, F401
     deploy_all,
     deploy_app,
-    remove_app as engine_remove_app,
     rollback_app,
-    stop_app as engine_stop_app,
 )

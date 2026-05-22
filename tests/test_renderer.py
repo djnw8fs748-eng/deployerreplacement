@@ -2,9 +2,9 @@
 
 import yaml
 
-from stackr.catalog import Catalog
-from stackr.config import AppConfig, StackrConfig
-from stackr.renderer import _deep_merge, render_app
+from stackr.engine.catalog import Catalog
+from stackr.engine.config import AppConfig, StackrConfig
+from stackr.engine.renderer import _deep_merge, render_app
 
 
 def _make_config(**kwargs) -> StackrConfig:

@@ -23,10 +23,10 @@ from typing import Any
 import pytest
 import yaml
 
-from stackr.catalog import Catalog
-from stackr.config import AppConfig, StackrConfig
-from stackr.renderer import render_app
-from stackr.validator import validate
+from stackr.engine.catalog import Catalog
+from stackr.engine.config import AppConfig, StackrConfig
+from stackr.engine.renderer import render_app
+from stackr.engine.validator import validate
 
 # ---------------------------------------------------------------------------
 # Config factories

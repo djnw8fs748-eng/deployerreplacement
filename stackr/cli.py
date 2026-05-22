@@ -13,7 +13,8 @@ from rich.table import Table
 from stackr.engine.catalog import Catalog
 from stackr.engine.config import StackrConfig, load_config
 from stackr.engine.secrets import build_env
-from stackr.engine.state import DEFAULT_STATE_DIR as _STATE_DB_DIR, StateDB
+from stackr.engine.state import DEFAULT_STATE_DIR as _STATE_DB_DIR
+from stackr.engine.state import StateDB
 
 
 def _version_callback(value: bool) -> None:
@@ -696,8 +697,8 @@ def catalog_update(
 @catalog_app.command(name="version")
 def catalog_version() -> None:
     """Show current catalog path, version, and available app count."""
-    from stackr.engine.catalog import BUILTIN_CATALOG, USER_CATALOG, Catalog
     from stackr.catalog_sync import read_installed_version
+    from stackr.engine.catalog import BUILTIN_CATALOG, USER_CATALOG, Catalog
 
     catalog = Catalog()
     installed = read_installed_version()

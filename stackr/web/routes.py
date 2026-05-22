@@ -33,8 +33,8 @@ import fastapi
 import yaml
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 
-from stackr.catalog import Catalog
-from stackr.config import load_config
+from stackr.engine.catalog import Catalog
+from stackr.engine.config import load_config
 from stackr.state import State
 
 _TEMPLATES_DIR = Path(__file__).parent / "templates"

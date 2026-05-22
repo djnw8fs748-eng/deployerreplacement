@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from pydantic import ValidationError
 
-from stackr.config import AlertConfig
+from stackr.engine.config import AlertConfig
 
 # ---------------------------------------------------------------------------
 # send_alert — enabled=False guard
@@ -15,7 +15,7 @@ from stackr.config import AlertConfig
 
 
 def test_send_alert_does_nothing_when_disabled() -> None:
-    from stackr.alerts import send_alert
+    from stackr.engine.alerts import send_alert
 
     config = AlertConfig(enabled=False, provider="ntfy", url="https://ntfy.sh/test")
     with patch("urllib.request.urlopen") as mock_open:
@@ -32,7 +32,7 @@ def test_send_alert_swallows_http_errors() -> None:
     """A broken endpoint must never raise — it should only warn."""
     import urllib.error
 
-    from stackr.alerts import send_alert
+    from stackr.engine.alerts import send_alert
 
     config = AlertConfig(enabled=True, provider="ntfy", url="https://ntfy.sh/test")
     with patch("urllib.request.urlopen", side_effect=urllib.error.URLError("connection refused")):
@@ -46,7 +46,7 @@ def test_send_alert_swallows_http_errors() -> None:
 
 
 def test_send_alert_ntfy_posts_to_url() -> None:
-    from stackr.alerts import send_alert
+    from stackr.engine.alerts import send_alert
 
     config = AlertConfig(enabled=True, provider="ntfy", url="https://ntfy.sh/my-topic")
     mock_resp = MagicMock()
@@ -62,7 +62,7 @@ def test_send_alert_ntfy_posts_to_url() -> None:
 
 
 def test_send_alert_ntfy_includes_bearer_token_when_set() -> None:
-    from stackr.alerts import send_alert
+    from stackr.engine.alerts import send_alert
 
     config = AlertConfig(
         enabled=True, provider="ntfy", url="https://ntfy.sh/private", token="mytoken"
@@ -85,7 +85,7 @@ def test_send_alert_ntfy_includes_bearer_token_when_set() -> None:
 def test_send_alert_gotify_sends_json_body() -> None:
     import json
 
-    from stackr.alerts import send_alert
+    from stackr.engine.alerts import send_alert
 
     config = AlertConfig(
         enabled=True, provider="gotify", url="https://gotify.example.com/message", token="tok"
@@ -111,7 +111,7 @@ def test_send_alert_gotify_sends_json_body() -> None:
 def test_send_alert_webhook_sends_json_body() -> None:
     import json
 
-    from stackr.alerts import send_alert
+    from stackr.engine.alerts import send_alert
 
     config = AlertConfig(
         enabled=True, provider="webhook", url="https://hooks.example.com/notify"

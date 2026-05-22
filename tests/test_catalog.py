@@ -2,7 +2,7 @@
 
 
 
-from stackr.catalog import Catalog
+from stackr.engine.catalog import Catalog
 
 
 def test_builtin_catalog_loads():
