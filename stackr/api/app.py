@@ -13,6 +13,7 @@ def create_api(config_path: Path = Path("stackr.yml")) -> Any:
         raise RuntimeError("FastAPI is not installed.") from exc
 
     from stackr.api.deps import set_config_path
+    from stackr.api.routes.apps import router as apps_router
     from stackr.api.routes.catalog import router as catalog_router
     from stackr.api.routes.config import router as config_router
     from stackr.api.routes.system import router as system_router
@@ -32,6 +33,7 @@ def create_api(config_path: Path = Path("stackr.yml")) -> Any:
     api.include_router(system_router)
     api.include_router(catalog_router)
     api.include_router(config_router)
+    api.include_router(apps_router)
     app.include_router(api)
 
     return app
