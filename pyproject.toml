@@ -53,6 +53,11 @@ ignore_missing_imports = true
 ignore_errors = true
 
 [[tool.mypy.overrides]]
+module = ["stackr.api", "stackr.api.*"]
+ignore_missing_imports = true
+ignore_errors = true
+
+[[tool.mypy.overrides]]
 module = "uvicorn"
 ignore_missing_imports = true
 
