@@ -63,8 +63,11 @@ async def test_validate_returns_result(api) -> None:
 
 @pytest.mark.asyncio
 async def test_secret_names_returns_list(api) -> None:
-    with patch("stackr.api.routes.system.build_env", return_value={"MY_SECRET": "val", "OTHER": "x"}):
-        async with AsyncClient(transport=ASGITransport(app=api), base_url="http://test") as client:
+    mock_env = {"MY_SECRET": "val", "OTHER": "x"}
+    with patch("stackr.api.deps.build_env", return_value=mock_env):
+        async with AsyncClient(
+            transport=ASGITransport(app=api), base_url="http://test"
+        ) as client:
             resp = await client.get("/api/v1/system/secrets")
     assert resp.status_code == 200
     data = resp.json()

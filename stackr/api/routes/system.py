@@ -7,8 +7,13 @@ import fastapi
 
 import stackr.engine.docker as _docker
 from stackr.api.deps import Cat, Config, Env, get_config_path
-from stackr.api.models import HealthCheck, HealthOut, SecretNamesOut, ValidationErrorOut, ValidationResultOut
-from stackr.engine.secrets import build_env
+from stackr.api.models import (
+    HealthCheck,
+    HealthOut,
+    SecretNamesOut,
+    ValidationErrorOut,
+    ValidationResultOut,
+)
 
 router = fastapi.APIRouter(prefix="/system", tags=["system"])
 
@@ -28,7 +33,11 @@ def health(config: Config) -> HealthOut:
     checks.append(HealthCheck(
         name="proxy_network",
         ok=proxy_ok,
-        message="exists" if proxy_ok else "Docker network 'proxy' not found — run: docker network create proxy",
+        message=(
+            "exists"
+            if proxy_ok
+            else "Docker network 'proxy' not found — run: docker network create proxy"
+        ),
     ))
 
     if config.security.socket_proxy:
