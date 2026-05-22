@@ -61,3 +61,46 @@ def test_create_api_raises_without_fastapi(monkeypatch: pytest.MonkeyPatch, tmp_
     monkeypatch.setattr(builtins, "__import__", blocked)
     with pytest.raises(RuntimeError, match="FastAPI"):
         create_api(tmp_path / "stackr.yml")
+
+
+@pytest.mark.asyncio
+async def test_spa_root_returns_html(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """GET / should serve the SPA index.html."""
+    import stackr.api.app as api_module
+    monkeypatch.setattr(api_module, "_STATIC_DIR", tmp_path)
+    (tmp_path / "index.html").write_text("<!DOCTYPE html><html><body>Stackr</body></html>")
+    (tmp_path / "style.css").write_text("body{}")
+    (tmp_path / "app.js").write_text("/* js */")
+
+    cfg = tmp_path / "stackr.yml"
+    cfg.write_text(
+        "global:\n  data_dir: /opt/appdata\n"
+        "network:\n  domain: test.local\n  local_domain: home.test.local\n"
+    )
+    api = create_api(cfg)
+    async with AsyncClient(transport=ASGITransport(app=api), base_url="http://test") as client:
+        resp = await client.get("/")
+    assert resp.status_code == 200
+    assert "text/html" in resp.headers["content-type"]
+
+
+@pytest.mark.asyncio
+async def test_static_files_served(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """GET /static/style.css and /static/app.js should return 200 when files exist."""
+    import stackr.api.app as api_module
+    monkeypatch.setattr(api_module, "_STATIC_DIR", tmp_path)
+    (tmp_path / "index.html").write_text("<!DOCTYPE html><html><body>Stackr</body></html>")
+    (tmp_path / "style.css").write_text("body { color: red; }")
+    (tmp_path / "app.js").write_text("console.log('test');")
+
+    cfg = tmp_path / "stackr.yml"
+    cfg.write_text(
+        "global:\n  data_dir: /opt/appdata\n"
+        "network:\n  domain: test.local\n  local_domain: home.test.local\n"
+    )
+    api = create_api(cfg)
+    async with AsyncClient(transport=ASGITransport(app=api), base_url="http://test") as client:
+        css = await client.get("/static/style.css")
+        js = await client.get("/static/app.js")
+    assert css.status_code == 200
+    assert js.status_code == 200

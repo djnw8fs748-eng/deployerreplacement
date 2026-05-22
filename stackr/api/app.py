@@ -4,6 +4,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+# Two levels up from stackr/api/app.py -> stackr/ -> web/static/
+_STATIC_DIR = Path(__file__).parent.parent / "web" / "static"
+
 
 def create_api(config_path: Path = Path("stackr.yml")) -> Any:
     """Create and return the Stackr REST API FastAPI application."""
@@ -11,6 +14,9 @@ def create_api(config_path: Path = Path("stackr.yml")) -> Any:
         import fastapi
     except ImportError as exc:
         raise RuntimeError("FastAPI is not installed.") from exc
+
+    from fastapi.responses import FileResponse
+    from fastapi.staticfiles import StaticFiles
 
     from stackr.api.deps import set_config_path
     from stackr.api.routes.apps import router as apps_router
@@ -39,5 +45,13 @@ def create_api(config_path: Path = Path("stackr.yml")) -> Any:
     api.include_router(deploy_router)
     api.include_router(mounts_router)
     app.include_router(api)
+
+    # Serve static SPA — only when files are present
+    if _STATIC_DIR.exists():
+        @app.get("/", response_class=FileResponse, include_in_schema=False)
+        def spa_root() -> FileResponse:
+            return FileResponse(str(_STATIC_DIR / "index.html"))
+
+        app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 
     return app
