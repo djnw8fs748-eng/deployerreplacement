@@ -1,13 +1,13 @@
 """Pydantic request/response models for the Stackr REST API."""
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel
 
 
-class AppStatusEnum(str, Enum):
+class AppStatusEnum(StrEnum):
     running = "running"
     stopped = "stopped"
     degraded = "degraded"
@@ -41,7 +41,7 @@ class DeployEventOut(BaseModel):
     started_at: str
 
 
-class JobStatus(str, Enum):
+class JobStatus(StrEnum):
     idle = "idle"
     running = "running"
     done = "done"

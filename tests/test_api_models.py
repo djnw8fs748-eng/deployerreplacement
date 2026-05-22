@@ -3,25 +3,21 @@ from __future__ import annotations
 
 import pytest
 
+from stackr.api.jobs import finish_job, get_job, reset_for_tests, start_job
 from stackr.api.models import (
+    AppDetail,
     AppStatusEnum,
     AppSummary,
-    AppDetail,
-    DeployEventOut,
-    JobStatus,
-    DeployStatusOut,
-    ValidationResultOut,
-    ValidationErrorOut,
     CatalogAppOut,
-    HealthOut,
-    HealthCheck,
-    MountOut,
-    MountCreate,
+    DeployEventOut,
+    DeployStatusOut,
     GlobalUpdate,
-    NetworkUpdate,
-    SecurityUpdate,
-    BackupUpdate,
-    AlertUpdate,
+    HealthCheck,
+    HealthOut,
+    JobStatus,
+    MountCreate,
+    ValidationErrorOut,
+    ValidationResultOut,
 )
 
 
@@ -122,3 +118,71 @@ def test_global_update_all_optional() -> None:
     assert u.timezone is None
     assert u.puid is None
     assert u.pgid is None
+
+
+@pytest.fixture(autouse=True)
+def clear_jobs() -> None:
+    reset_for_tests()
+
+
+def test_start_job_creates_running_job() -> None:
+    job = start_job()
+    assert job is not None
+    assert job.status == JobStatus.running
+    assert job.job_id != ""
+
+
+def test_start_job_returns_none_when_already_running() -> None:
+    job1 = start_job()
+    job2 = start_job()
+    assert job1 is not None
+    assert job2 is None
+
+
+def test_finish_job_marks_done() -> None:
+    job = start_job()
+    assert job is not None
+    finish_job(job, results=[{"app": "test", "success": True}])
+    assert job.status == JobStatus.done
+    assert job.error is None
+    assert job.results[0]["app"] == "test"
+
+
+def test_finish_job_marks_failed_on_error() -> None:
+    job = start_job()
+    assert job is not None
+    finish_job(job, results=[], error="boom")
+    assert job.status == JobStatus.failed
+    assert job.error == "boom"
+
+
+def test_get_job_returns_none_initially() -> None:
+    assert get_job() is None
+
+
+def test_get_job_returns_current_job() -> None:
+    job = start_job()
+    assert get_job() is job
+
+
+def test_finished_job_allows_new_start() -> None:
+    job = start_job()
+    assert job is not None
+    finish_job(job, results=[])
+    job2 = start_job()
+    assert job2 is not None
+    assert job2.job_id != job.job_id
+
+
+def test_start_job_with_app_name() -> None:
+    job = start_job(app_name="jellyfin")
+    assert job is not None
+    assert job.app_name == "jellyfin"
+
+
+def test_reset_for_tests_clears_state() -> None:
+    start_job()
+    reset_for_tests()
+    assert get_job() is None
+    new_job = start_job()
+    assert new_job is not None
