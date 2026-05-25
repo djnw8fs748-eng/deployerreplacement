@@ -1,55 +1,120 @@
-<div class="app-card"
+{#
+  Partial: app_card_new.html
+  Included by index.html for each app in the running/stopped/disabled grids.
+
+  Expected context variables (from routes.py dashboard()):
+    app.name          – machine name (e.g. "jellyfin")
+    app.display_name  – human label (e.g. "Jellyfin")
+    app.description   – short description string
+    app.category      – category slug (e.g. "media")
+    app.enabled       – bool
+    app.deployed      – bool
+    app.deployed_at   – "YYYY-MM-DD HH:MM:SS" string or None
+    app.has_vars      – bool (catalog app has configurable vars)
+#}
+{%- set card_class = 'deployed' if app.deployed else ('enabled' if app.enabled else '') -%}
+{%- set toggle_class = 'deployed-on' if app.deployed else ('on' if app.enabled else '') -%}
+{%- set status_class = 'running' if app.deployed else ('stopped' if app.enabled else '') -%}
+{%- set status_label = 'running' if app.deployed else ('stopped' if app.enabled else 'disabled') -%}
+
+{%- set cat_icon = {
+  'media':        'ti-device-tv',
+  'network':      'ti-network',
+  'ai':           'ti-brain',
+  'monitoring':   'ti-chart-line',
+  'security':     'ti-shield-lock',
+  'database':     'ti-database',
+  'management':   'ti-server',
+  'storage':      'ti-folder',
+  'productivity': 'ti-pencil',
+  'dashboard':    'ti-layout-kanban',
+  'gaming':       'ti-device-gamepad-2',
+  'custom':       'ti-puzzle'
+}.get(app.category, 'ti-apps') -%}
+
+<div class="app-card {{ card_class }}"
      id="card-{{ app.name }}"
-     data-search="{{ app.name }} {{ app.display_name }} {{ app.category }} {{ app.description }}"
-     style="background:#1e293b;border:1px solid #334155;border-radius:0.75rem;padding:1rem;display:flex;flex-direction:column;gap:0.5rem;">
-  <div style="display:flex;align-items:center;justify-content:space-between;">
-    <span style="font-weight:700;font-size:1rem;color:#f1f5f9;">{{ app.display_name }}</span>
-    <span style="font-size:0.75rem;color:#94a3b8;background:#0f172a;padding:0.15rem 0.5rem;border-radius:999px;">{{ app.category }}</span>
+     data-name="{{ app.name }}"
+     data-category="{{ app.category }}"
+     data-desc="{{ app.description | default('') }}"
+     data-enabled="{{ 'true' if app.enabled else 'false' }}"
+     data-deployed="{{ 'true' if app.deployed else 'false' }}">
+
+  <div class="app-card-head">
+    <div class="app-icon {{ app.category }}">
+      <i class="ti {{ cat_icon }}"></i>
+    </div>
+    <div class="app-info">
+      <div class="app-name">{{ app.display_name }}</div>
+      <div class="app-desc">{{ app.description or 'No description.' }}</div>
+    </div>
+    <div class="toggle-wrap">
+      <div class="toggle {{ toggle_class }}"
+           hx-post="/api/toggle/{{ app.name }}"
+           hx-target="#card-{{ app.name }}"
+           hx-swap="outerHTML"
+           title="{{ 'Disable' if app.enabled else 'Enable' }} {{ app.display_name }}">
+      </div>
+    </div>
   </div>
 
-  <p style="font-size:0.82rem;color:#94a3b8;flex:1;">{{ app.description or "No description." }}</p>
-
-  <div style="display:flex;align-items:center;gap:0.5rem;margin-top:0.25rem;">
-    <span style="font-size:0.8rem;color:{% if app.deployed %}#4ade80{% else %}#94a3b8{% endif %};">
-      {% if app.deployed %}● deployed{% if app.deployed_at %} {{ app.deployed_at }}{% endif %}{% else %}○ not deployed{% endif %}
+  <div class="app-meta">
+    <span class="app-tag">{{ app.category }}</span>
+    <span class="app-status {{ status_class }}">
+      <span class="dot"></span>
+      {{ status_label -}}
+      {%- if app.deployed_at %} · {{ app.deployed_at[:10] }}{% endif %}
     </span>
   </div>
 
-  <div style="display:flex;gap:0.5rem;margin-top:0.25rem;">
-    <button hx-post="/api/toggle/{{ app.name }}"
-            hx-target="#card-{{ app.name }}"
-            hx-swap="outerHTML"
-            style="flex:1;background:{% if app.enabled %}#16a34a{% else %}#475569{% endif %};color:#fff;border:none;border-radius:0.4rem;padding:0.4rem 0;cursor:pointer;font-size:0.85rem;font-weight:600;">
-      {% if app.enabled %}Enabled{% else %}Disabled{% endif %}
-    </button>
-    <button hx-post="/api/deploy/{{ app.name }}"
-            hx-target="#deploy-result"
-            hx-swap="innerHTML"
-            {% if not app.enabled %}disabled{% endif %}
-            style="flex:1;background:#0ea5e9;color:#fff;border:none;border-radius:0.4rem;padding:0.4rem 0;cursor:pointer;font-size:0.85rem;font-weight:600;{% if not app.enabled %}opacity:0.4;cursor:not-allowed;{% endif %}">
-      Deploy
-    </button>
-    <a href="/api/logs/{{ app.name }}"
-       title="Stream logs (SSE)"
-       style="padding:0.4rem 0.6rem;background:#1e3a5f;color:#38bdf8;border-radius:0.4rem;font-size:0.85rem;text-decoration:none;">
-      Logs
-    </a>
+  <div class="app-actions">
+    {% if app.deployed %}
+      <button class="app-btn primary"
+        hx-post="/api/deploy/{{ app.name }}"
+        hx-target="#deploy-result"
+        hx-swap="innerHTML"
+        onclick="showDeployResult()">
+        <i class="ti ti-refresh"></i> Redeploy
+      </button>
+      <button class="app-btn" onclick="selectLog('{{ app.name }}')">
+        <i class="ti ti-terminal-2"></i> Logs
+      </button>
+    {% elif app.enabled %}
+      <button class="app-btn primary"
+        hx-post="/api/deploy/{{ app.name }}"
+        hx-target="#deploy-result"
+        hx-swap="innerHTML"
+        onclick="showDeployResult()">
+        <i class="ti ti-player-play"></i> Deploy
+      </button>
+      <button class="app-btn" onclick="selectLog('{{ app.name }}')">
+        <i class="ti ti-terminal-2"></i> Logs
+      </button>
+    {% else %}
+      <button class="app-btn primary"
+        hx-post="/api/toggle/{{ app.name }}"
+        hx-target="#card-{{ app.name }}"
+        hx-swap="outerHTML">
+        <i class="ti ti-toggle-right"></i> Enable
+      </button>
+    {% endif %}
+
     {% if app.has_vars %}
-    <button onclick="toggleVars('{{ app.name }}')"
-            style="padding:0.4rem 0.6rem;background:#312e81;color:#a5b4fc;border:none;border-radius:0.4rem;font-size:0.85rem;cursor:pointer;"
-            title="Configure vars">
-      ⚙
+    <button class="app-btn" onclick="toggleVars('{{ app.name }}')">
+      <i class="ti ti-settings"></i> Config
     </button>
     {% endif %}
   </div>
 
   {% if app.has_vars %}
-  <div id="vars-panel-{{ app.name }}" style="display:none;margin-top:0.5rem;padding-top:0.5rem;border-top:1px solid #334155;">
+  <div class="vars-panel" id="vars-panel-{{ app.name }}">
     <div hx-get="/api/app/{{ app.name }}/vars-form"
          hx-trigger="revealed"
-         hx-swap="innerHTML">
-      <p style="color:#64748b;font-size:0.82rem;">Loading…</p>
+         hx-swap="innerHTML"
+         style="color:var(--muted);font-size:12px">
+      Loading config…
     </div>
   </div>
   {% endif %}
+
 </div>
