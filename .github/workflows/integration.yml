@@ -16,6 +16,7 @@ name: Integration Tests
 #   adguardhome      — conflicts with systemd-resolved on host port 53 (GitHub Actions runner)
 #   headscale        — requires a config.yaml file pre-mounted at /etc/headscale
 #   gluetun          — requires live VPN credentials
+#   readarr          — lscr.io/linuxserver/readarr publishes no linux/amd64 manifest for any stable tag
 
 on:
   workflow_dispatch:
@@ -290,11 +291,6 @@ jobs:
 
           - app: lidarr
             container_port: 8686
-            health_path: "/ping"
-            max_wait: 180
-
-          - app: readarr
-            container_port: 8787
             health_path: "/ping"
             max_wait: 180
 
