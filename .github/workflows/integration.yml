@@ -172,7 +172,7 @@ jobs:
 
       - name: REST API — GET /apps returns app list
         run: |
-          curl -sf http://127.0.0.1:7274/api/v1/apps | python3 -c "
+          curl -sfL http://127.0.0.1:7274/api/v1/apps | python3 -c "
           import json, sys
           apps = json.load(sys.stdin)
           assert isinstance(apps, list), 'Expected a list'
@@ -213,7 +213,7 @@ jobs:
           echo "=== uptime-kuma logs ==="
           docker logs uptime-kuma --tail 80 --timestamps 2>&1 || true
           echo "=== stackr API /apps ==="
-          curl -s http://127.0.0.1:7274/api/v1/apps | python3 -m json.tool || echo "(API not reachable)"
+          curl -sL http://127.0.0.1:7274/api/v1/apps | python3 -m json.tool || echo "(API not reachable)"
           echo "=== stackr state DB ==="
           python3 -c "
           from stackr.engine.state import StateDB
