@@ -80,9 +80,20 @@ info "Python $PYTHON_VERSION detected."
 # Even when ca-certificates is present, the package index may be stale so the
 # bundle can be outdated — refresh the index and reinstall to get current roots.
 if command -v apt-get >/dev/null 2>&1; then
+    # Sync clock first — VMs (Parallels, VirtualBox, WSL) often wake with a skewed
+    # clock that causes apt to reject release files as "not valid yet".
+    if command -v timedatectl >/dev/null 2>&1; then
+        sudo timedatectl set-ntp true 2>/dev/null || true
+        # Give systemd-timesyncd a moment to apply the correction.
+        sleep 2
+    fi
+
     info "Refreshing package index and updating CA certificates..."
-    sudo apt-get update -qq
-    sudo apt-get install -y -qq ca-certificates
+    # -o Acquire::Check-Valid-Until=false: tolerate repos whose Release timestamp
+    # is ahead of the system clock (clock-skewed VMs).
+    APT_OPTS="-o Acquire::Check-Valid-Until=false"
+    sudo apt-get $APT_OPTS update -qq
+    sudo apt-get $APT_OPTS install -y -qq ca-certificates
     # Rebuild the bundle and symlinks.
     sudo update-ca-certificates --fresh >/dev/null 2>&1 || true
 fi
@@ -106,7 +117,7 @@ if ! command -v pipx >/dev/null 2>&1; then
     # Prefer the system package manager (avoids PEP 668 "externally-managed-environment"
     # errors on Debian 12+ / Ubuntu 22.04+).  Fall back to pip only as a last resort.
     if command -v apt-get >/dev/null 2>&1; then
-        sudo apt-get install -y -qq pipx
+        sudo apt-get -o Acquire::Check-Valid-Until=false install -y -qq pipx
     elif command -v apt >/dev/null 2>&1; then
         sudo apt install -y -qq pipx
     elif command -v brew >/dev/null 2>&1; then
