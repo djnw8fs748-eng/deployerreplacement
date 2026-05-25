@@ -108,6 +108,30 @@ def test_deploy_skip_pull_always_uses_engine(tmp_path):
     mock_engine.assert_called_once()
 
 
+def test_deploy_force_always_uses_engine(tmp_path):
+    """--force bypasses API even when the API is reachable."""
+    cfg = tmp_path / "stackr.yml"
+    cfg.write_text(
+        "global:\n  data_dir: /tmp\n  timezone: UTC\n  puid: 1000\n  pgid: 1000\n"
+        "network:\n  domain: test.com\n  local_domain: home.test.com\n"
+        "security:\n  socket_proxy: false\napps: []\n"
+    )
+    health = MagicMock()
+    health.__enter__ = lambda s: s
+    health.__exit__ = MagicMock(return_value=False)
+
+    with (
+        patch("urllib.request.urlopen", side_effect=[health]),
+        patch("stackr.engine.deployer.deploy_all", return_value=[]) as mock_engine,
+        patch("stackr.engine.validator.validate") as mock_val,
+    ):
+        mock_val.return_value = MagicMock(ok=True, errors=[], warnings=[])
+        result = runner.invoke(app, ["deploy", "--force", "--config", str(cfg)])
+
+    mock_engine.assert_called_once()
+    assert result.exit_code == 0
+
+
 # ---------------------------------------------------------------------------
 # stackr validate — API proxy path
 # ---------------------------------------------------------------------------
