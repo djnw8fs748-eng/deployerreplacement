@@ -17,6 +17,10 @@ from stackr.engine.state import AppState
 
 router = fastapi.APIRouter(prefix="/apps", tags=["apps"])
 
+# Dict is not locked: concurrent requests for the same app may both miss the
+# cache and call Docker, but dict operations are GIL-safe and the worst case
+# is a brief thundering-herd of Docker calls on a cold cache — acceptable for
+# a single-user homelab tool.
 _STATUS_CACHE: dict[str, tuple[AppStatusEnum, float]] = {}
 _CACHE_TTL = 5.0
 
@@ -198,6 +202,7 @@ def deploy_single_app(
     if job is None:
         raise fastapi.HTTPException(status_code=409, detail="A deploy job is already running")
     background_tasks.add_task(_run_deploy_job, job, config_path, name)
+    _STATUS_CACHE.pop(name, None)
     return DeployJobOut(job_id=job.job_id, status=JobStatus.running, message=f"Deploying {name}")
 
 
@@ -208,6 +213,7 @@ def rollback_app_endpoint(name: str, db: DB, config: Config) -> AppSummary:
     result = rollback_app(name, db)
     if not result.success:
         raise fastapi.HTTPException(status_code=500, detail=result.error or "Rollback failed")
+    _STATUS_CACHE.pop(name, None)
     app_cfg = next((a for a in config.apps if a.name == name), None)
     enabled = app_cfg.enabled if app_cfg else False
     return _to_summary(name, db.get_app(name), enabled)

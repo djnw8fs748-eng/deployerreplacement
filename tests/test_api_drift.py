@@ -23,10 +23,12 @@ def _mock_cs(status: str) -> MagicMock:
 
 
 def test_live_status_returns_running_when_container_up():
+    stored = {"svc": "sha256:abc"}
+    live = {"svc": "sha256:abc"}
     with patch(
         "stackr.api.routes.apps.get_container_status", return_value=_mock_cs("running")
-    ), patch("stackr.api.routes.apps.get_image_digests", return_value={}):
-        assert _live_status("myapp", {}) == AppStatusEnum.running
+    ), patch("stackr.api.routes.apps.get_image_digests", return_value=live):
+        assert _live_status("myapp", stored) == AppStatusEnum.running
 
 
 def test_live_status_returns_stopped_when_container_down():
