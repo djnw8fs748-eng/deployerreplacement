@@ -73,11 +73,28 @@ fi
 
 info "Python $PYTHON_VERSION detected."
 
-# --- Ensure CA certificates are installed (minimal Ubuntu/Debian images ship without them) ---
-# git cannot clone from GitHub over HTTPS without a valid CA bundle.
-if command -v apt-get >/dev/null 2>&1 && ! dpkg -s ca-certificates >/dev/null 2>&1; then
-    info "Installing ca-certificates (required for HTTPS git clone)..."
-    sudo apt-get install -y -qq ca-certificates
+# --- Ensure CA certificates are present and git can find them ---
+# Minimal Ubuntu/Debian images may ship without ca-certificates, or have the
+# package installed but the bundle not yet built.  git uses libcurl which needs
+# GIT_SSL_CAINFO when it cannot auto-detect the system CA bundle (CAfile: none).
+if command -v apt-get >/dev/null 2>&1; then
+    if ! dpkg -s ca-certificates >/dev/null 2>&1; then
+        info "Installing ca-certificates (required for HTTPS git clone)..."
+        sudo apt-get install -y -qq ca-certificates
+    fi
+    # Rebuild the bundle and symlinks — no-op if already up to date.
+    sudo update-ca-certificates --fresh >/dev/null 2>&1 || true
+fi
+# Tell git's libcurl exactly where the CA bundle is, regardless of auto-detection.
+CA_BUNDLE=""
+for f in /etc/ssl/certs/ca-certificates.crt /etc/pki/tls/certs/ca-bundle.crt \
+         /etc/ssl/ca-bundle.pem /usr/local/share/certs/ca-root-nss.crt; do
+    if [[ -f "$f" ]]; then CA_BUNDLE="$f"; break; fi
+done
+if [[ -n "$CA_BUNDLE" ]]; then
+    export GIT_SSL_CAINFO="$CA_BUNDLE"
+    export SSL_CERT_FILE="$CA_BUNDLE"
+    export CURL_CA_BUNDLE="$CA_BUNDLE"
 fi
 
 # --- Install pipx if needed ---
