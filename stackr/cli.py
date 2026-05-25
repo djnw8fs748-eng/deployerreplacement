@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 import typer
 import yaml
@@ -161,6 +161,11 @@ def validate(
     config_path: Annotated[Path, typer.Option("--config", "-c")] = _DEFAULT_CONFIG,
 ) -> None:
     """Validate stackr.yml without deploying."""
+    base = _api_base()
+    if base:
+        _api_validate(base)
+        return
+
     from stackr.engine.validator import validate as run_validate
 
     config, catalog, env, _ = _load(config_path)
@@ -248,6 +253,135 @@ def plan(
 
 
 # ---------------------------------------------------------------------------
+# API client helpers (used when stackr api is running at localhost:7274)
+# ---------------------------------------------------------------------------
+
+def _api_base(host: str = "127.0.0.1", port: int = 7274) -> str | None:
+    """Return base API URL if the service is reachable, else None."""
+    import urllib.request
+    try:
+        with urllib.request.urlopen(f"http://{host}:{port}/api/v1/system/health", timeout=1):
+            pass
+        return f"http://{host}:{port}/api/v1"
+    except Exception:
+        return None
+
+
+def _api_deploy(base: str, app_name: str | None) -> None:
+    """POST to API deploy endpoint, poll until done, print results."""
+    import json
+    import time
+    import urllib.error
+    import urllib.request
+
+    try:
+        endpoint = f"{base}/apps/{app_name}/deploy" if app_name else f"{base}/deploy"
+        req = urllib.request.Request(
+            endpoint, method="POST", data=b"{}", headers={"Content-Type": "application/json"}
+        )
+        with urllib.request.urlopen(req) as r:
+            job = json.loads(r.read())
+
+        job_id = job.get("job_id")
+        if not job_id:
+            console.print(f"[red]Unexpected API response: {job}[/red]")
+            raise typer.Exit(1)
+
+        console.print(f"  [cyan]→[/cyan] API job {job_id[:8]}…")
+
+        snap: dict[str, Any] = {}
+        for _ in range(300):
+            time.sleep(1)
+            with urllib.request.urlopen(f"{base}/deploy/status", timeout=30) as r:
+                snap = json.loads(r.read())
+            if snap.get("status") in ("done", "failed", "idle"):
+                break
+        else:
+            console.print("[red]Deploy timed out waiting for API response.[/red]")
+            raise typer.Exit(1)
+
+        for result in snap.get("results", []):
+            symbol = "[green]OK[/green]" if result.get("success") else "[red]FAIL[/red]"
+            console.print(f"  {symbol}    {result.get('app_name', '?')}")
+
+        if snap.get("status") == "failed":
+            console.print(f"[red]Deploy failed: {snap.get('error')}[/red]")
+            raise typer.Exit(1)
+
+        console.print("[green]Done.[/green]")
+    except (urllib.error.HTTPError, urllib.error.URLError, json.JSONDecodeError, KeyError) as exc:
+        console.print(f"[red]API error: {exc}[/red]")
+        raise typer.Exit(1) from exc
+
+
+def _api_validate(base: str) -> None:
+    """POST to API validate endpoint and print results."""
+    import json
+    import urllib.error
+    import urllib.request
+
+    try:
+        req = urllib.request.Request(
+            f"{base}/system/validate",
+            method="POST",
+            data=b"{}",
+            headers={"Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(req) as r:
+            data = json.loads(r.read())
+
+        if data["ok"]:
+            console.print("[green]Validation passed.[/green]")
+        else:
+            console.print("[red]Validation failed:[/red]")
+            for err in data["errors"]:
+                console.print(f"  [red]ERROR[/red] {err['app']}: {err['message']}")
+        for warn in data.get("warnings", []):
+            console.print(f"  [yellow]WARN[/yellow]  {warn['app']}: {warn['message']}")
+        if not data["ok"]:
+            raise typer.Exit(1)
+    except (urllib.error.HTTPError, urllib.error.URLError, json.JSONDecodeError, KeyError) as exc:
+        console.print(f"[red]API error: {exc}[/red]")
+        raise typer.Exit(1) from exc
+
+
+def _api_status(base: str, app_name: str | None) -> None:
+    """GET app list from API and print as Rich table."""
+    import json
+    import urllib.error
+    import urllib.request
+
+    try:
+        url = f"{base}/apps/{app_name}" if app_name else f"{base}/apps"
+        with urllib.request.urlopen(url) as r:
+            data = json.loads(r.read())
+
+        apps = [data] if app_name else data
+
+        _STATUS_COLORS: dict[str, str] = {
+            "running": "green", "stopped": "red", "drift": "yellow",
+            "degraded": "red", "unknown": "dim",
+        }
+        tbl = Table(title="Stackr App Status", show_header=True, header_style="bold")
+        tbl.add_column("App", style="bold")
+        tbl.add_column("Status")
+        tbl.add_column("Deployed At")
+        tbl.add_column("Last Error")
+        for a in apps:
+            color = _STATUS_COLORS.get(a.get("status", "unknown"), "dim")
+            tbl.add_row(
+                a["name"],
+                f"[{color}]{a.get('status', 'unknown')}[/{color}]",
+                a.get("deployed_at") or "—",
+                a.get("last_error") or "",
+            )
+        console.print(tbl)
+    except (urllib.error.HTTPError, urllib.error.URLError, json.JSONDecodeError, KeyError) as exc:
+        console.print(f"[red]API error: {exc}[/red]")
+        raise typer.Exit(1) from exc
+
+
+# ---------------------------------------------------------------------------
 # stackr deploy
 # ---------------------------------------------------------------------------
 
@@ -261,6 +395,11 @@ def deploy(
     ] = False,
 ) -> None:
     """Deploy all enabled apps (or a single app)."""
+    base = _api_base()
+    if base and not skip_pull and not force:
+        _api_deploy(base, app_name)
+        return
+
     from stackr.engine.deployer import deploy_all as run_deploy
     from stackr.engine.validator import validate as run_validate
 
@@ -336,6 +475,11 @@ def status(
     config_path: Annotated[Path, typer.Option("--config", "-c")] = _DEFAULT_CONFIG,
 ) -> None:
     """Show running/stopped/drifted status of all apps."""
+    base = _api_base()
+    if base:
+        _api_status(base, app_name)
+        return
+
     from stackr.status import show_status
     _, _, _, state = _load(config_path)
     show_status(state, app_name=app_name)
@@ -648,32 +792,23 @@ def umount(
 
 @app.command()
 def web(
-    config_path: Annotated[Path, typer.Option("--config", "-c")] = _DEFAULT_CONFIG,
     host: Annotated[str, typer.Option("--host", "-H")] = "127.0.0.1",
-    port: Annotated[int, typer.Option("--port", "-p")] = 8000,
+    port: Annotated[int, typer.Option("--port", "-p")] = 7274,
 ) -> None:
-    """Launch the web UI."""
-    from stackr.web import HAS_FASTAPI
+    """Open the Stackr web UI in a browser (requires the API service to be running)."""
+    import urllib.request
+    import webbrowser
 
-    if not HAS_FASTAPI:
-        console.print(
-            "[red]FastAPI and Uvicorn are required for the web UI.[/red]"
-        )
-        raise typer.Exit(1)
-
+    url = f"http://{host}:{port}"
     try:
-        import uvicorn
-    except ImportError:
-        console.print(
-            "[red]Uvicorn is required for the web UI.[/red]"
-        )
+        urllib.request.urlopen(f"{url}/api/v1/system/health", timeout=2)
+    except Exception:
+        console.print(f"[red]Stackr API is not running at {url}.[/red]")
+        console.print("Start it first with: [bold]stackr api[/bold]")
         raise typer.Exit(1) from None
 
-    from stackr.web.app import create_app
-
-    console.print(f"Starting Stackr web UI on [bold]http://{host}:{port}[/bold]")
-    application = create_app(config_path)
-    uvicorn.run(application, host=host, port=port)
+    console.print(f"Opening [bold]{url}[/bold] in browser…")
+    webbrowser.open(url)
 
 
 # ---------------------------------------------------------------------------

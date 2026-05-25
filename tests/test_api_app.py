@@ -124,3 +124,113 @@ def test_service_launchd_plist_uses_api_command() -> None:
     assert "stackr" in plist
     assert "api" in plist
     assert "web" not in plist
+
+
+@pytest.mark.asyncio
+async def test_lifespan_reconciles_stale_running_to_stopped(tmp_path, monkeypatch):
+    """DB says running but Docker says stopped → status corrected on startup."""
+    import stackr.api.app
+    from stackr.engine.docker import ContainerStatus
+    from stackr.engine.state import AppState, StateDB
+
+    cfg_path = tmp_path / "stackr.yml"
+    cfg_path.write_text(
+        "global:\n  data_dir: /opt/appdata\n"
+        "network:\n  domain: test.local\n  local_domain: home.test.local\n"
+    )
+
+    db_path = tmp_path / "stackr.db"
+    db = StateDB(db_path)
+    db.set_app(AppState(
+        name="myapp",
+        enabled=True,
+        compose_yaml="services:\n  myapp:\n    image: test",
+        status="running",
+    ))
+
+    monkeypatch.setattr(stackr.api.app, "docker_available", lambda: True)
+    monkeypatch.setattr(
+        stackr.api.app,
+        "get_container_status",
+        lambda name: ContainerStatus(app_name=name, status="stopped"),
+    )
+    monkeypatch.setattr(stackr.api.app, "StateDB", lambda: db)
+
+    app_instance = stackr.api.app.create_api(cfg_path)
+
+    transport = ASGITransport(app=app_instance)
+    async with app_instance.router.lifespan_context(app_instance), \
+            AsyncClient(transport=transport, base_url="http://test") as client:
+        await client.get("/api/v1/system/health")
+
+    assert db.get_app("myapp").status == "stopped"
+
+
+@pytest.mark.asyncio
+async def test_lifespan_skips_when_docker_unavailable(tmp_path, monkeypatch):
+    """If Docker not reachable, lifespan completes without touching the DB."""
+    import stackr.api.app
+    from stackr.engine.state import AppState, StateDB
+
+    cfg_path = tmp_path / "stackr.yml"
+    cfg_path.write_text(
+        "global:\n  data_dir: /opt/appdata\n"
+        "network:\n  domain: test.local\n  local_domain: home.test.local\n"
+    )
+
+    db_path = tmp_path / "stackr.db"
+    db = StateDB(db_path)
+    db.set_app(AppState(
+        name="myapp", enabled=True,
+        compose_yaml="services:\n  myapp:\n    image: test",
+        status="running",
+    ))
+
+    monkeypatch.setattr(stackr.api.app, "docker_available", lambda: False)
+    monkeypatch.setattr(stackr.api.app, "StateDB", lambda: db)
+
+    app_instance = stackr.api.app.create_api(cfg_path)
+
+    transport = ASGITransport(app=app_instance)
+    async with app_instance.router.lifespan_context(app_instance), \
+            AsyncClient(transport=transport, base_url="http://test") as client:
+        await client.get("/api/v1/system/health")
+
+    assert db.get_app("myapp").status == "running"  # unchanged
+
+
+@pytest.mark.asyncio
+async def test_lifespan_skips_never_deployed_apps(tmp_path, monkeypatch):
+    """Apps with compose_yaml=None are skipped during reconciliation."""
+    import stackr.api.app
+    from stackr.engine.state import AppState, StateDB
+
+    cfg_path = tmp_path / "stackr.yml"
+    cfg_path.write_text(
+        "global:\n  data_dir: /opt/appdata\n"
+        "network:\n  domain: test.local\n  local_domain: home.test.local\n"
+    )
+
+    db_path = tmp_path / "stackr.db"
+    db = StateDB(db_path)
+    db.set_app(AppState(name="myapp", enabled=True, compose_yaml=None, status="unknown"))
+
+    called: list[str] = []
+
+    def fake_gcs(name: str):
+        called.append(name)
+        from stackr.engine.docker import ContainerStatus
+        return ContainerStatus(app_name=name, status="running")
+
+    monkeypatch.setattr(stackr.api.app, "docker_available", lambda: True)
+    monkeypatch.setattr(stackr.api.app, "get_container_status", fake_gcs)
+    monkeypatch.setattr(stackr.api.app, "StateDB", lambda: db)
+
+    app_instance = stackr.api.app.create_api(cfg_path)
+
+    transport = ASGITransport(app=app_instance)
+    async with app_instance.router.lifespan_context(app_instance), \
+            AsyncClient(transport=transport, base_url="http://test") as client:
+        await client.get("/api/v1/system/health")
+
+    assert "myapp" not in called

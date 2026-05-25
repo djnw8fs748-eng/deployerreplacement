@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 import tempfile
+import time
 from typing import Any
 
 import fastapi
@@ -11,22 +12,45 @@ from fastapi.responses import StreamingResponse
 
 from stackr.api.deps import CONFIG_WRITE_LOCK, DB, Config, ConfigPath
 from stackr.api.models import AppDetail, AppStatusEnum, AppSummary, DeployEventOut
-from stackr.engine.docker import get_container_status
+from stackr.engine.docker import get_container_status, get_image_digests
 from stackr.engine.state import AppState
 
 router = fastapi.APIRouter(prefix="/apps", tags=["apps"])
 
+# Dict is not locked: concurrent requests for the same app may both miss the
+# cache and call Docker, but dict operations are GIL-safe and the worst case
+# is a brief thundering-herd of Docker calls on a cold cache — acceptable for
+# a single-user homelab tool.
+_STATUS_CACHE: dict[str, tuple[AppStatusEnum, float]] = {}
+_CACHE_TTL = 5.0
 
-def _live_status(app_name: str) -> AppStatusEnum:
+
+def _clear_status_cache() -> None:
+    """Test helper — reset per-app status cache."""
+    _STATUS_CACHE.clear()
+
+
+def _live_status(app_name: str, stored_digests: dict[str, str]) -> AppStatusEnum:
+    now = time.monotonic()
+    cached = _STATUS_CACHE.get(app_name)
+    if cached is not None and (now - cached[1]) < _CACHE_TTL:
+        return cached[0]
     try:
         cs = get_container_status(app_name)
-        return AppStatusEnum(cs.status)
+        status = AppStatusEnum(cs.status)
+        if status == AppStatusEnum.running and stored_digests:
+            live = get_image_digests(app_name, list(stored_digests.keys()))
+            if live and live != stored_digests:
+                status = AppStatusEnum.drift
     except Exception:
-        return AppStatusEnum.unknown
+        status = AppStatusEnum.unknown
+    _STATUS_CACHE[app_name] = (status, now)
+    return status
 
 
 def _to_summary(app_name: str, app_state: AppState | None, enabled: bool) -> AppSummary:
-    status = _live_status(app_name) if app_state else AppStatusEnum.unknown
+    stored = app_state.image_digests if app_state else {}
+    status = _live_status(app_name, stored) if app_state else AppStatusEnum.unknown
     return AppSummary(
         name=app_name,
         enabled=enabled,
@@ -178,6 +202,7 @@ def deploy_single_app(
     if job is None:
         raise fastapi.HTTPException(status_code=409, detail="A deploy job is already running")
     background_tasks.add_task(_run_deploy_job, job, config_path, name)
+    _STATUS_CACHE.pop(name, None)
     return DeployJobOut(job_id=job.job_id, status=JobStatus.running, message=f"Deploying {name}")
 
 
@@ -188,6 +213,7 @@ def rollback_app_endpoint(name: str, db: DB, config: Config) -> AppSummary:
     result = rollback_app(name, db)
     if not result.success:
         raise fastapi.HTTPException(status_code=500, detail=result.error or "Rollback failed")
+    _STATUS_CACHE.pop(name, None)
     app_cfg = next((a for a in config.apps if a.name == name), None)
     enabled = app_cfg.enabled if app_cfg else False
     return _to_summary(name, db.get_app(name), enabled)
