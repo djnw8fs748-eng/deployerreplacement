@@ -3,14 +3,14 @@ display_name: Readarr
 description: Book manager for Usenet and BitTorrent users
 category: media
 homepage: https://readarr.com
-version: latest
+version: develop
 requires: []
 suggests:
   - prowlarr
 vars:
   version:
     type: string
-    default: latest
+    default: develop
     description: Docker image tag
 ports:
   - 8787
