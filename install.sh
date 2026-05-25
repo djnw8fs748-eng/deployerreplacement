@@ -96,6 +96,8 @@ if [[ -n "$CA_BUNDLE" ]]; then
     export GIT_SSL_CAINFO="$CA_BUNDLE"
     export SSL_CERT_FILE="$CA_BUNDLE"
     export CURL_CA_BUNDLE="$CA_BUNDLE"
+    export REQUESTS_CA_BUNDLE="$CA_BUNDLE"   # pip uses this (not GIT_SSL_CAINFO) for PyPI HTTPS
+    export PIP_CERT="$CA_BUNDLE"
 fi
 
 # --- Install pipx if needed ---

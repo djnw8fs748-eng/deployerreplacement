@@ -1,8 +1,11 @@
 """Deploy orchestration using StateDB and OperationResult."""
 from __future__ import annotations
 
+import contextlib
 import hashlib
+import os
 import subprocess
+import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -185,7 +188,15 @@ def deploy_all(
 def _write_compose(app_name: str, content: str, base_dir: Path = COMPOSE_DIR) -> Path:
     path = _compose_path(app_name, base_dir)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content)
+    fd, tmp = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w") as f:
+            f.write(content)
+        os.replace(tmp, path)
+    except Exception:
+        with contextlib.suppress(OSError):
+            os.unlink(tmp)
+        raise
     return path
 
 
