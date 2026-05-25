@@ -798,18 +798,51 @@ def umount(
 def web(
     host: Annotated[str, typer.Option("--host", "-H")] = "127.0.0.1",
     port: Annotated[int, typer.Option("--port", "-p")] = 7274,
+    config_path: Annotated[Path, typer.Option("--config", "-c")] = _DEFAULT_CONFIG,
 ) -> None:
-    """Open the Stackr web UI in a browser (requires the API service to be running)."""
+    """Open the Stackr web UI (auto-starts the API service if needed)."""
+    import time
+    import urllib.error
     import urllib.request
     import webbrowser
 
     url = f"http://{host}:{port}"
-    try:
-        urllib.request.urlopen(f"{url}/api/v1/system/health", timeout=2)
-    except Exception:
-        console.print(f"[red]Stackr API is not running at {url}.[/red]")
-        console.print("Start it first with: [bold]stackr api[/bold]")
-        raise typer.Exit(1) from None
+    health_url = f"{url}/api/v1/system/health"
+
+    def _api_up() -> bool:
+        try:
+            urllib.request.urlopen(health_url, timeout=2)
+            return True
+        except Exception:
+            return False
+
+    if not _api_up():
+        from stackr.service import install, is_installed, start
+
+        if is_installed():
+            console.print("[dim]API service is installed but not running — starting it…[/dim]")
+            try:
+                start()
+            except Exception as exc:
+                console.print(f"[yellow]Could not start service: {exc}[/yellow]")
+        else:
+            console.print("[dim]Installing Stackr API as a background service…[/dim]")
+            try:
+                install(config_path, host="127.0.0.1", port=port)
+            except Exception as exc:
+                console.print(f"[yellow]Could not install service: {exc}[/yellow]")
+                console.print("Run [bold]stackr api[/bold] in a separate terminal, then retry.")
+                raise typer.Exit(1) from None
+
+        console.print("[dim]Waiting for API to become ready…[/dim]")
+        for _ in range(20):
+            time.sleep(0.5)
+            if _api_up():
+                break
+        else:
+            console.print("[red]API did not become ready within 10s.[/red]")
+            console.print("Check [bold]stackr service status[/bold] for details.")
+            raise typer.Exit(1)
 
     console.print(f"Opening [bold]{url}[/bold] in browser…")
     webbrowser.open(url)

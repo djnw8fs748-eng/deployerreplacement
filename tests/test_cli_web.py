@@ -18,10 +18,14 @@ def test_web_opens_browser_when_api_reachable():
 
 
 def test_web_exits_with_error_when_api_not_reachable():
-    with patch("urllib.request.urlopen", side_effect=Exception("connection refused")):
+    with (
+        patch("urllib.request.urlopen", side_effect=Exception("connection refused")),
+        patch("stackr.service.is_installed", return_value=False),
+        patch("stackr.service.install", side_effect=Exception("no systemd")),
+    ):
         result = runner.invoke(app, ["web"])
     assert result.exit_code == 1
-    assert "not running" in result.output.lower() or "stackr api" in result.output
+    assert "service" in result.output.lower() or "api" in result.output.lower()
 
 
 def test_web_respects_custom_host_and_port():

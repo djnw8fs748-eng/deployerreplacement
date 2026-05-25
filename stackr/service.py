@@ -177,6 +177,8 @@ def _install_systemd(config_path: Path, host: str, port: int) -> None:
     _LINUX_UNIT_DIR.mkdir(parents=True, exist_ok=True)
     unit = _unit_path()
     unit.write_text(_systemd_unit(config_path, host, port))
+    # Enable lingering so the user service survives after logout (server use-case).
+    subprocess.run(["loginctl", "enable-linger"], check=False)
     subprocess.run(["systemctl", "--user", "daemon-reload"], check=True)
     subprocess.run(["systemctl", "--user", "enable", "--now", _SERVICE_NAME], check=True)
 
