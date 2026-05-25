@@ -1,27 +1,22 @@
 name: Integration Tests
 
 # Runs daily (03:00 UTC) and on manual trigger.
-# Each app is tested in its own matrix job: stackr renders the compose,
-# Docker starts the container, and we assert the service responds.
+# Two jobs:
 #
-# Skipped / removed apps:
-#   traefik          — removed from catalog; NPM is the sole reverse proxy
+#   e2e          — Tests the Stackr system itself end-to-end: doctor, validate,
+#                  plan, deploy via CLI, status, REST API, CLI-as-API-client,
+#                  rollback. Uses uptime-kuma as the test app (fast startup).
+#
+#   deploy-test  — Deploys each catalog app into real Docker containers and
+#                  asserts the service responds. Tests the Docker images, not
+#                  Stackr itself. One matrix job per app.
+#
+# Skipped apps (document the reason here):
 #   pihole           — conflicts with adguardhome on host port 53
 #   adguardhome      — conflicts with systemd-resolved on host port 53 (GitHub Actions runner)
-#   authelia         — removed from catalog
-#   authentik        — removed from catalog
 #   headscale        — requires a config.yaml file pre-mounted at /etc/headscale
 #   gluetun          — requires live VPN credentials
-#   dasherr          — removed from catalog
-#   nextcloud        — removed from catalog
-#   sabnzbd          — removed from catalog
-#   transmission     — removed from catalog
-#   jellyseerr       — removed from catalog; replaced by seerr
-#   overseerr        — removed from catalog; replaced by seerr
-#   freshrss         — removed from catalog (productivity category removed)
-#   gitea            — removed from catalog (productivity category removed)
-#   miniflux         — removed from catalog (productivity category removed)
-#   paperless-ngx    — removed from catalog (productivity category removed)
+
 on:
   workflow_dispatch:
   schedule:
@@ -46,191 +41,17 @@ env:
   VAULTWARDEN_ADMIN_TOKEN: ci-integration-test
 
 jobs:
-  deploy-test:
-    name: "Deploy: ${{ matrix.app }}"
+
+  # ===========================================================================
+  # E2E: Tests the Stackr system itself, not just individual Docker images.
+  #
+  # Validates the full user-facing workflow:
+  #   doctor → validate → plan → deploy (CLI) → status → REST API
+  #   → CLI-as-API-client → --force bypass → rollback
+  # ===========================================================================
+  e2e:
+    name: "Stackr E2E Workflow"
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false  # run all apps even if one fails
-      matrix:
-        include:
-          # ----------------------------------------------------------------
-          # Proxy / Network
-          # ----------------------------------------------------------------
-          # nginx-proxy-manager binds port 81 (admin UI) directly on the host
-          - app: nginx-proxy-manager
-            host_port: 81
-            health_url: "http://localhost:81/"
-
-          # wireguard is a UDP VPN tunnel — verify it reaches running state
-          - app: wireguard
-            health_type: running
-
-          # ----------------------------------------------------------------
-          # AI
-          # ----------------------------------------------------------------
-          - app: ollama
-            container_port: 11434
-            health_path: "/"
-
-          - app: open-webui
-            container_port: 8080
-            health_path: "/"
-
-          # ----------------------------------------------------------------
-          # Media
-          # ----------------------------------------------------------------
-          - app: plex
-            host_port: 32400
-            health_url: "http://localhost:32400/"
-
-          - app: jellyfin
-            container_port: 8096
-            health_path: "/"
-
-          - app: sonarr
-            container_port: 8989
-            health_path: "/ping"
-
-          - app: radarr
-            container_port: 7878
-            health_path: "/ping"
-
-          - app: lidarr
-            container_port: 8686
-            health_path: "/ping"
-
-          - app: readarr
-            container_port: 8787
-            health_path: "/ping"
-
-          - app: prowlarr
-            container_port: 9696
-            health_path: "/ping"
-
-          - app: bazarr
-            container_port: 6767
-            health_path: "/"
-
-          - app: seerr
-            container_port: 5055
-            health_path: "/"
-
-          - app: qbittorrent
-            container_port: 8080
-            health_path: "/"
-
-          - app: tdarr
-            container_port: 8265
-            health_path: "/"
-
-          # ----------------------------------------------------------------
-          # Management / Dashboard
-          # ----------------------------------------------------------------
-          - app: homepage
-            container_port: 3000
-            health_path: "/"
-
-          - app: heimdall
-            container_port: 80
-            health_path: "/"
-
-          - app: flame
-            container_port: 5005
-            health_path: "/"
-
-          - app: dozzle
-            container_port: 8080
-            health_path: "/"
-
-          # portainer serves HTTPS on 9443
-          - app: portainer
-            container_port: 9443
-            health_path: "/"
-            health_proto: https
-
-          # watchtower is a daemon with no web UI — verify running state
-          - app: watchtower
-            health_type: running
-
-          # ----------------------------------------------------------------
-          # Monitoring
-          # ----------------------------------------------------------------
-          - app: uptime-kuma
-            container_port: 3001
-            health_path: "/"
-
-          - app: grafana
-            container_port: 3000
-            health_path: "/api/health"
-
-          - app: prometheus
-            container_port: 9090
-            health_path: "/-/healthy"
-
-          - app: loki
-            container_port: 3100
-            health_path: "/ready"
-
-          - app: netdata
-            container_port: 19999
-            health_path: "/"
-
-          # ----------------------------------------------------------------
-          # Security
-          # ----------------------------------------------------------------
-          - app: vaultwarden
-            container_port: 80
-            health_path: "/"
-
-          # socket-proxy lives on the socket_proxy network, not proxy
-          - app: socket-proxy
-            container_port: 2375
-            health_path: "/version"
-            network_name: socket_proxy
-
-          # crowdsec is a log-analysis daemon — verify running state
-          - app: crowdsec
-            health_type: running
-
-          - app: pocket-id
-            container_port: 1411
-            health_path: "/"
-
-          - app: tinyauth
-            container_port: 3000
-            health_path: "/"
-
-          # ----------------------------------------------------------------
-          # Databases  (TCP port reachability check — no HTTP interface)
-          # ----------------------------------------------------------------
-          - app: postgres
-            tcp_port: 5432
-
-          - app: mariadb
-            tcp_port: 3306
-
-          - app: redis
-            tcp_port: 6379
-
-          - app: mongo
-            tcp_port: 27017
-
-          # ----------------------------------------------------------------
-          # Gaming
-          # ----------------------------------------------------------------
-          - app: minecraft
-            tcp_port: 25565
-
-          # ----------------------------------------------------------------
-          # Storage
-          # ----------------------------------------------------------------
-          - app: filebrowser
-            container_port: 80
-            health_path: "/"
-
-          - app: duplicati
-            container_port: 8200
-            health_path: "/"
 
     steps:
       - uses: actions/checkout@v4
@@ -246,38 +67,423 @@ jobs:
       - name: Install stackr
         run: uv pip install --system -e ".[dev]"
 
-      # proxy is used by most apps; socket_proxy is used by socket-proxy itself.
       - name: Create Docker networks
         run: |
           docker network create proxy || true
           docker network create socket_proxy || true
 
-      # Create host directories that compose templates bind-mount.
-      # crowdsec reads traefik access logs; create that path so the mount succeeds.
-      # Pre-create config/data subdirs so Docker doesn't create them as root (which
-      # would cause permission denied errors for containers that run as non-root).
+      - name: Create host directories and test config
+        run: |
+          sudo mkdir -p /opt/appdata/uptime-kuma/data
+          sudo chmod -R 777 /opt/appdata
+
+          mkdir -p /tmp/stackr-e2e
+          cat > /tmp/stackr-e2e/stackr.yml <<'EOF'
+          global:
+            data_dir: /opt/appdata
+            timezone: UTC
+            puid: 1000
+            pgid: 1000
+          network:
+            domain: test.com
+            local_domain: home.test.com
+          security:
+            socket_proxy: false
+          apps:
+            - name: uptime-kuma
+              enabled: true
+          EOF
+
+      - name: stackr doctor
+        run: stackr doctor --config /tmp/stackr-e2e/stackr.yml
+
+      - name: stackr validate
+        run: stackr validate --config /tmp/stackr-e2e/stackr.yml
+
+      - name: stackr plan
+        run: stackr plan --config /tmp/stackr-e2e/stackr.yml
+
+      - name: stackr deploy uptime-kuma
+        run: stackr deploy uptime-kuma --config /tmp/stackr-e2e/stackr.yml
+
+      - name: Assert container reached running state
+        timeout-minutes: 3
+        run: |
+          ELAPSED=0
+          until [ "$(docker inspect -f '{{.State.Status}}' uptime-kuma 2>/dev/null)" = "running" ]; do
+            if [ "$ELAPSED" -ge 150 ]; then
+              echo "TIMEOUT: uptime-kuma did not reach running state within 150s"
+              docker inspect uptime-kuma || true
+              exit 1
+            fi
+            echo "  waiting... (${ELAPSED}s)"
+            sleep 5; ELAPSED=$((ELAPSED + 5))
+          done
+          echo "PASS: uptime-kuma is $(docker inspect -f '{{.State.Status}}' uptime-kuma)"
+
+      - name: stackr status shows uptime-kuma as running
+        timeout-minutes: 3
+        run: |
+          # Wait until the HTTP endpoint inside the container is ready
+          CONTAINER_IP=$(
+            docker inspect -f '{{(index .NetworkSettings.Networks "proxy").IPAddress}}' uptime-kuma
+          )
+          ELAPSED=0
+          until curl -sf "http://${CONTAINER_IP}:3001/" -o /dev/null; do
+            if [ "$ELAPSED" -ge 120 ]; then
+              echo "TIMEOUT: uptime-kuma HTTP not ready within 120s"
+              exit 1
+            fi
+            sleep 5; ELAPSED=$((ELAPSED + 5))
+          done
+
+          OUTPUT=$(stackr status uptime-kuma --config /tmp/stackr-e2e/stackr.yml 2>&1)
+          echo "$OUTPUT"
+          echo "$OUTPUT" | grep -q "uptime-kuma" || { echo "FAIL: 'uptime-kuma' not in status output"; exit 1; }
+          echo "$OUTPUT" | grep -q "running" || { echo "FAIL: status does not show 'running'"; exit 1; }
+          echo "PASS: stackr status reports uptime-kuma as running"
+
+      - name: Start stackr API in background
+        run: |
+          stackr api --config /tmp/stackr-e2e/stackr.yml &
+          echo "API_PID=$!" >> "$GITHUB_ENV"
+
+          ELAPSED=0
+          until curl -sf http://127.0.0.1:7274/api/v1/system/health > /dev/null; do
+            if [ "$ELAPSED" -ge 30 ]; then
+              echo "TIMEOUT: stackr api did not become ready within 30s"
+              exit 1
+            fi
+            sleep 1; ELAPSED=$((ELAPSED + 1))
+          done
+          echo "stackr API ready after ${ELAPSED}s"
+          curl -sf http://127.0.0.1:7274/api/v1/system/health | python3 -m json.tool
+
+      - name: REST API — GET /apps/uptime-kuma returns status=running
+        run: |
+          curl -sf http://127.0.0.1:7274/api/v1/apps/uptime-kuma | python3 -c "
+          import json, sys
+          d = json.load(sys.stdin)
+          print(json.dumps(d, indent=2))
+          assert d['name'] == 'uptime-kuma', f'Unexpected name: {d[\"name\"]}'
+          assert d['status'] == 'running', f'Expected running, got {d[\"status\"]}'
+          print('PASS: API reports uptime-kuma status=running')
+          "
+
+      - name: REST API — GET /apps returns app list
+        run: |
+          curl -sf http://127.0.0.1:7274/api/v1/apps | python3 -c "
+          import json, sys
+          apps = json.load(sys.stdin)
+          assert isinstance(apps, list), 'Expected a list'
+          names = [a['name'] for a in apps]
+          assert 'uptime-kuma' in names, f'uptime-kuma not in apps list: {names}'
+          print(f'PASS: GET /apps returned {len(apps)} app(s): {names}')
+          "
+
+      - name: CLI stackr status proxies through running API
+        run: |
+          OUTPUT=$(stackr status --config /tmp/stackr-e2e/stackr.yml 2>&1)
+          echo "$OUTPUT"
+          echo "$OUTPUT" | grep -q "uptime-kuma" || { echo "FAIL: uptime-kuma not in API-proxied status output"; exit 1; }
+          echo "PASS: CLI status proxied through API"
+
+      - name: CLI stackr deploy --force bypasses API and uses engine
+        run: |
+          stackr deploy uptime-kuma --force --config /tmp/stackr-e2e/stackr.yml
+          sleep 5
+          STATUS=$(docker inspect -f '{{.State.Status}}' uptime-kuma 2>/dev/null)
+          [ "$STATUS" = "running" ] || { echo "FAIL: container not running after force-redeploy (got: $STATUS)"; exit 1; }
+          echo "PASS: --force bypassed API, container still running after redeploy"
+
+      - name: stackr rollback uptime-kuma
+        run: |
+          stackr rollback uptime-kuma --config /tmp/stackr-e2e/stackr.yml
+          sleep 5
+          STATUS=$(docker inspect -f '{{.State.Status}}' uptime-kuma 2>/dev/null)
+          echo "Container status after rollback: $STATUS"
+          [ "$STATUS" = "running" ] || { echo "FAIL: container not running after rollback (got: $STATUS)"; exit 1; }
+          echo "PASS: uptime-kuma still running after rollback"
+
+      - name: Print diagnostics on failure
+        if: failure()
+        run: |
+          echo "=== docker ps -a ==="
+          docker ps -a
+          echo "=== uptime-kuma logs ==="
+          docker logs uptime-kuma --tail 80 --timestamps 2>&1 || true
+          echo "=== stackr API /apps ==="
+          curl -s http://127.0.0.1:7274/api/v1/apps | python3 -m json.tool || echo "(API not reachable)"
+          echo "=== stackr state DB ==="
+          python3 -c "
+          from stackr.engine.state import StateDB
+          db = StateDB()
+          for a in db.list_apps():
+              print(a)
+          " || true
+
+      - name: Tear down
+        if: always()
+        run: |
+          kill "$API_PID" 2>/dev/null || true
+          docker rm -f uptime-kuma 2>/dev/null || true
+          docker volume prune -f 2>/dev/null || true
+
+  # ===========================================================================
+  # Per-app catalog deploy tests.
+  # Each job: render compose via stackr → docker compose up → health check.
+  # ===========================================================================
+  deploy-test:
+    name: "Deploy: ${{ matrix.app }}"
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # ----------------------------------------------------------------
+          # Proxy / Network
+          # ----------------------------------------------------------------
+          - app: nginx-proxy-manager
+            host_port: 81
+            health_url: "http://localhost:81/"
+            max_wait: 120
+
+          - app: wireguard
+            health_type: running
+            max_wait: 60
+
+          # ----------------------------------------------------------------
+          # AI
+          # ----------------------------------------------------------------
+          - app: ollama
+            container_port: 11434
+            health_path: "/"
+            max_wait: 300
+
+          - app: open-webui
+            container_port: 8080
+            health_path: "/"
+            max_wait: 300
+
+          # ----------------------------------------------------------------
+          # Media
+          # ----------------------------------------------------------------
+          - app: plex
+            host_port: 32400
+            health_url: "http://localhost:32400/"
+            max_wait: 480
+
+          - app: jellyfin
+            container_port: 8096
+            health_path: "/"
+            max_wait: 300
+
+          - app: sonarr
+            container_port: 8989
+            health_path: "/ping"
+            max_wait: 180
+
+          - app: radarr
+            container_port: 7878
+            health_path: "/ping"
+            max_wait: 180
+
+          - app: lidarr
+            container_port: 8686
+            health_path: "/ping"
+            max_wait: 180
+
+          - app: readarr
+            container_port: 8787
+            health_path: "/ping"
+            max_wait: 180
+
+          - app: prowlarr
+            container_port: 9696
+            health_path: "/ping"
+            max_wait: 180
+
+          - app: bazarr
+            container_port: 6767
+            health_path: "/"
+            max_wait: 180
+
+          - app: seerr
+            container_port: 5055
+            health_path: "/"
+            max_wait: 300
+
+          - app: qbittorrent
+            container_port: 8080
+            health_path: "/"
+            max_wait: 180
+
+          - app: tdarr
+            container_port: 8265
+            health_path: "/"
+            max_wait: 300
+
+          # ----------------------------------------------------------------
+          # Management / Dashboard
+          # ----------------------------------------------------------------
+          - app: homepage
+            container_port: 3000
+            health_path: "/"
+            max_wait: 120
+
+          - app: heimdall
+            container_port: 80
+            health_path: "/"
+            max_wait: 120
+
+          - app: flame
+            container_port: 5005
+            health_path: "/"
+            max_wait: 120
+
+          - app: dozzle
+            container_port: 8080
+            health_path: "/"
+            max_wait: 120
+
+          - app: portainer
+            container_port: 9443
+            health_path: "/"
+            health_proto: https
+            max_wait: 180
+
+          - app: watchtower
+            health_type: running
+            max_wait: 60
+
+          # ----------------------------------------------------------------
+          # Monitoring
+          # ----------------------------------------------------------------
+          - app: uptime-kuma
+            container_port: 3001
+            health_path: "/"
+            max_wait: 120
+
+          - app: grafana
+            container_port: 3000
+            health_path: "/api/health"
+            max_wait: 180
+
+          - app: prometheus
+            container_port: 9090
+            health_path: "/-/healthy"
+            max_wait: 120
+
+          - app: loki
+            container_port: 3100
+            health_path: "/ready"
+            max_wait: 120
+
+          - app: netdata
+            container_port: 19999
+            health_path: "/"
+            max_wait: 180
+
+          # ----------------------------------------------------------------
+          # Security
+          # ----------------------------------------------------------------
+          - app: vaultwarden
+            container_port: 80
+            health_path: "/"
+            max_wait: 120
+
+          - app: socket-proxy
+            container_port: 2375
+            health_path: "/version"
+            network_name: socket_proxy
+            max_wait: 60
+
+          - app: crowdsec
+            health_type: running
+            max_wait: 120
+
+          - app: pocket-id
+            container_port: 1411
+            health_path: "/"
+            max_wait: 180
+
+          - app: tinyauth
+            container_port: 3000
+            health_path: "/"
+            max_wait: 120
+
+          # ----------------------------------------------------------------
+          # Databases  (TCP port reachability — no HTTP interface)
+          # ----------------------------------------------------------------
+          - app: postgres
+            tcp_port: 5432
+            max_wait: 60
+
+          - app: mariadb
+            tcp_port: 3306
+            max_wait: 60
+
+          - app: redis
+            tcp_port: 6379
+            max_wait: 60
+
+          - app: mongo
+            tcp_port: 27017
+            max_wait: 60
+
+          # ----------------------------------------------------------------
+          # Gaming
+          # ----------------------------------------------------------------
+          - app: minecraft
+            tcp_port: 25565
+            max_wait: 120
+
+          # ----------------------------------------------------------------
+          # Storage
+          # ----------------------------------------------------------------
+          - app: filebrowser
+            container_port: 80
+            health_path: "/"
+            max_wait: 120
+
+          - app: duplicati
+            container_port: 8200
+            health_path: "/"
+            max_wait: 120
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install stackr
+        run: uv pip install --system -e ".[dev]"
+
+      - name: Create Docker networks
+        run: |
+          docker network create proxy || true
+          docker network create socket_proxy || true
+
       - name: Create required host directories
         run: |
           sudo mkdir -p /opt/appdata/${{ matrix.app }}/config
           sudo mkdir -p /opt/appdata/${{ matrix.app }}/data
-          sudo mkdir -p /opt/appdata/traefik/logs
           sudo mkdir -p /tv /movies /downloads /media /books /music
           sudo mkdir -p /downloads/complete /downloads/incomplete
           sudo mkdir -p /backups /source
           sudo chmod -R 777 /opt/appdata /tv /movies /downloads /media /books /music /backups /source
-          # prometheus requires a config file to start — create a minimal one
-          if [ "${{ matrix.app }}" = "prometheus" ]; then
-            sudo mkdir -p /opt/appdata/prometheus/config
-            printf 'global:\n  scrape_interval: 15s\n' | sudo tee /opt/appdata/prometheus/config/prometheus.yml
-          fi
 
-      # Render the compose file using stackr's Python API.
-      # extra_vars allows per-app overrides.
       - name: Render compose via stackr
         env:
           EXTRA_VARS: ${{ matrix.extra_vars || '{}' }}
         run: |
-          python - << 'PYEOF'
+          python3 - << 'PYEOF'
           import json, os, sys
           from pathlib import Path
           from stackr.engine.catalog import Catalog
@@ -313,6 +519,13 @@ jobs:
           out.parent.mkdir(parents=True, exist_ok=True)
           out.write_text(rendered)
 
+          # Per-app setup: create config files required before container start
+          if app_name == "prometheus":
+              cfg = Path("/opt/appdata/prometheus/config/prometheus.yml")
+              cfg.parent.mkdir(parents=True, exist_ok=True)
+              cfg.write_text("global:\n  scrape_interval: 15s\nscrape_configs: []\n")
+              print("Created prometheus config stub")
+
           print(f"Rendered compose for {app_name}:")
           print(rendered)
           PYEOF
@@ -323,16 +536,8 @@ jobs:
             -f /tmp/stackr-ci/${{ matrix.app }}/docker-compose.yml \
             up -d
 
-      # Health check strategy depends on matrix fields:
-      #   health_type: running  — daemon apps; just verify container state
-      #   host_port + health_url — apps that bind a host port directly
-      #   tcp_port              — databases / game servers; nc TCP probe
-      #   container_port        — all other web apps; curl via container IP
-      #     health_proto: https — use curl -k for self-signed TLS (portainer)
-      #     network_name        — override network for IP lookup (socket-proxy)
-      #     container_name      — override container name for IP lookup (authentik)
       - name: Wait for service and assert health
-        timeout-minutes: 8
+        timeout-minutes: 10
         run: |
           APP="${{ matrix.app }}"
           CONTAINER="${{ matrix.container_name || matrix.app }}"
@@ -343,35 +548,37 @@ jobs:
           HEALTH_PROTO="${{ matrix.health_proto || 'http' }}"
           HEALTH_TYPE="${{ matrix.health_type }}"
           NETWORK="${{ matrix.network_name || 'proxy' }}"
-          MAX=420  # generous timeout for slow-starting apps
+          MAX="${{ matrix.max_wait || 300 }}"
           ELAPSED=0
+
+          fail() {
+            echo "FAIL: $1"
+            docker inspect "$CONTAINER" \
+              --format='Status={{.State.Status}} ExitCode={{.State.ExitCode}} RestartCount={{.RestartCount}} Error={{.State.Error}}' \
+              2>/dev/null || true
+            exit 1
+          }
 
           # --- running check: daemon with no port ---
           if [ "$HEALTH_TYPE" = "running" ]; then
-            echo "Waiting for $APP container to reach running state..."
+            echo "Waiting for $APP to reach running state (max ${MAX}s)..."
             until [ "$(docker inspect -f '{{.State.Status}}' "$CONTAINER" 2>/dev/null)" = "running" ]; do
-              if [ "$ELAPSED" -ge "$MAX" ]; then
-                echo "TIMEOUT: $APP did not reach running state within ${MAX}s"
-                exit 1
-              fi
-              echo "  waiting... (${ELAPSED}s elapsed)"
+              [ "$ELAPSED" -ge "$MAX" ] && fail "$APP did not reach running state within ${MAX}s"
+              echo "  waiting... (${ELAPSED}s)"
               sleep 5; ELAPSED=$((ELAPSED + 5))
             done
-            echo "PASS: $APP is $(docker inspect -f '{{.State.Status}}' "$CONTAINER")"
+            echo "PASS: $APP is running"
             exit 0
           fi
 
-          # --- host port check: app binds a port directly on the runner ---
+          # --- host port check ---
           if [ -n "$HOST_PORT" ]; then
             HEALTH_URL="${{ matrix.health_url }}"
-            echo "Polling $HEALTH_URL ..."
+            echo "Polling $HEALTH_URL (max ${MAX}s)..."
             until curl -sf -o /dev/null -w "%{http_code}" "$HEALTH_URL" 2>/dev/null \
                 | grep -qE '^[23]'; do
-              if [ "$ELAPSED" -ge "$MAX" ]; then
-                echo "TIMEOUT: $APP did not respond at $HEALTH_URL within ${MAX}s"
-                exit 1
-              fi
-              echo "  waiting... (${ELAPSED}s elapsed)"
+              [ "$ELAPSED" -ge "$MAX" ] && fail "$APP did not respond at $HEALTH_URL within ${MAX}s"
+              echo "  waiting... (${ELAPSED}s)"
               sleep 10; ELAPSED=$((ELAPSED + 10))
             done
             HTTP=$(curl -sf -o /dev/null -w "%{http_code}" "$HEALTH_URL")
@@ -379,15 +586,14 @@ jobs:
             exit 0
           fi
 
-          # Resolve container IP for remaining checks
-          echo "Resolving IP for container '$CONTAINER' on network '$NETWORK'..."
+          # Resolve container IP
+          echo "Resolving IP for '$CONTAINER' on network '$NETWORK'..."
           until CONTAINER_IP=$(
             docker inspect \
               -f "{{(index .NetworkSettings.Networks \"$NETWORK\").IPAddress}}" \
               "$CONTAINER" 2>/dev/null
           ) && [ -n "$CONTAINER_IP" ]; do
             if [ "$ELAPSED" -ge 60 ]; then
-              # Fall back to first assigned IP across any network
               CONTAINER_IP=$(
                 docker inspect \
                   -f '{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}' \
@@ -395,23 +601,19 @@ jobs:
                 | tr ' ' '\n' | grep -v '^$' | head -1
               )
               [ -n "$CONTAINER_IP" ] && break
-              echo "ERROR: could not determine IP for $CONTAINER"
-              exit 1
+              fail "Could not determine IP for $CONTAINER"
             fi
             sleep 5; ELAPSED=$((ELAPSED + 5))
           done
           echo "Container IP: $CONTAINER_IP"
 
-          # --- TCP check: databases and game servers ---
+          # --- TCP check ---
           if [ -n "$TCP_PORT" ]; then
-            echo "Waiting for TCP $CONTAINER_IP:$TCP_PORT ..."
+            echo "Waiting for TCP $CONTAINER_IP:$TCP_PORT (max ${MAX}s)..."
             until nc -z -w5 "$CONTAINER_IP" "$TCP_PORT" 2>/dev/null; do
-              if [ "$ELAPSED" -ge "$MAX" ]; then
-                echo "TIMEOUT: TCP $CONTAINER_IP:$TCP_PORT not reachable within ${MAX}s"
-                exit 1
-              fi
-              echo "  waiting... (${ELAPSED}s elapsed)"
-              sleep 10; ELAPSED=$((ELAPSED + 10))
+              [ "$ELAPSED" -ge "$MAX" ] && fail "TCP $CONTAINER_IP:$TCP_PORT not reachable within ${MAX}s"
+              echo "  waiting... (${ELAPSED}s)"
+              sleep 5; ELAPSED=$((ELAPSED + 5))
             done
             echo "PASS: $APP → TCP $CONTAINER_IP:$TCP_PORT is open"
             exit 0
@@ -419,36 +621,34 @@ jobs:
 
           # --- HTTP/HTTPS check via container IP ---
           HEALTH_URL="${HEALTH_PROTO}://${CONTAINER_IP}:${CONTAINER_PORT}${HEALTH_PATH}"
-          if [ "$HEALTH_PROTO" = "https" ]; then
-            CURL_FLAGS="-sfk"
-          else
-            CURL_FLAGS="-sf"
-          fi
-          echo "Polling $HEALTH_URL ..."
+          CURL_FLAGS="-sf"
+          [ "$HEALTH_PROTO" = "https" ] && CURL_FLAGS="-sfk"
+          echo "Polling $HEALTH_URL (max ${MAX}s)..."
           until curl $CURL_FLAGS -o /dev/null -w "%{http_code}" "$HEALTH_URL" 2>/dev/null \
               | grep -qE '^[23]'; do
-            if [ "$ELAPSED" -ge "$MAX" ]; then
-              echo "TIMEOUT: $APP did not respond at $HEALTH_URL within ${MAX}s"
-              exit 1
-            fi
-            echo "  waiting... (${ELAPSED}s elapsed)"
+            [ "$ELAPSED" -ge "$MAX" ] && fail "$APP did not respond at $HEALTH_URL within ${MAX}s"
+            echo "  waiting... (${ELAPSED}s)"
             sleep 10; ELAPSED=$((ELAPSED + 10))
           done
           HTTP=$(curl $CURL_FLAGS -o /dev/null -w "%{http_code}" "$HEALTH_URL")
           echo "PASS: $APP → $HEALTH_URL → HTTP $HTTP"
 
-      # Always print logs — useful for diagnosing failures
       - name: Print container logs
         if: always()
         run: |
-          docker compose \
-            -f /tmp/stackr-ci/${{ matrix.app }}/docker-compose.yml \
-            logs --no-color || true
+          CONTAINER="${{ matrix.container_name || matrix.app }}"
+          echo "=== docker ps ==="
+          docker ps -a --filter "name=${CONTAINER}"
+          echo "=== container logs (last 80 lines) ==="
+          docker logs "$CONTAINER" --tail 80 --timestamps 2>&1 || true
+          echo "=== container state ==="
+          docker inspect "$CONTAINER" \
+            --format='Status={{.State.Status}} ExitCode={{.State.ExitCode}} RestartCount={{.RestartCount}} Error={{.State.Error}}' \
+            2>/dev/null || true
 
-      # Always tear down — containers, networks created by compose, and named volumes
       - name: Tear down
         if: always()
         run: |
           docker compose \
             -f /tmp/stackr-ci/${{ matrix.app }}/docker-compose.yml \
-            down -v --remove-orphans || true
+            down -v --remove-orphans 2>/dev/null || true
