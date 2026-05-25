@@ -15,7 +15,7 @@ Stackr is a declarative homelab deployment tool. It reads a `stackr.yml` config,
 
 ```
 stackr/          Python package — core engine
-catalog/         App catalog: catalog/<category>/<app>/app.yml + compose.yml.j2
+stackr/catalog/  App catalog: stackr/catalog/<category>/<app>/app.yml + compose.yml.j2
 tests/           pytest test suite
 pyproject.toml   Dependencies, ruff, mypy, pytest config
 stackr.yml.example  Reference config
@@ -28,7 +28,7 @@ stackr.yml.example  Reference config
 | `config.py` | Pydantic v2 schema for `stackr.yml` |
 | `secrets.py` | Secret resolution: shell env → `.stackr.env` → auto-generated |
 | `state.py` | JSON lock file at `~/.stackr/state.json`; drift detection + image digest tracking |
-| `catalog.py` | Loads `stackr/app_catalog/*/*/app.yml` (`BUILTIN_CATALOG = Path(__file__).parent / "app_catalog"`); user catalog overlay (`~/.stackr/catalog/`) |
+| `catalog.py` | Loads `stackr/catalog/*/*/app.yml` (`BUILTIN_CATALOG = Path(__file__).parent.parent / "catalog"`); user catalog overlay (`~/.stackr/catalog/`) |
 | `renderer.py` | Jinja2 template rendering |
 | `validator.py` | Pre-deploy checks: secrets, ports, deps, volumes, security stack |
 | `deployer.py` | validate → render → pull → `docker compose up -d` → write state + digests |
@@ -95,7 +95,7 @@ source .venv/bin/activate && ruff check stackr/ tests/ && mypy stackr/ && pytest
 - Old state files without `image_digests` load cleanly — the field defaults to `{}` via `.get("image_digests", {})`
 
 ### Catalog entries
-Every app lives at `catalog/<category>/<name>/` and requires exactly two files:
+Every app lives at `stackr/catalog/<category>/<name>/` and requires exactly two files:
 
 **`app.yml`** — metadata and schema:
 ```yaml
@@ -152,15 +152,6 @@ networks:
   proxy:
     external: true
 ```
-
-### Dual catalog paths
-
-The catalog exists in two locations that must always be kept in sync:
-
-- **`stackr/app_catalog/<category>/<app>/`** — the **runtime path**. This is what `catalog.py` loads (`BUILTIN_CATALOG = Path(__file__).parent / "app_catalog"`). It ships inside the Python package and is what users actually run against.
-- **`catalog/<category>/<app>/`** — the **repo mirror**. Kept identical to `stackr/app_catalog/` for code review and git history purposes.
-
-**When adding, modifying, or removing a catalog app, always update both paths.**
 
 ### Critical catalog rules
 - Apps that optionally use the Docker socket **must** condition it on `security.socket_proxy` — never unconditionally mount `/var/run/docker.sock`
@@ -341,11 +332,11 @@ The integration workflow deploys every catalog app into real Docker containers o
 
 ## Adding a new catalog app — checklist
 
-1. Create `catalog/<category>/<name>/app.yml` **and** `stackr/app_catalog/<category>/<name>/app.yml` (identical files — both paths must exist)
+1. Create `stackr/catalog/<category>/<name>/app.yml`
    - Use `ports` for the container routing port (informational, used by validator)
    - Use `host_ports` for any ports actually bound on the host (DNS, game ports, etc.)
    - If no host ports, set `host_ports: []`
-2. Create `catalog/<category>/<name>/compose.yml.j2` **and** `stackr/app_catalog/<category>/<name>/compose.yml.j2` — no labels block needed for NPM-proxied apps
+2. Create `stackr/catalog/<category>/<name>/compose.yml.j2` — no labels block needed for NPM-proxied apps
 3. If the app has no web UI (database, daemon, VPN, game server): omit `proxy` network entirely — see No-proxy app pattern above
 4. If the app has embedded sidecars: use an isolated `<app>-backend` network — see Sidecar pattern above
 5. If the app uses the Docker socket, condition it on `{% if security.socket_proxy %}`
@@ -364,4 +355,3 @@ The integration workflow deploys every catalog app into real Docker containers o
 - **Image digests only available after pull**: `collect_digests()` reads local Docker image metadata — it returns `{}` if images haven't been pulled yet. `images_changed()` returns `False` when stored digests are empty, so the first deploy always goes through.
 - **User catalog overlay is all-or-nothing**: if `~/.stackr/catalog/` exists and has any `*/*/app.yml`, it replaces the entire built-in catalog. Partial overlays are not supported — the user catalog must contain all apps they want to use.
 - **Import ordering**: stdlib imports must be alphabetically sorted within their block (ruff rule `I` enforces this).
-- **Dual catalog paths**: `catalog/` is the repo mirror; `stackr/app_catalog/` is what actually runs. Editing only `catalog/` leaves the runtime catalog unchanged. Always update both when adding, removing, or modifying apps.

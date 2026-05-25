@@ -1,0 +1,26 @@
+name: jellyfin
+display_name: Jellyfin
+description: Free and open source media server
+category: media
+homepage: https://jellyfin.org
+version: latest
+requires: []
+suggests: []
+vars:
+  hardware_accel:
+    type: select
+    options: [none, vaapi, nvidia, intel_qsv]
+    default: none
+    description: Hardware transcoding acceleration
+  version:
+    type: string
+    default: latest
+    description: Docker image tag
+ports:
+  - 8096
+volumes:
+  - name: config
+    path: /config
+  - name: media
+    path: /media
+    external: true

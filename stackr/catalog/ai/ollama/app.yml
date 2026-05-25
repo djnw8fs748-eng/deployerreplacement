@@ -1,0 +1,22 @@
+name: ollama
+display_name: Ollama
+description: Run large language models locally on your own hardware
+category: ai
+homepage: https://ollama.com
+version: latest
+requires: []
+vars:
+  gpu_type:
+    type: select
+    options: [none, nvidia, amd]
+    default: none
+    description: GPU acceleration type for inference
+  version:
+    type: string
+    default: latest
+    description: Docker image tag
+ports: []
+host_ports: []
+volumes:
+  - name: models
+    path: /root/.ollama
