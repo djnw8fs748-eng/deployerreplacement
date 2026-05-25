@@ -1,11 +1,32 @@
 """FastAPI application factory for the Stackr REST API."""
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
+from stackr.engine.docker import docker_available, get_container_status
+from stackr.engine.state import AppState, StateDB
+
 # Two levels up from stackr/api/app.py -> stackr/ -> web/static/
 _STATIC_DIR = Path(__file__).parent.parent / "web" / "static"
+
+
+@asynccontextmanager
+async def _lifespan(app: Any):
+    """Reconcile DB status against live Docker containers on startup."""
+    if docker_available():
+        db = StateDB()
+        for app_state in db.list_apps():
+            if app_state.compose_yaml is None:
+                continue
+            try:
+                cs = get_container_status(app_state.name)
+                if cs.status != app_state.status:
+                    db.set_app(AppState(**{**app_state.__dict__, "status": cs.status}))
+            except Exception:
+                pass
+    yield
 
 
 def create_api(config_path: Path = Path("stackr.yml")) -> Any:
@@ -35,6 +56,7 @@ def create_api(config_path: Path = Path("stackr.yml")) -> Any:
         docs_url="/api/docs",
         redoc_url="/api/redoc",
         openapi_url="/api/openapi.json",
+        lifespan=_lifespan,
     )
 
     api = fastapi.APIRouter(prefix="/api/v1")
