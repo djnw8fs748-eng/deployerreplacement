@@ -70,12 +70,16 @@ def test_host_ports_appear_in_rendered_compose(app_yml: Path) -> None:
     """Check 3: every host_port declared in app.yml appears in the rendered compose."""
     catalog_app = _load_app(app_yml)
     if not catalog_app.host_ports:
-        return
-    rendered, _ = _render_app(catalog_app)
+        pytest.skip("no host_ports declared")
+    rendered, parsed = _render_app(catalog_app)
+    # Collect port bindings from all services; host port is always the left side of ":"
+    bound: list[str] = []
+    for svc in parsed.get("services", {}).values():
+        bound.extend(str(p) for p in (svc or {}).get("ports", []))
     for port in catalog_app.host_ports:
-        assert str(port) in rendered, (
+        assert any(str(port) + ":" in p for p in bound), (
             f"{catalog_app.name}: host_port {port} declared in app.yml "
-            "but not found in rendered compose — add it to the 'ports:' mapping"
+            "but not found in rendered compose ports: mapping — add it to the 'ports:' section"
         )
 
 
@@ -84,7 +88,7 @@ def test_volume_paths_appear_in_rendered_compose(app_yml: Path) -> None:
     """Check 4: every volume path declared in app.yml appears in the rendered compose."""
     catalog_app = _load_app(app_yml)
     if not catalog_app.volumes:
-        return
+        pytest.skip("no volumes declared")
     rendered, _ = _render_app(catalog_app)
     for vol in catalog_app.volumes:
         assert vol.path in rendered, (

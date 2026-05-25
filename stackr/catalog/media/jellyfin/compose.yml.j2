@@ -10,12 +10,12 @@ services:
     volumes:
       - {{ global.data_dir }}/jellyfin/config:/config
       - /media:/media:ro
-{% if vars.hardware_accel == 'vaapi' %}
+{% if vars.hardware_accel | default('none') == 'vaapi' %}
     devices:
       - /dev/dri:/dev/dri
     group_add:
       - "render"
-{% elif vars.hardware_accel == 'nvidia' %}
+{% elif vars.hardware_accel | default('none') == 'nvidia' %}
     deploy:
       resources:
         reservations:
@@ -23,7 +23,7 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
-{% elif vars.hardware_accel == 'intel_qsv' %}
+{% elif vars.hardware_accel | default('none') == 'intel_qsv' %}
     devices:
       - /dev/dri:/dev/dri
 {% endif %}
