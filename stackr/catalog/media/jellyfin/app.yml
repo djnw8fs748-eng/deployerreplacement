@@ -14,7 +14,7 @@ vars:
     description: Hardware transcoding acceleration
   version:
     type: string
-    default: "latest"
+    default: latest
     description: Docker image tag
 ports:
   - 8096
