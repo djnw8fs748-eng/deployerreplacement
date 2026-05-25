@@ -7,28 +7,26 @@ Stackr replaces Deployrr (a closed-source PHP/Bash binary) with a fully open, au
 ## Features
 
 - **Declarative config**: one `stackr.yml` drives your entire homelab
-- **App catalog**: 51 apps across 11 categories — databases, AI, media, monitoring, storage, and more
+- **App catalog**: 42 apps across 10 categories — databases, AI, media, monitoring, storage, and more
+- **Default reverse proxy**: nginx-proxy-manager is pre-wired as the default proxy — no extra configuration required
 - **Secret management**: auto-generated secrets stored in `.stackr.env`, shell env takes priority
-- **Pre-deploy validation**: port conflicts, missing secrets, unknown apps, dependency checks, DNS provider env vars, security stack consistency
-- **State tracking**: stores full compose content + image digests for genuine rollback and smart update detection
-- **Image digest tracking**: `stackr update` redeployes only when upstream images actually change
-- **Network modes**: `external`, `internal`, or `hybrid` with automatic Traefik label generation
+- **Pre-deploy validation**: port conflicts, missing secrets, unknown apps, dependency checks, security stack consistency
+- **State tracking**: SQLite database at `~/.stackr/stackr.db` stores compose content and image digests per app
+- **Drift detection**: `stackr status` reports `drift` when a live container's image digest differs from the digest recorded at last deploy
+- **Image digest tracking**: `stackr update` redeploys only when upstream images actually change
+- **Always-on API service**: `stackr api` runs a REST API on port 7274; `deploy`/`validate`/`status` CLI commands proxy through it automatically when it is reachable
 - **Socket proxy**: no app mounts the raw Docker socket when `security.socket_proxy: true`
-- **CrowdSec**: crowd-sourced IP reputation and Traefik bouncer integration
-- **Authentik / Authelia**: forward-auth SSO with automatic Traefik middleware labels
-- **Multi-DNS providers**: Cloudflare, Route 53, Porkbun, Namecheap, DigitalOcean, DuckDNS, GoDaddy, deSEC, Hetzner, OVH
-- **Deep-merge overrides**: apply custom compose keys on top of any catalog template
-- **Health checks**: `stackr doctor` verifies Docker, networks, secrets, and catalog before deploying
+- **CrowdSec**: crowd-sourced IP reputation integration
 - **Backup/restore**: `stackr backup` / `restore` / `snapshots` — restic-based encrypted backups with auto-generated password
 - **Deployrr migration**: `stackr migrate --from deployrr` maps an existing Deployrr app list to a `stackr.yml`
 - **Alerts**: ntfy, Gotify, or webhook notifications on deploy failures and `stackr doctor` errors
-- **Remote shares**: `stackr mount` / `umount` for SMB, NFS, and Rclone mounts; declared under `mounts:` in `stackr.yml`
+- **Remote shares**: `stackr mount` / `umount` for SMB, NFS, and Rclone mounts declared under `mounts:` in `stackr.yml`
 - **Catalog updates**: `stackr catalog update` downloads the latest catalog from GitHub
 - **Interactive TUI**: `stackr ui` opens a terminal app browser — toggle apps on/off, edit settings and mounts, save config
-- **Web UI**: `stackr web` launches a FastAPI + HTMX browser dashboard; all settings editable via tabbed panel (Global, Network, Traefik, Security, Backup, Alerts, Mounts), per-app var overrides, live log streaming
-- **Persistent web service**: `stackr service install` registers the web UI as a systemd user service (Linux) or launchd LaunchAgent (macOS) so it survives reboots and terminal sessions
+- **Web UI**: `stackr web` opens the browser dashboard; all settings editable via tabbed panel (Global, Network, Security, Backup, Alerts, Mounts), per-app var overrides, live log streaming
+- **Persistent API service**: `stackr service install` registers the API as a systemd user service (Linux) or launchd LaunchAgent (macOS)
 - **Self-upgrade**: `stackr upgrade` pulls and installs the latest version from GitHub in one command
-- **Full catalog init**: `stackr init` generates a `stackr.yml` with all 51 apps pre-listed (disabled by default) — toggle on what you want
+- **Full catalog init**: `stackr init` generates a `stackr.yml` with all catalog apps pre-listed (disabled by default)
 
 ## Requirements
 
@@ -130,21 +128,23 @@ catalog:
   version: latest              # pin to a release tag (e.g. v1.2.0) or "latest"
 
 network:
-  mode: external               # external | internal | hybrid
-  domain: example.com          # public domain (external/hybrid)
-  local_domain: home.example.com  # LAN domain (internal/hybrid)
-
-traefik:
-  enabled: false               # set true to use Traefik instead of nginx-proxy-manager
-  acme_email: you@example.com  # Let's Encrypt registration email
-  dns_provider: cloudflare     # DNS challenge provider name
-  dns_provider_env:
-    CF_DNS_API_TOKEN: ${CF_DNS_API_TOKEN}   # resolved from env / .stackr.env
+  domain: example.com          # public domain (used in compose templates)
+  local_domain: home.example.com  # LAN domain
 
 security:
-  socket_proxy: true           # route Docker API through socket-proxy
-  crowdsec: true               # enable CrowdSec bouncer
-  auth_provider: authelia      # authelia | authentik | none | <custom-app-name>
+  socket_proxy: false          # route Docker API through socket-proxy sidecar
+  crowdsec: false              # enable CrowdSec integration (requires crowdsec in apps)
+
+backup:
+  enabled: false
+  destination: /mnt/backup     # restic repository path (local, s3:bucket/path, etc.)
+  schedule: "0 2 * * *"        # informational — no built-in scheduler
+
+alerts:
+  enabled: false
+  provider: ntfy               # ntfy | gotify | webhook
+  url: https://ntfy.sh/my-homelab-alerts
+  token: ${NTFY_TOKEN}         # optional Bearer token, resolved from env / .stackr.env
 
 apps:
   - name: jellyfin
@@ -160,19 +160,11 @@ apps:
     enabled: true
 ```
 
-### Network modes
-
-| Mode | Behaviour |
-|------|-----------|
-| `external` | Apps exposed only via public domain over HTTPS |
-| `internal` | Apps exposed only via local domain (LAN), TLS via DNS challenge |
-| `hybrid` | Apps exposed on both public and local domains simultaneously |
-
 ## Secret management
 
 Secrets are resolved in this priority order (highest first):
 
-1. **Shell environment** — `export CF_DNS_API_TOKEN=abc123`
+1. **Shell environment** — `export MY_SECRET=abc123`
 2. **`.stackr.env` file** — auto-created by `stackr init`, never committed
 3. **Auto-generated** — Stackr generates random secrets for required vars on first deploy
 
@@ -180,17 +172,16 @@ Secrets are resolved in this priority order (highest first):
 
 ```
 # DO NOT COMMIT THIS FILE
-CF_DNS_API_TOKEN=abc123
 MY_APP_SECRET=<auto-generated>
 ```
 
 ## CLI reference
 
 ```
-stackr init                   Initialise config and .stackr.env
+stackr init                   Interactive setup wizard — generates stackr.yml and .stackr.env
 stackr doctor                 Check Docker, networks, secrets, and catalog health
 stackr validate               Validate config without deploying
-stackr render <app>           Print generated compose YAML (debugging)
+stackr render <app>           Print generated compose YAML (for debugging)
 stackr plan                   Show what would change (diff against current state)
 stackr deploy [app]           Validate, render, pull images, and deploy
 stackr update                 Pull latest images, redeploy when images or config changed
@@ -198,14 +189,15 @@ stackr stop <app>             Stop a running app
 stackr restart <app>          Restart without full redeploy
 stackr remove <app>           Stop and remove an app's containers
 stackr rollback <app>         Redeploy using the last stored compose content
-stackr status [app]           Show status of all tracked apps
+stackr status [app]           Show running/stopped/drift status of all apps
 stackr logs <app>             Stream logs for an app
 stackr shell <app>            Open a shell inside the app's primary container
 stackr list [--category C]    List all catalog apps
 stackr search <query>         Search catalog by name or description
 stackr ui                     Launch the interactive TUI app browser
-stackr web [--port 8000]      Launch the web UI (foreground)
-stackr service install        Install web UI as a persistent background service
+stackr api [--port 7274]      Start the REST API server (OpenAPI docs at /api/docs)
+stackr web [--port 7274]      Open the web UI in a browser (requires stackr api)
+stackr service install        Install the API as a persistent background service
 stackr service uninstall      Remove the persistent service
 stackr service start          Start the service
 stackr service stop           Stop the service
@@ -226,98 +218,40 @@ stackr uninstall --yes        Skip all confirmation prompts
 
 ## App catalog
 
-51 apps across 11 categories. All are pre-listed in the config generated by `stackr init` — disabled by default, ready to toggle on.
+42 apps across 10 categories. All are pre-listed in the config generated by `stackr init` — disabled by default, ready to toggle on.
 
 ### Categories and apps
 
 | Category | Apps |
 |----------|------|
-| **network** | traefik, adguardhome, pihole, wireguard, headscale, nginx-proxy-manager |
-| **security** | socket-proxy, crowdsec, authentik, authelia, vaultwarden |
-| **media** | jellyfin, plex, radarr, sonarr, prowlarr, bazarr, lidarr, readarr, overseerr, jellyseerr, tdarr, sabnzbd, qbittorrent, transmission |
+| **network** | nginx-proxy-manager, adguardhome, pihole, wireguard, headscale, gluetun |
+| **security** | socket-proxy, crowdsec, pocket-id, tinyauth, vaultwarden |
+| **media** | jellyfin, plex, radarr, sonarr, prowlarr, bazarr, lidarr, readarr, seerr, tdarr, qbittorrent |
 | **monitoring** | uptime-kuma, grafana, prometheus, loki, netdata |
-| **management** | portainer, dozzle, watchtower, heimdall, dasherr, flame |
+| **management** | portainer, dozzle, watchtower, heimdall, flame |
 | **dashboard** | homepage |
-| **storage** | nextcloud, filebrowser, duplicati |
+| **storage** | filebrowser, duplicati |
 | **database** | postgres, mariadb, redis, mongo |
 | **ai** | ollama, open-webui |
-| **productivity** | gitea, paperless-ngx, freshrss, miniflux |
 | **gaming** | minecraft |
 
 ### Port semantics
 
-`ports` in `app.yml` is the container port for Traefik routing (passed to `traefik_labels()`).
+`ports` in `app.yml` is the container port (informational; used by the validator).
 `host_ports` in `app.yml` are actual host-bound ports checked for conflicts at validation time.
-Apps proxied by Traefik share container ports without conflict — only `host_ports` are unique.
-
-### Security stack
-
-Enable CrowdSec and an auth provider in your config:
-
-```yaml
-security:
-  socket_proxy: true
-  crowdsec: true           # requires crowdsec in apps:
-  auth_provider: authentik  # authentik | authelia | none
-
-apps:
-  - name: crowdsec
-    enabled: true
-  - name: authentik
-    enabled: true
-```
-
-Stackr automatically:
-- Validates that the auth provider app is in your `apps:` list
-- Validates that `crowdsec` is in `apps:` when `security.crowdsec: true`
-- Injects forward-auth middleware labels on Authentik/Authelia
-- Configures the CrowdSec bouncer plugin in Traefik
-- Shares Traefik access logs with the CrowdSec agent
-
-### Supported DNS providers
-
-| Provider | Required env vars |
-|----------|------------------|
-| Cloudflare | `CF_DNS_API_TOKEN` |
-| AWS Route 53 | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION` |
-| Porkbun | `PORKBUN_API_KEY`, `PORKBUN_SECRET_API_KEY` |
-| Namecheap | `NAMECHEAP_API_USER`, `NAMECHEAP_API_KEY` |
-| DigitalOcean | `DO_AUTH_TOKEN` |
-| DuckDNS | `DUCKDNS_TOKEN` |
-| GoDaddy | `GODADDY_API_KEY`, `GODADDY_API_SECRET` |
-| deSEC | `DESEC_TOKEN` |
-| Hetzner | `HETZNER_API_KEY` |
-| OVH | `OVH_ENDPOINT`, `OVH_APPLICATION_KEY`, `OVH_APPLICATION_SECRET`, `OVH_CONSUMER_KEY` |
-
-Stackr validates that all required env vars are present before deploying.
-
-### Catalog updates
-
-```bash
-# Download the latest catalog from GitHub
-stackr catalog update
-
-# Pin to a specific release
-stackr catalog update --tag v1.2.0
-
-# Show current catalog version and app count
-stackr catalog version
-```
-
-The downloaded catalog is stored at `~/.stackr/catalog/` and takes priority over the built-in one.
-To revert to the built-in catalog, remove `~/.stackr/catalog/`.
+Apps proxied through nginx-proxy-manager share container ports without conflict — only `host_ports` need to be unique across your stack.
 
 ### Adding a custom app
 
-Create the following structure:
+Create the following structure anywhere on disk (or inside `stackr/catalog/` for built-in apps):
 
 ```
-catalog/<category>/<app-name>/
-  app.yml           # metadata, ports, host_ports, volumes, deps
+my-catalog/my-app/
+  app.yml           # metadata, ports, host_ports, volumes, vars
   compose.yml.j2    # Jinja2 compose template
 ```
 
-Minimal `app.yml` for a Traefik-proxied app:
+Minimal `app.yml` for an NPM-proxied app:
 
 ```yaml
 name: my-app
@@ -325,11 +259,9 @@ display_name: My App
 description: What it does
 category: management
 homepage: https://...
-exposure: external
-requires:
-  - traefik
+requires: []
 ports:
-  - 8080          # container port passed to traefik_labels()
+  - 8080          # container port (informational)
 host_ports: []    # actual host-bound ports (for conflict detection)
 volumes:
   - name: config
@@ -352,29 +284,115 @@ services:
       - {{ global.data_dir }}/my-app/config:/config
     networks:
       - proxy
-    labels:
-{% for k, v in traefik_labels(8080).items() %}
-      - "{{ k }}={{ v }}"
-{% endfor %}
 
 networks:
   proxy:
     external: true
 ```
 
-For apps without a web UI (databases, VPN tunnels, daemon services), omit the `proxy` network
-and `traefik_labels()` entirely. See `catalog/database/postgres/` for an example.
+For apps without a web UI (databases, VPN tunnels, game servers), omit the `proxy` network entirely and declare any host-bound ports under `host_ports:` in `app.yml`. See `stackr/catalog/database/postgres/` for an example.
+
+Point Stackr at your custom catalog:
+
+```yaml
+# stackr.yml
+catalog:
+  source: local
+  local_path: ./my-catalog
+```
 
 ## State and rollback
 
-Stackr tracks every deployed app in `~/.stackr/state.json`. Each entry stores:
+Stackr tracks every deployed app in a SQLite database at `~/.stackr/stackr.db`. Each app record stores:
+
 - Full rendered compose YAML (for genuine rollback)
 - Compose content hash (for skip-unchanged detection)
-- Image digests per service (for upstream update detection)
-- Deployed timestamp
+- Image digests per service (for upstream update and drift detection)
+- Deployed timestamp and last error
 
 ```bash
 stackr rollback jellyfin   # redeploys from stored compose content
+```
+
+## Drift detection
+
+`stackr status` compares the live Docker image digest against the digest recorded at last deploy. When they differ the app is shown as `drift`:
+
+```
+┌ Stackr App Status ────────────────────────────────────┐
+│ App       Status    Deployed At          Last Error    │
+│ jellyfin  running   2026-05-25 20:14:22               │
+│ sonarr    drift     2026-05-23 11:30:01               │
+│ radarr    stopped   2026-05-20 09:05:44               │
+└───────────────────────────────────────────────────────┘
+```
+
+Run `stackr deploy sonarr` (or `stackr update`) to pull the new image and clear the drift.
+
+## REST API and web UI
+
+Stackr ships a FastAPI REST API that drives the browser dashboard. Start it with:
+
+```bash
+stackr api                    # listens on 0.0.0.0:7274
+stackr api --port 8080        # custom port
+```
+
+Interactive API docs are available at `http://localhost:7274/api/docs`.
+
+Once the API is running, open the dashboard:
+
+```bash
+stackr web                    # opens http://127.0.0.1:7274 in a browser
+stackr web --port 8080        # custom port
+```
+
+The dashboard provides:
+
+- App grid showing enabled/deployed/drift/stopped status for every configured app
+- One-click enable/disable toggle (updates `stackr.yml`)
+- Per-app and full-stack deploy buttons
+- Live log streaming via Server-Sent Events
+- **Full settings editor** — tabbed panel covering every config section: Global, Network, Security, Backup, Alerts, and Mounts CRUD
+- **Per-app var overrides** — type-aware form (string/select/boolean/integer) loaded inline from the catalog
+
+### CLI as API client
+
+When `stackr api` is reachable, the `deploy`, `validate`, and `status` CLI commands automatically proxy through it rather than running inline — so you see real-time progress from whichever terminal you're in:
+
+```bash
+# With API running: proxies through http://127.0.0.1:7274
+stackr deploy
+stackr validate
+stackr status
+
+# These always run inline regardless of API availability:
+stackr deploy --skip-pull
+stackr deploy --force
+```
+
+### Persistent service
+
+To keep the API running without a terminal session:
+
+```bash
+# Install and start as a background service
+stackr service install
+
+# Linux: systemd user service at ~/.config/systemd/user/stackr-api.service
+# macOS: launchd LaunchAgent at ~/Library/LaunchAgents/dev.stackr.api.plist
+
+# Manage the service
+stackr service status
+stackr service restart
+stackr service stop
+stackr service uninstall
+```
+
+The service starts automatically on login/reboot. Custom host, port, and config path can be set at install time:
+
+```bash
+stackr service install --host 0.0.0.0 --port 9000 --config /opt/stackr/stackr.yml
 ```
 
 ## Checking environment health
@@ -383,12 +401,12 @@ stackr rollback jellyfin   # redeploys from stored compose content
 stackr doctor
 ```
 
-Runs 8+ checks including:
+Runs checks including:
+
 - Docker daemon reachable
 - `docker compose` plugin installed
 - `proxy` and `socket_proxy` networks exist
-- State file is valid JSON
-- DNS provider env vars are set
+- State database is accessible
 - `.stackr.env` file exists
 - All enabled apps are in the catalog
 
@@ -414,8 +432,7 @@ stackr restore latest
 stackr restore abc1def2 --target /tmp/restore
 ```
 
-The restic repository password is auto-generated on first use and stored in `.stackr.env`
-as `STACKR_RESTIC_PASSWORD`.
+The restic repository password is auto-generated on first use and stored in `.stackr.env` as `STACKR_RESTIC_PASSWORD`.
 
 ## Alerts
 
@@ -458,11 +475,8 @@ mounts:
 ```
 
 ```bash
-# Mount all configured shares
-stackr mount
-
-# Unmount all configured shares
-stackr umount
+stackr mount     # mount all configured shares
+stackr umount    # unmount all configured shares
 ```
 
 **Requirements by mount type:**
@@ -485,60 +499,13 @@ stackr migrate --from deployrr --input my-deployrr-apps.txt --output stackr.yml
 stackr migrate --from deployrr
 ```
 
-Apps are matched against the Stackr catalog. Unmapped names are listed so you can
-add them manually.
-
-## Web UI
-
-A browser-based dashboard is included in the base install:
-
-```bash
-# Launch on localhost:8000 (foreground)
-stackr web
-
-# Custom host / port
-stackr web --host 0.0.0.0 --port 9000
-```
-
-The web UI provides:
-- App grid showing enabled/deployed status for every configured app
-- One-click enable/disable toggle (updates `stackr.yml`)
-- Per-app and full-stack deploy buttons
-- Live log streaming via Server-Sent Events
-- **Full settings editor** — tabbed panel covering every config section:
-  Global, Network, Traefik (with DNS env vars), Security, Backup, Alerts, and Mounts CRUD
-- **Per-app var overrides** — type-aware form (string/select/boolean/integer) loaded inline from the catalog
-
-### Persistent service
-
-To keep the web UI running without a terminal session:
-
-```bash
-# Install and start as a background service
-stackr service install
-
-# Linux: systemd user service at ~/.config/systemd/user/stackr-api.service
-# macOS: launchd LaunchAgent at ~/Library/LaunchAgents/dev.stackr.api.plist
-
-# Manage the service
-stackr service status
-stackr service restart
-stackr service stop
-stackr service uninstall
-```
-
-The service starts automatically on login/reboot. Custom host, port, and config path can be set at install time:
-
-```bash
-stackr service install --host 0.0.0.0 --port 9000 --config /opt/stackr/stackr.yml
-```
+Apps are matched against the Stackr catalog. Unmapped names are listed so you can add them manually.
 
 ## Interactive TUI
 
-The `stackr ui` command opens a full-terminal app browser built with [Textual](https://textual.textualize.io/). It is included in the base install — no extra required.
+The `stackr ui` command opens a full-terminal app browser built with [Textual](https://textual.textualize.io/). Included in the base install — no extras required.
 
 ```bash
-# Launch
 stackr ui
 stackr ui --config /path/to/stackr.yml
 ```
@@ -553,10 +520,9 @@ stackr ui --config /path/to/stackr.yml
 │ ▼ media            │                                     │
 │   ✓ jellyfin       │  Category:  media                   │
 │   ○ plex           │  Homepage:  https://jellyfin.org    │
-│ ▼ network          │  Requires:  traefik                 │
-│   ✓ traefik        │                                     │
-│   ○ pihole         │  Variables:                         │
-│                    │   • hardware_accel = 'none'          │
+│ ▼ network          │                                     │
+│   ✓ npm            │  Variables:                         │
+│   ○ pihole         │   • hardware_accel = 'none'          │
 │                    │     (vaapi, nvidia, intel_qsv)       │
 ├────────────────────┴─────────────────────────────────────┤
 │ Space toggle  •  S save  •  Q quit                       │
@@ -568,15 +534,11 @@ stackr ui --config /path/to/stackr.yml
 | Key | Action |
 |-----|--------|
 | `Space` | Toggle the highlighted app on/off |
-| `E` | Edit — open settings editor (when ⚙ Settings is selected) or edit mount (when a mount is selected) |
+| `E` | Edit settings or mount entry |
 | `A` | Add a new mount entry |
 | `D` | Delete the selected mount |
 | `S` | Save current state to `stackr.yml` |
 | `Q` | Quit |
-
-If `stackr.yml` already exists, the TUI pre-populates enabled/disabled state from it.
-Saving writes the complete toggle state back to the file, preserving existing `vars` and
-`overrides` for entries that were already present.
 
 ## Development
 
@@ -592,79 +554,82 @@ uv pip install -e ".[dev]"
 ### Running tests
 
 ```bash
-pytest tests/ -v
-pytest --cov=stackr --cov-report=term-missing
+source .venv/bin/activate && pytest tests/ -v
 ```
 
 ### Linting and type checking
 
 ```bash
-ruff check stackr tests
-mypy stackr
+source .venv/bin/activate && ruff check stackr/ tests/ && mypy stackr/
 ```
 
 ### Project structure
 
 ```
 stackr/
-  cli.py            Typer CLI — all user-facing commands
-  config.py         Pydantic config models (StackrConfig, AppConfig, …)
-  catalog.py        App catalog loader; prefers ~/.stackr/catalog/ over built-in
-  renderer.py       Jinja2 compose renderer + Traefik label generation
-  secrets.py        Secret resolution and .stackr.env management
-  state.py          State lock file (~/.stackr/state.json) with image digest tracking
-  deployer.py       Deploy orchestration, rollback, and image update detection
-  validator.py      Pre-deploy validation checks
-  doctor.py         Environment health checks (stackr doctor)
-  images.py         Image digest inspection and change detection
-  catalog_sync.py   GitHub catalog download and install
-  dns_providers.py  Registry of DNS providers and their required env vars
-  middleware.py     Traefik forward-auth and CrowdSec middleware label generators
-  network.py        Docker network helpers
-  status.py         Rich terminal status table
-  tui.py            Textual TUI app browser (stackr ui)
-  backup.py         Restic-based backup/restore (backup, restore, snapshots commands)
-  migrate.py        Deployrr → stackr.yml migration (stackr migrate)
-  alerts.py         Push notifications via ntfy, Gotify, or webhook
-  doctor.py         Environment health checks (stackr doctor)
-  mounts.py         Remote share mounting: SMB, NFS, Rclone (stackr mount/umount)
-  service.py        Persistent service management: systemd (Linux) / launchd (macOS)
-  web/              FastAPI + HTMX web UI (stackr web)
-    app.py          FastAPI application factory
-    routes.py       API route handlers
-    templates/      Jinja2 + HTMX HTML templates
+  cli.py              Typer CLI — all user-facing commands
+  status.py           Rich terminal status table (standalone / API-client)
+  service.py          Persistent service management: systemd (Linux) / launchd (macOS)
+  migrate.py          Deployrr → stackr.yml migration
 
-catalog/
-  ai/               ollama, open-webui
-  database/         postgres, mariadb, redis, mongo
-  gaming/           minecraft
-  management/       portainer, dozzle, watchtower, heimdall, dasherr, flame
-  media/            jellyfin, plex, radarr, sonarr, prowlarr, bazarr, lidarr,
-                    readarr, overseerr, jellyseerr, tdarr, sabnzbd, qbittorrent,
-                    transmission
-  monitoring/       uptime-kuma, grafana, prometheus, loki, netdata
-  network/          traefik, adguardhome, pihole, wireguard, headscale,
-                    nginx-proxy-manager
-  productivity/     gitea, paperless-ngx, freshrss, miniflux
-  security/         socket-proxy, crowdsec, authentik, authelia, vaultwarden
-  storage/          nextcloud, filebrowser, duplicati
-  dashboard/        homepage
+  engine/
+    config.py         Pydantic config models (StackrConfig, AppConfig, …)
+    catalog.py        App catalog loader; prefers ~/.stackr/catalog/ over built-in
+    renderer.py       Jinja2 compose renderer
+    secrets.py        Secret resolution and .stackr.env management
+    state.py          SQLite state DB (~/.stackr/stackr.db) with image digest tracking
+    deployer.py       Deploy orchestration and rollback
+    validator.py      Pre-deploy validation checks
+    docker.py         Docker SDK helpers: container status, image digests
+    alerts.py         Push notifications via ntfy, Gotify, or webhook
+    backup.py         Restic-based backup/restore
+    mounts.py         Remote share mounting: SMB, NFS, Rclone
+
+  api/
+    app.py            FastAPI application factory + startup DB reconciliation
+    deps.py           FastAPI dependency injection (DB, config, locks)
+    jobs.py           Thread-safe deploy job store
+    models.py         Pydantic API request/response models
+    routes/
+      apps.py         App CRUD, live status + drift detection, deploy/rollback
+      deploy.py       Full-stack deploy endpoint with background job
+      system.py       Health check, validation endpoint
+      catalog.py      Catalog browse endpoints
+      config.py       Config read/write endpoint
+      mounts.py       Mounts CRUD endpoint
+
+  catalog/
+    ai/               ollama, open-webui
+    dashboard/        homepage
+    database/         postgres, mariadb, redis, mongo
+    gaming/           minecraft
+    management/       portainer, dozzle, watchtower, heimdall, flame
+    media/            jellyfin, plex, radarr, sonarr, prowlarr, bazarr, lidarr,
+                      readarr, seerr, tdarr, qbittorrent
+    monitoring/       uptime-kuma, grafana, prometheus, loki, netdata
+    network/          nginx-proxy-manager, adguardhome, pihole, wireguard,
+                      headscale, gluetun
+    security/         socket-proxy, crowdsec, pocket-id, tinyauth, vaultwarden
+    storage/          filebrowser, duplicati
+
+  web/
+    app.py            Legacy HTMX app factory (superseded by stackr/api/)
+    routes.py         Legacy HTMX route handlers
 
 tests/
+  test_api_*.py           REST API route and model tests
+  test_api_drift.py       Drift detection and 5s status cache tests
+  test_cli_api_client.py  CLI API-proxy behaviour (probe, deploy, fallback)
+  test_cli_web.py         stackr web command tests
   test_catalog.py         Catalog loading and seed app presence
-  test_catalog_sync.py    GitHub catalog download logic
+  test_catalog_validation.py  CI suite: 5 checks × 42 apps
   test_config.py          Config schema and validation
   test_deployer.py        Deploy orchestration and rollback
-  test_dns_providers.py   DNS provider registry
-  test_doctor.py          Environment health checks
-  test_images.py          Image digest tracking
-  test_middleware.py      Traefik middleware label generators
   test_renderer.py        Jinja2 rendering and smoke tests for all apps
   test_secrets.py         Secret resolution and .stackr.env management
-  test_security_apps.py   Security stack app rendering and validation
-  test_state.py           State lock file and image digest persistence
-  test_tui.py             TUI helper functions; class/mount tests skip if textual absent
+  test_state.py           SQLite state DB and image digest persistence
   test_validator.py       Pre-deploy validation checks
+  test_*.py               One file per module
 ```
 
 ### Dependencies
@@ -679,16 +644,19 @@ tests/
 | `pyyaml` | YAML parsing |
 | `rich` | Terminal output |
 | `python-dotenv` | `.stackr.env` loading |
+| `docker` | Docker SDK (container status, image digests) |
 | `textual` | Terminal UI framework for `stackr ui` |
-| `fastapi` | ASGI web framework for `stackr web` |
-| `uvicorn` | ASGI server for `stackr web` |
+| `fastapi` | ASGI web framework for `stackr api` |
+| `uvicorn` | ASGI server for `stackr api` |
 
 **Development:**
 
 | Package | Purpose |
 |---------|---------|
 | `pytest` | Test runner |
+| `pytest-asyncio` | Async test support |
 | `pytest-mock` | Mocking utilities |
+| `httpx` | Test client for FastAPI routes |
 | `ruff` | Linting and formatting |
 | `mypy` | Static type checking |
 
@@ -698,7 +666,7 @@ GitHub Actions runs on every push and pull request:
 
 - `ruff check` — linting
 - `mypy` — type checking
-- `pytest` — full test suite with catalog render smoke test for all 51 seed apps
+- `pytest` — full test suite including catalog validation for all 42 apps
 
 ## License
 
