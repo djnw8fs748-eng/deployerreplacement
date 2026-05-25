@@ -80,17 +80,28 @@ info "Python $PYTHON_VERSION detected."
 # Even when ca-certificates is present, the package index may be stale so the
 # bundle can be outdated — refresh the index and reinstall to get current roots.
 if command -v apt-get >/dev/null 2>&1; then
-    # Sync clock first — VMs (Parallels, VirtualBox, WSL) often wake with a skewed
-    # clock that causes apt to reject release files as "not valid yet".
+    # Fix clock skew before touching apt.  VMs (Parallels, VirtualBox, WSL) often
+    # wake with clocks that are days or weeks behind, causing apt to reject release
+    # files as "not valid yet" and TLS handshakes to fail on recently-issued certs.
+    #
+    # Strategy: pull the current time from a plain HTTP Date header (no TLS, so
+    # clock skew doesn't block the request), then set the system clock from it.
+    # timedatectl set-ntp is also enabled so the clock stays correct going forward.
+    HTTP_DATE=$(curl -sI --max-time 5 http://google.com 2>/dev/null \
+        | grep -i '^date:' | head -1 | sed 's/[Dd]ate:[[:space:]]*//' | tr -d '\r\n')
+    if [[ -n "$HTTP_DATE" ]]; then
+        warn "Detected possible clock skew. Correcting system time from HTTP Date header..."
+        sudo date -s "$HTTP_DATE" >/dev/null 2>&1 \
+            || sudo timedatectl set-time "$HTTP_DATE" >/dev/null 2>&1 \
+            || true
+    fi
     if command -v timedatectl >/dev/null 2>&1; then
         sudo timedatectl set-ntp true 2>/dev/null || true
-        # Give systemd-timesyncd a moment to apply the correction.
-        sleep 2
     fi
 
     info "Refreshing package index and updating CA certificates..."
-    # -o Acquire::Check-Valid-Until=false: tolerate repos whose Release timestamp
-    # is ahead of the system clock (clock-skewed VMs).
+    # -o Acquire::Check-Valid-Until=false: belt-and-suspenders fallback in case the
+    # clock is still slightly off after the correction above.
     APT_OPTS="-o Acquire::Check-Valid-Until=false"
     sudo apt-get $APT_OPTS update -qq
     sudo apt-get $APT_OPTS install -y -qq ca-certificates
