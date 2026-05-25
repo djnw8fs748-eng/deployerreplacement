@@ -161,6 +161,11 @@ def validate(
     config_path: Annotated[Path, typer.Option("--config", "-c")] = _DEFAULT_CONFIG,
 ) -> None:
     """Validate stackr.yml without deploying."""
+    base = _api_base()
+    if base:
+        _api_validate(base)
+        return
+
     from stackr.engine.validator import validate as run_validate
 
     config, catalog, env, _ = _load(config_path)
@@ -248,6 +253,110 @@ def plan(
 
 
 # ---------------------------------------------------------------------------
+# API client helpers (used when stackr api is running at localhost:7274)
+# ---------------------------------------------------------------------------
+
+def _api_base(host: str = "127.0.0.1", port: int = 7274) -> str | None:
+    """Return base API URL if the service is reachable, else None."""
+    import urllib.request
+    try:
+        urllib.request.urlopen(f"http://{host}:{port}/api/v1/system/health", timeout=1)
+        return f"http://{host}:{port}/api/v1"
+    except Exception:
+        return None
+
+
+def _api_deploy(base: str, app_name: str | None) -> None:
+    """POST to API deploy endpoint, poll until done, print results."""
+    import json
+    import time
+    import urllib.request
+
+    endpoint = f"{base}/apps/{app_name}/deploy" if app_name else f"{base}/deploy"
+    req = urllib.request.Request(
+        endpoint, method="POST", data=b"{}", headers={"Content-Type": "application/json"}
+    )
+    with urllib.request.urlopen(req) as r:
+        job = json.loads(r.read())
+
+    console.print(f"  [cyan]→[/cyan] API job {job['job_id'][:8]}…")
+
+    while True:
+        time.sleep(1)
+        with urllib.request.urlopen(f"{base}/deploy/status") as r:
+            snap = json.loads(r.read())
+        if snap["status"] in ("done", "failed", "idle"):
+            break
+
+    for result in snap.get("results", []):
+        symbol = "[green]OK[/green]" if result.get("success") else "[red]FAIL[/red]"
+        console.print(f"  {symbol}    {result.get('app_name', '?')}")
+
+    if snap["status"] == "failed":
+        console.print(f"[red]Deploy failed: {snap.get('error')}[/red]")
+        raise typer.Exit(1)
+
+    console.print("[green]Done.[/green]")
+
+
+def _api_validate(base: str) -> None:
+    """POST to API validate endpoint and print results."""
+    import json
+    import urllib.request
+
+    req = urllib.request.Request(
+        f"{base}/system/validate",
+        method="POST",
+        data=b"{}",
+        headers={"Content-Type": "application/json"},
+    )
+    with urllib.request.urlopen(req) as r:
+        data = json.loads(r.read())
+
+    if data["ok"]:
+        console.print("[green]Validation passed.[/green]")
+    else:
+        console.print("[red]Validation failed:[/red]")
+        for err in data["errors"]:
+            console.print(f"  [red]ERROR[/red] {err['app']}: {err['message']}")
+    for warn in data.get("warnings", []):
+        console.print(f"  [yellow]WARN[/yellow]  {warn['app']}: {warn['message']}")
+    if not data["ok"]:
+        raise typer.Exit(1)
+
+
+def _api_status(base: str, app_name: str | None) -> None:
+    """GET app list from API and print as Rich table."""
+    import json
+    import urllib.request
+
+    url = f"{base}/apps/{app_name}" if app_name else f"{base}/apps"
+    with urllib.request.urlopen(url) as r:
+        data = json.loads(r.read())
+
+    apps = [data] if app_name else data
+
+    _STATUS_COLORS: dict[str, str] = {
+        "running": "green", "stopped": "red", "drift": "yellow",
+        "degraded": "red", "unknown": "dim",
+    }
+    tbl = Table(title="Stackr App Status", show_header=True, header_style="bold")
+    tbl.add_column("App", style="bold")
+    tbl.add_column("Status")
+    tbl.add_column("Deployed At")
+    tbl.add_column("Last Error")
+    for a in apps:
+        color = _STATUS_COLORS.get(a.get("status", "unknown"), "dim")
+        tbl.add_row(
+            a["name"],
+            f"[{color}]{a.get('status', 'unknown')}[/{color}]",
+            a.get("deployed_at") or "—",
+            a.get("last_error") or "",
+        )
+    console.print(tbl)
+
+
+# ---------------------------------------------------------------------------
 # stackr deploy
 # ---------------------------------------------------------------------------
 
@@ -261,6 +370,11 @@ def deploy(
     ] = False,
 ) -> None:
     """Deploy all enabled apps (or a single app)."""
+    base = _api_base()
+    if base and not skip_pull and not force:
+        _api_deploy(base, app_name)
+        return
+
     from stackr.engine.deployer import deploy_all as run_deploy
     from stackr.engine.validator import validate as run_validate
 
@@ -336,6 +450,11 @@ def status(
     config_path: Annotated[Path, typer.Option("--config", "-c")] = _DEFAULT_CONFIG,
 ) -> None:
     """Show running/stopped/drifted status of all apps."""
+    base = _api_base()
+    if base:
+        _api_status(base, app_name)
+        return
+
     from stackr.status import show_status
     _, _, _, state = _load(config_path)
     show_status(state, app_name=app_name)
