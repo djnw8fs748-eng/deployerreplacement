@@ -12,6 +12,10 @@ vars:
     options: [none, vaapi, nvidia, intel_qsv]
     default: none
     description: Hardware transcoding acceleration
+  version:
+    type: string
+    default: "latest"
+    description: Docker image tag
 ports:
   - 8096
 volumes:
