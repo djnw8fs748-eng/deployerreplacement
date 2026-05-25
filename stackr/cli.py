@@ -294,10 +294,14 @@ def _api_deploy(base: str, app_name: str | None) -> None:
             time.sleep(1)
             with urllib.request.urlopen(f"{base}/deploy/status", timeout=30) as r:
                 snap = json.loads(r.read())
-            if snap.get("status") in ("done", "failed", "idle"):
+            job_status = snap.get("status")
+            if job_status in ("done", "failed", "idle"):
                 break
+            if job_status is None:
+                console.print(f"[red]Unexpected API response (no status field): {snap}[/red]")
+                raise typer.Exit(1)
         else:
-            console.print("[red]Deploy timed out waiting for API response.[/red]")
+            console.print("[red]Deploy timed out after 300s.[/red]")
             raise typer.Exit(1)
 
         for result in snap.get("results", []):
