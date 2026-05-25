@@ -156,13 +156,24 @@ pipx install --force --pip-args="--quiet" "$REPO_URL"
 STACKR_VERSION=$(stackr --version 2>/dev/null || echo "unknown")
 info "Stackr ${STACKR_VERSION} installed successfully."
 
+# --- Register the API as a persistent background service ---
+# This installs a systemd user unit (Linux) or launchd agent (macOS) so the
+# API starts automatically on boot.  If this is a re-install the existing unit
+# is replaced.  Failure is non-fatal — the user can run 'stackr service install'
+# manually or start the API in the foreground with 'stackr api'.
+if stackr service install >/dev/null 2>&1; then
+    info "API service installed and started (auto-starts on boot)."
+else
+    warn "Could not install background service — run 'stackr service install' after setup."
+fi
+
 echo ""
 echo "  Next steps:"
 echo "    stackr init       # interactive setup wizard"
 echo "    stackr list       # browse available apps"
 echo "    stackr deploy     # deploy your stack"
 echo "    stackr ui         # open the terminal UI"
-echo "    stackr web        # start the web UI"
+echo "    stackr web        # open the web UI (API auto-starts if needed)"
 echo ""
 
 # --- PATH reload reminder ---
