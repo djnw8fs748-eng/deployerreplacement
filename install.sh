@@ -73,6 +73,13 @@ fi
 
 info "Python $PYTHON_VERSION detected."
 
+# --- Ensure CA certificates are installed (minimal Ubuntu/Debian images ship without them) ---
+# git cannot clone from GitHub over HTTPS without a valid CA bundle.
+if command -v apt-get >/dev/null 2>&1 && ! dpkg -s ca-certificates >/dev/null 2>&1; then
+    info "Installing ca-certificates (required for HTTPS git clone)..."
+    sudo apt-get install -y -qq ca-certificates
+fi
+
 # --- Install pipx if needed ---
 if ! command -v pipx >/dev/null 2>&1; then
     info "Installing pipx..."
