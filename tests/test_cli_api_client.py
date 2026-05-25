@@ -64,6 +64,7 @@ def test_deploy_uses_api_when_reachable():
     assert result.exit_code == 0
     mock_engine.assert_not_called()
     assert "Done" in result.output
+    assert "myapp" in result.output
 
 
 def test_deploy_falls_back_to_engine_when_api_not_reachable(tmp_path):

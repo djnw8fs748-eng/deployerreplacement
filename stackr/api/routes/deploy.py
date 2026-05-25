@@ -49,6 +49,8 @@ def _run_deploy_job(job: DeployJob, config_path: Path, app_name: str | None) -> 
             for r in results
         ]
         finish_job(job, results=serialized)
+        from stackr.api.routes.apps import _clear_status_cache  # local import to avoid circular
+        _clear_status_cache()
     except Exception as exc:
         finish_job(job, results=[], error=str(exc))
 

@@ -2,11 +2,12 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
 from stackr.engine.docker import docker_available, get_container_status
-from stackr.engine.state import AppState, StateDB
+from stackr.engine.state import StateDB
 
 # Two levels up from stackr/api/app.py -> stackr/ -> web/static/
 _STATIC_DIR = Path(__file__).parent.parent / "web" / "static"
@@ -23,7 +24,7 @@ async def _lifespan(app: Any):
             try:
                 cs = get_container_status(app_state.name)
                 if cs.status != app_state.status:
-                    db.set_app(AppState(**{**app_state.__dict__, "status": cs.status}))
+                    db.set_app(replace(app_state, status=cs.status))
             except Exception:
                 pass
     yield
