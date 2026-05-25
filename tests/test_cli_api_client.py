@@ -103,9 +103,10 @@ def test_deploy_skip_pull_always_uses_engine(tmp_path):
         patch("stackr.engine.validator.validate") as mock_val,
     ):
         mock_val.return_value = MagicMock(ok=True, errors=[], warnings=[])
-        runner.invoke(app, ["deploy", "--skip-pull", "--config", str(cfg)])
+        result = runner.invoke(app, ["deploy", "--skip-pull", "--config", str(cfg)])
 
     mock_engine.assert_called_once()
+    assert result.exit_code == 0
 
 
 def test_deploy_force_always_uses_engine(tmp_path):
