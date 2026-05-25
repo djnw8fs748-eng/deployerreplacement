@@ -77,12 +77,13 @@ info "Python $PYTHON_VERSION detected."
 # Minimal Ubuntu/Debian images may ship without ca-certificates, or have the
 # package installed but the bundle not yet built.  git uses libcurl which needs
 # GIT_SSL_CAINFO when it cannot auto-detect the system CA bundle (CAfile: none).
+# Even when ca-certificates is present, the package index may be stale so the
+# bundle can be outdated — refresh the index and reinstall to get current roots.
 if command -v apt-get >/dev/null 2>&1; then
-    if ! dpkg -s ca-certificates >/dev/null 2>&1; then
-        info "Installing ca-certificates (required for HTTPS git clone)..."
-        sudo apt-get install -y -qq ca-certificates
-    fi
-    # Rebuild the bundle and symlinks — no-op if already up to date.
+    info "Refreshing package index and updating CA certificates..."
+    sudo apt-get update -qq
+    sudo apt-get install -y -qq ca-certificates
+    # Rebuild the bundle and symlinks.
     sudo update-ca-certificates --fresh >/dev/null 2>&1 || true
 fi
 # Tell git's libcurl exactly where the CA bundle is, regardless of auto-detection.
