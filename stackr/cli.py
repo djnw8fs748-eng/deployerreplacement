@@ -648,32 +648,23 @@ def umount(
 
 @app.command()
 def web(
-    config_path: Annotated[Path, typer.Option("--config", "-c")] = _DEFAULT_CONFIG,
     host: Annotated[str, typer.Option("--host", "-H")] = "127.0.0.1",
-    port: Annotated[int, typer.Option("--port", "-p")] = 8000,
+    port: Annotated[int, typer.Option("--port", "-p")] = 7274,
 ) -> None:
-    """Launch the web UI."""
-    from stackr.web import HAS_FASTAPI
+    """Open the Stackr web UI in a browser (requires the API service to be running)."""
+    import urllib.request
+    import webbrowser
 
-    if not HAS_FASTAPI:
-        console.print(
-            "[red]FastAPI and Uvicorn are required for the web UI.[/red]"
-        )
-        raise typer.Exit(1)
-
+    url = f"http://{host}:{port}"
     try:
-        import uvicorn
-    except ImportError:
-        console.print(
-            "[red]Uvicorn is required for the web UI.[/red]"
-        )
+        urllib.request.urlopen(f"{url}/api/v1/system/health", timeout=2)
+    except Exception:
+        console.print(f"[red]Stackr API is not running at {url}.[/red]")
+        console.print("Start it first with: [bold]stackr api[/bold]")
         raise typer.Exit(1) from None
 
-    from stackr.web.app import create_app
-
-    console.print(f"Starting Stackr web UI on [bold]http://{host}:{port}[/bold]")
-    application = create_app(config_path)
-    uvicorn.run(application, host=host, port=port)
+    console.print(f"Opening [bold]{url}[/bold] in browser…")
+    webbrowser.open(url)
 
 
 # ---------------------------------------------------------------------------
